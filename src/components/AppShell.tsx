@@ -29,12 +29,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="main-content flex-1 flex flex-col" style={{ marginLeft: '256px' }}>
+      <div className="main-content flex-1 flex flex-col lg:ml-[256px] transition-all duration-300 w-full">
         <TopBar
           title={title}
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
           {children}
         </main>
       </div>
