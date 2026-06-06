@@ -8,22 +8,26 @@ import { usePathname } from 'next/navigation';
 const pageTitles: Record<string, string> = {
   '/': 'Home',
   '/lancar': 'Lançar Registro',
-  '/gerar-folhas': 'Gerar Folhas',
-  '/cadastros/turmas': 'Cadastros › Turmas',
+  '/folhas': 'Folhas de Acompanhamento',
   '/cadastros/alunos': 'Cadastros › Alunos',
-  '/cadastros/responsaveis': 'Cadastros › Responsáveis',
-  '/registros': 'Registros › Base de Dados',
-  '/registros/log': 'Registros › Log de Alterações',
+  '/cadastros/turmas': 'Cadastros › Turmas',
+  '/cadastros/professores': 'Cadastros › Professores',
+  '/cadastros/acompanhamentos': 'Cadastros › Acompanhamentos',
+  '/historico': 'Histórico',
   '/relatorios': 'Relatórios do Aluno',
-  '/relatorios/turma': 'Relatórios › Por Turma',
-  '/configuracoes': 'Configurações',
+  '/ranking': 'Ranking',
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  const title = pageTitles[pathname] || 'Nota 10 Educacional';
+  // Match dynamic routes like /cadastros/alunos/[id]
+  let title = pageTitles[pathname];
+  if (!title) {
+    if (pathname.startsWith('/cadastros/alunos/')) title = 'Cadastros › Página do Aluno';
+    else title = 'Nota 10 Educacional';
+  }
 
   return (
     <div className="flex min-h-screen">

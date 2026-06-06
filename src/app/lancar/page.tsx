@@ -1,382 +1,591 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Camera,
   FileEdit,
   CheckCircle2,
   AlertTriangle,
-  XCircle,
   Upload,
   RefreshCw,
   X,
-  Settings,
   Save,
-  ChevronDown,
   Trash2,
   ImageIcon,
+  Home,
+  BarChart3,
+  Database,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
+import {
+  alunos,
+  turmas,
+  professores,
+  disciplinas,
+  blocos,
+  acompanhamentoLabels,
+  getTurmasByAcompanhamento,
+  getAlunosByTurma,
+  type Acompanhamento,
+  type Presenca,
+  type TriState,
+  type Atencao,
+  type Pontualidade,
+} from '@/lib/mockData';
 
-type Produto = 'pre_cmt' | 'projeto_4' | 'reforco' | null;
 type ModoLancamento = 'foto' | 'formulario' | null;
 
-interface RecordRow {
-  id: number;
-  numAluno: string;
+interface AlunoFormRow {
+  alunoId: string;
   nome: string;
-  acertos: number;
-  erros: number;
-  aproveitamento: number;
-  status: 'reconhecido' | 'revisar' | 'nao_reconhecido';
+  presenca: Presenca;
+  video: TriState;
+  palavraChave: TriState;
+  fixacao: TriState;
+  praticar: TriState;
+  nota: string;
+  atencao: Atencao;
+  participacao: 1 | 2 | 3;
+  comportamento: 1 | 2 | 3;
+  observacao: string;
+  pontualidade: Pontualidade;
 }
 
-const mockRecords: RecordRow[] = [
-  { id: 1, numAluno: '0123', nome: 'Ana Clara Silva', acertos: 28, erros: 2, aproveitamento: 93, status: 'reconhecido' },
-  { id: 2, numAluno: '0124', nome: 'Bruno Santos Lima', acertos: 24, erros: 6, aproveitamento: 80, status: 'reconhecido' },
-  { id: 3, numAluno: '0125', nome: 'Carla Beatriz Rocha', acertos: 18, erros: 12, aproveitamento: 60, status: 'revisar' },
-  { id: 4, numAluno: '0126', nome: 'Davi Fernandes Costa', acertos: 26, erros: 4, aproveitamento: 87, status: 'reconhecido' },
-  { id: 5, numAluno: '0127', nome: 'Eduarda Martins Souza', acertos: 22, erros: 8, aproveitamento: 73, status: 'reconhecido' },
-  { id: 6, numAluno: '0128', nome: 'Felipe Almeida Oliveira', acertos: 15, erros: 15, aproveitamento: 50, status: 'revisar' },
-  { id: 7, numAluno: '0129', nome: 'Gabriela Pereira Santos', acertos: 29, erros: 1, aproveitamento: 97, status: 'reconhecido' },
-  { id: 8, numAluno: '0130', nome: 'Henrique Ribeiro Gomes', acertos: 20, erros: 10, aproveitamento: 67, status: 'reconhecido' },
-];
-
-const produtos = [
-  {
-    id: 'pre_cmt' as Produto,
-    label: 'Pré-CMT 5°',
-    icon: (
-      <div className="w-14 h-14 rounded-full bg-[var(--color-azul-lightest)] flex items-center justify-center">
-        <span className="text-xl font-extrabold text-[var(--color-azul-autoridade)]">5°</span>
-      </div>
-    ),
-  },
-  {
-    id: 'projeto_4' as Produto,
-    label: 'Projeto 4° Ano',
-    icon: (
-      <div className="w-14 h-14 rounded-full bg-[var(--color-amarelo-light)] flex items-center justify-center">
-        <span className="text-2xl">📖</span>
-      </div>
-    ),
-  },
-  {
-    id: 'reforco' as Produto,
-    label: 'Reforço',
-    icon: (
-      <div className="w-14 h-14 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center">
-        <span className="text-2xl">🔄</span>
-      </div>
-    ),
-  },
-];
-
 export default function LancarRegistroPage() {
-  const [selectedProduto, setSelectedProduto] = useState<Produto>('pre_cmt');
-  const [selectedModo, setSelectedModo] = useState<ModoLancamento>('foto');
-  const [fotoUploaded, setFotoUploaded] = useState(true);
-  const [showConferencia, setShowConferencia] = useState(true);
+  const [step, setStep] = useState(1);
+  const [selectedAcomp, setSelectedAcomp] = useState<Acompanhamento | null>(null);
+  const [selectedModo, setSelectedModo] = useState<ModoLancamento>(null);
+  const [selectedTurma, setSelectedTurma] = useState('');
+  const [selectedAluno, setSelectedAluno] = useState('');
+  const [selectedDisciplina, setSelectedDisciplina] = useState('');
+  const [selectedBloco, setSelectedBloco] = useState('');
+  const [selectedData, setSelectedData] = useState('2026-06-06');
+  const [selectedProfessor, setSelectedProfessor] = useState('');
+  const [fotoUploaded, setFotoUploaded] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  const statusIcon = (status: RecordRow['status']) => {
-    switch (status) {
-      case 'reconhecido':
-        return <span className="badge badge-success"><CheckCircle2 size={12} /> Reconhecido</span>;
-      case 'revisar':
-        return <span className="badge badge-warning"><AlertTriangle size={12} /> Revisar</span>;
-      case 'nao_reconhecido':
-        return <span className="badge badge-error"><XCircle size={12} /> Não reconhecido</span>;
-    }
-  };
+  const isReforco = selectedAcomp === 'reforco';
+  const isProjeto4 = selectedAcomp === 'projeto_4';
+  const turmasFiltradas = selectedAcomp ? getTurmasByAcompanhamento(selectedAcomp) : [];
+  const alunosTurma = selectedTurma ? getAlunosByTurma(selectedTurma) : [];
+  const alunosReforco = alunos.filter(a => a.acompanhamento === 'reforco');
 
-  const reconhecidos = mockRecords.filter((r) => r.status === 'reconhecido').length;
+  // Mock form data for conference
+  const mockFormRows: AlunoFormRow[] = (selectedTurma ? getAlunosByTurma(selectedTurma) : alunos.slice(0, 6)).map(a => ({
+    alunoId: a.id,
+    nome: a.nome,
+    presenca: 'presente',
+    video: 'fez',
+    palavraChave: 'metade',
+    fixacao: 'fez',
+    praticar: 'metade',
+    nota: '',
+    atencao: 'atento',
+    participacao: 2 as const,
+    comportamento: 3 as const,
+    observacao: '',
+    pontualidade: 'pontual',
+  }));
+
+  const acompanhamentos: { id: Acompanhamento; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'pre_cmt_5',
+      label: 'Pré-CMT 5º Ano',
+      icon: <div className="w-14 h-14 rounded-full bg-[var(--color-azul-lightest)] flex items-center justify-center"><span className="text-xl font-extrabold text-[var(--color-azul-autoridade)]">5º</span></div>,
+    },
+    {
+      id: 'projeto_4',
+      label: 'Projeto 4º Ano',
+      icon: <div className="w-14 h-14 rounded-full bg-[var(--color-amarelo-light)] flex items-center justify-center"><span className="text-xl font-extrabold text-[var(--color-amarelo-conquista)]">4º</span></div>,
+    },
+    {
+      id: 'reforco',
+      label: 'Reforço',
+      icon: <div className="w-14 h-14 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center"><span className="text-2xl">🔄</span></div>,
+    },
+  ];
+
+  // Step indicator
+  const steps = [
+    { num: 1, label: 'Acompanhamento' },
+    { num: 2, label: 'Modo de lançamento' },
+    { num: 3, label: isReforco ? 'Dados do aluno' : 'Dados da turma' },
+    { num: 4, label: 'Conferência' },
+    { num: 5, label: 'Salvar' },
+  ];
+
+  if (saved) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="card text-center py-12 animate-fade-in-up">
+          <div className="w-20 h-20 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 size={40} className="text-[var(--color-verde-sucesso)]" />
+          </div>
+          <h2 className="text-xl font-bold text-[var(--color-azul-autoridade)] mb-2">
+            Registro salvo com sucesso!
+          </h2>
+          <p className="text-[var(--color-cinza-texto)] mb-8">
+            O registro foi salvo no Histórico e já alimenta os relatórios e o ranking.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button onClick={() => { setSaved(false); setStep(1); setSelectedAcomp(null); setSelectedModo(null); }} className="btn btn-primary">
+              <FileEdit size={16} /> Novo lançamento
+            </button>
+            <Link href="/historico" className="btn btn-secondary no-underline">
+              <Database size={16} /> Abrir Histórico
+            </Link>
+            <Link href="/relatorios" className="btn btn-outline no-underline">
+              <BarChart3 size={16} /> Gerar Relatório
+            </Link>
+            <Link href="/" className="btn btn-outline no-underline">
+              <Home size={16} /> Voltar para Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Step 1: Escolher Produto */}
+      {/* Step Indicator */}
       <div className="card animate-fade-in-up">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="step-number">1</div>
-          <div>
-            <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">
-              Escolher Produto
-            </h2>
-            <p className="text-sm text-[var(--color-cinza-texto)] m-0">
-              Selecione o produto referente ao registro que será lançado.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {produtos.map((produto) => (
-            <button
-              key={produto.id}
-              onClick={() => setSelectedProduto(produto.id)}
-              className={`card-selectable relative flex flex-col items-center py-6 gap-3 rounded-xl border-2 transition-all ${
-                selectedProduto === produto.id
-                  ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
-                  : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
-              }`}
-            >
-              {selectedProduto === produto.id && (
-                <div className="check-overlay">
-                  <CheckCircle2 size={14} />
-                </div>
-              )}
-              {produto.icon}
-              <span className="font-bold text-sm text-[var(--color-azul-autoridade)]">
-                {produto.label}
+        <div className="flex items-center justify-between overflow-x-auto gap-2">
+          {steps.map((s, i) => (
+            <div key={s.num} className="flex items-center gap-2 flex-shrink-0">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                step === s.num ? 'bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-autoridade)]' :
+                step > s.num ? 'bg-[var(--color-verde-sucesso)] text-white' :
+                'bg-[var(--color-cinza-fundo)] text-[var(--color-cinza-texto)]'
+              }`}>
+                {step > s.num ? <CheckCircle2 size={16} /> : s.num}
+              </div>
+              <span className={`text-xs font-medium hidden sm:inline ${
+                step === s.num ? 'text-[var(--color-azul-autoridade)]' : 'text-[var(--color-cinza-texto)]'
+              }`}>
+                {s.label}
               </span>
-            </button>
+              {i < steps.length - 1 && (
+                <div className={`w-8 h-0.5 ${step > s.num ? 'bg-[var(--color-verde-sucesso)]' : 'bg-[var(--color-cinza-borda)]'}`} />
+              )}
+            </div>
           ))}
         </div>
       </div>
 
-      {/* Step 2: Modo de Lançamento + Upload */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Modo selection */}
-        <div className="lg:col-span-3 card animate-fade-in-up delay-1">
+      {/* Step 1: Escolher Acompanhamento */}
+      {step === 1 && (
+        <div className="card animate-fade-in-up">
           <div className="flex items-center gap-3 mb-4">
-            <div className="step-number">2</div>
+            <div className="step-number">1</div>
             <div>
-              <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">
-                Modo de lançamento
-              </h2>
-              <p className="text-sm text-[var(--color-cinza-texto)] m-0">
-                Escolha como deseja enviar ou preencher os registros.
-              </p>
+              <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">Escolher Acompanhamento</h2>
+              <p className="text-sm text-[var(--color-cinza-texto)] m-0">Selecione o acompanhamento referente ao registro que será lançado.</p>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {acompanhamentos.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setSelectedAcomp(a.id)}
+                className={`relative flex flex-col items-center py-6 gap-3 rounded-xl border-2 transition-all ${
+                  selectedAcomp === a.id
+                    ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
+                    : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
+                }`}
+              >
+                {selectedAcomp === a.id && (
+                  <div className="check-overlay"><CheckCircle2 size={14} /></div>
+                )}
+                {a.icon}
+                <span className="font-bold text-sm text-[var(--color-azul-autoridade)]">{a.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end mt-6">
             <button
-              onClick={() => setSelectedModo('foto')}
-              className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
-                selectedModo === 'foto'
-                  ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
-                  : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
-              }`}
+              className="btn btn-primary"
+              disabled={!selectedAcomp}
+              onClick={() => setStep(2)}
             >
-              {selectedModo === 'foto' && (
-                <div className="check-overlay">
-                  <CheckCircle2 size={14} />
-                </div>
-              )}
-              <div className="w-16 h-16 rounded-2xl bg-[var(--color-cinza-fundo)] flex items-center justify-center">
-                <Camera size={28} className="text-[var(--color-azul-autoridade)]" />
-              </div>
-              <div className="text-center">
-                <span className="font-bold text-sm text-[var(--color-azul-autoridade)] block">
-                  Enviar foto da folha
-                </span>
-                <span className="text-xs text-[var(--color-cinza-texto)] mt-1 block">
-                  Envie uma foto ou PDF da folha preenchida para reconhecimento automático.
-                </span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setSelectedModo('formulario')}
-              className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
-                selectedModo === 'formulario'
-                  ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
-                  : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
-              }`}
-            >
-              {selectedModo === 'formulario' && (
-                <div className="check-overlay">
-                  <CheckCircle2 size={14} />
-                </div>
-              )}
-              <div className="w-16 h-16 rounded-2xl bg-[var(--color-cinza-fundo)] flex items-center justify-center">
-                <FileEdit size={28} className="text-[var(--color-cinza-texto)]" />
-              </div>
-              <div className="text-center">
-                <span className="font-bold text-sm text-[var(--color-azul-autoridade)] block">
-                  Preencher formulário manual
-                </span>
-                <span className="text-xs text-[var(--color-cinza-texto)] mt-1 block">
-                  Preencha os registros diretamente no sistema, campo a campo.
-                </span>
-              </div>
+              Próximo <ArrowRight size={16} />
             </button>
           </div>
         </div>
+      )}
 
-        {/* Right: Upload area */}
-        <div className="lg:col-span-2 card animate-fade-in-up delay-2">
-          <h3 className="text-base font-bold text-[var(--color-azul-autoridade)] mb-1">
-            Foto da folha
-          </h3>
-          <p className="text-xs text-[var(--color-cinza-texto)] mb-4">
-            Envie a imagem da folha preenchida.
-          </p>
+      {/* Step 2: Modo de Lançamento + Seleção */}
+      {step === 2 && (
+        <div className="space-y-6 animate-fade-in-up">
+          <div className="card">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="step-number">2</div>
+              <div>
+                <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">Modo de lançamento</h2>
+                <p className="text-sm text-[var(--color-cinza-texto)] m-0">Escolha como deseja enviar ou preencher os registros.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={() => setSelectedModo('foto')}
+                className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
+                  selectedModo === 'foto'
+                    ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
+                    : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
+                }`}
+              >
+                {selectedModo === 'foto' && <div className="check-overlay"><CheckCircle2 size={14} /></div>}
+                <Camera size={28} className="text-[var(--color-azul-autoridade)]" />
+                <span className="font-bold text-sm text-[var(--color-azul-autoridade)]">Enviar foto da folha</span>
+                <span className="text-xs text-[var(--color-cinza-texto)]">Envie uma foto da folha preenchida</span>
+              </button>
+              <button
+                onClick={() => setSelectedModo('formulario')}
+                className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
+                  selectedModo === 'formulario'
+                    ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
+                    : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
+                }`}
+              >
+                {selectedModo === 'formulario' && <div className="check-overlay"><CheckCircle2 size={14} /></div>}
+                <FileEdit size={28} className="text-[var(--color-cinza-texto)]" />
+                <span className="font-bold text-sm text-[var(--color-azul-autoridade)]">Preencher formulário manual</span>
+                <span className="text-xs text-[var(--color-cinza-texto)]">Preencha os registros campo a campo</span>
+              </button>
+            </div>
 
-          {!fotoUploaded ? (
-            <div className="upload-zone" onClick={() => setFotoUploaded(true)}>
-              <Upload size={32} className="text-[var(--color-cinza-texto)] mx-auto mb-2" />
-              <p className="text-sm text-[var(--color-cinza-texto)] font-medium">
-                Clique para selecionar ou arraste a imagem aqui
-              </p>
-              <p className="text-xs text-[var(--color-cinza-texto)] mt-1">
-                Formatos aceitos: JPG, PNG, PDF (máx. 10MB)
-              </p>
+            {/* Selection fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-[var(--color-cinza-borda)]">
+              {!isReforco ? (
+                <div className="form-group">
+                  <label className="form-label">Turma</label>
+                  <select className="form-select" value={selectedTurma} onChange={e => setSelectedTurma(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {turmasFiltradas.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Aluno</label>
+                  <select className="form-select" value={selectedAluno} onChange={e => setSelectedAluno(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {alunosReforco.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Disciplina</label>
+                <select className="form-select" value={selectedDisciplina} onChange={e => setSelectedDisciplina(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {(isReforco ? ['Multidisciplinar'] : disciplinas).map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data</label>
+                <input type="date" className="form-input" value={selectedData} onChange={e => setSelectedData(e.target.value)} />
+              </div>
+              {!isReforco && (
+                <div className="form-group">
+                  <label className="form-label">Bloco (opcional)</label>
+                  <select className="form-select" value={selectedBloco} onChange={e => setSelectedBloco(e.target.value)}>
+                    <option value="">— Selecionar —</option>
+                    {blocos.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="form-label">Professor</label>
+                <select className="form-select" value={selectedProfessor} onChange={e => setSelectedProfessor(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {professores.filter(p => p.status === 'ativo').map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between">
+            <button className="btn btn-outline" onClick={() => setStep(1)}><ArrowLeft size={16} /> Voltar</button>
+            <button className="btn btn-primary" disabled={!selectedModo} onClick={() => setStep(3)}>
+              Próximo <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Data Entry (Photo upload OR Manual form) */}
+      {step === 3 && (
+        <div className="space-y-6 animate-fade-in-up">
+          {selectedModo === 'foto' ? (
+            <div className="card">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="step-number">3</div>
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">Enviar foto da folha</h2>
+                  <p className="text-sm text-[var(--color-cinza-texto)] m-0">Envie a imagem da folha preenchida para reconhecimento.</p>
+                </div>
+              </div>
+              {!fotoUploaded ? (
+                <div className="upload-zone" onClick={() => setFotoUploaded(true)}>
+                  <Upload size={40} className="text-[var(--color-cinza-texto)] mx-auto mb-3" />
+                  <p className="text-sm text-[var(--color-cinza-texto)] font-medium">Clique para selecionar ou arraste a imagem aqui</p>
+                  <p className="text-xs text-[var(--color-cinza-texto)] mt-1">Formatos: JPG, PNG, PDF (máx. 10MB)</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="upload-zone active p-4">
+                    <CheckCircle2 size={24} className="text-[var(--color-verde-sucesso)] mx-auto mb-1" />
+                    <p className="text-xs text-[var(--color-verde-sucesso)] font-medium">Imagem carregada com sucesso</p>
+                  </div>
+                  <div className="border border-[var(--color-cinza-borda)] rounded-lg p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-16 h-20 bg-[var(--color-cinza-fundo)] rounded-lg flex items-center justify-center flex-shrink-0">
+                        <ImageIcon size={24} className="text-[var(--color-cinza-texto)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[var(--color-azul-autoridade)] truncate">Folha_{selectedAcomp}_06jun.jpg</p>
+                        <p className="text-xs text-[var(--color-cinza-texto)]">Enviado em: 06/06/2026 14:32</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)]" />
+                          <span className="text-xs font-medium text-[var(--color-verde-sucesso)]">Imagem capturada</span>
+                        </div>
+                      </div>
+                      <button className="p-1 hover:bg-[var(--color-vermelho-light)] rounded" onClick={() => setFotoUploaded(false)}>
+                        <Trash2 size={16} className="text-[var(--color-vermelho-erro)]" />
+                      </button>
+                    </div>
+                    <button className="btn btn-outline w-full mt-3 text-xs" onClick={() => setFotoUploaded(false)}>
+                      <RefreshCw size={14} /> Trocar imagem
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="upload-zone active p-4">
-                <Upload size={24} className="text-[var(--color-verde-sucesso)] mx-auto mb-1" />
-                <p className="text-xs text-[var(--color-verde-sucesso)] font-medium">
-                  Imagem carregada
-                </p>
-              </div>
-
-              <div className="border border-[var(--color-cinza-borda)] rounded-lg p-3">
-                <p className="text-sm font-medium text-[var(--color-cinza-escuro)] mb-0.5">
-                  Arquivo enviado
-                </p>
-                <div className="flex items-start gap-3 mt-2">
-                  <div className="w-16 h-20 bg-[var(--color-cinza-fundo)] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <ImageIcon size={24} className="text-[var(--color-cinza-texto)]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--color-azul-autoridade)] truncate">
-                      Folha_PreCMT5_TurmaA_10mai.jpg
-                    </p>
-                    <p className="text-xs text-[var(--color-cinza-texto)]">
-                      Enviado em: 10/05/2025 14:32
-                    </p>
-                    <p className="text-xs text-[var(--color-cinza-texto)]">
-                      Tamanho: 1.2 MB
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)]" />
-                      <span className="text-xs font-medium text-[var(--color-verde-sucesso)]">
-                        Imagem capturada com sucesso
-                      </span>
-                    </div>
-                  </div>
-                  <button className="p-1 hover:bg-[var(--color-vermelho-light)] rounded transition-colors">
-                    <Trash2 size={16} className="text-[var(--color-vermelho-erro)]" />
-                  </button>
+            /* Manual form — Tabela espelhando a folha */
+            <div className="card">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="step-number">3</div>
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">
+                    Preencher registro — {selectedAcomp ? acompanhamentoLabels[selectedAcomp] : ''}
+                  </h2>
+                  <p className="text-sm text-[var(--color-cinza-texto)] m-0">Preencha os campos conforme a folha física.</p>
                 </div>
-
-                <button
-                  className="btn btn-outline w-full mt-3 text-xs"
-                  onClick={() => setFotoUploaded(false)}
-                >
-                  <RefreshCw size={14} />
-                  Trocar imagem
-                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="data-table text-xs">
+                  <thead>
+                    <tr>
+                      <th className="w-8">#</th>
+                      <th>Aluno</th>
+                      <th>Presença</th>
+                      {selectedAcomp === 'pre_cmt_5' && <th>Vídeo</th>}
+                      {selectedAcomp === 'pre_cmt_5' && <th>P. Chave</th>}
+                      <th>Fixação</th>
+                      <th>Praticar</th>
+                      <th>Atenção</th>
+                      <th>Partic.</th>
+                      <th>Comport.</th>
+                      <th>Obs.</th>
+                      <th>Pontualid.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mockFormRows.slice(0, isReforco ? 1 : undefined).map((row, i) => (
+                      <tr key={row.alunoId}>
+                        <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>
+                        <td className="font-medium whitespace-nowrap text-sm">{row.nome}</td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 90 }}>
+                            <option value="presente">Presente</option>
+                            <option value="atrasado">Atrasado</option>
+                            <option value="faltou">Faltou</option>
+                          </select>
+                        </td>
+                        {selectedAcomp === 'pre_cmt_5' && (
+                          <td>
+                            <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }}>
+                              <option value="nao_fez">Não Fez</option>
+                              <option value="metade">Metade</option>
+                              <option value="fez">Fez</option>
+                            </select>
+                          </td>
+                        )}
+                        {selectedAcomp === 'pre_cmt_5' && (
+                          <td>
+                            <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }}>
+                              <option value="nao_fez">Não Fez</option>
+                              <option value="metade">Metade</option>
+                              <option value="fez">Fez</option>
+                            </select>
+                          </td>
+                        )}
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }}>
+                            <option value="nao_fez">Não Fez</option>
+                            <option value="metade">Metade</option>
+                            <option value="fez">Fez</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }}>
+                            <option value="nao_fez">Não Fez</option>
+                            <option value="metade">Metade</option>
+                            <option value="fez">Fez</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 100 }}>
+                            <option value="desinteressado">Desinteressado</option>
+                            <option value="distraido">Distraído</option>
+                            <option value="atento">Atento</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }}>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }}>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input className="form-input text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} placeholder="Obs..." />
+                        </td>
+                        <td>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }}>
+                            <option value="pontual">Pontual</option>
+                            <option value="atrasado">Atrasado</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Tela de Conferência */}
-      {showConferencia && (
-        <div className="card animate-fade-in-up delay-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h3 className="text-base font-bold text-[var(--color-azul-autoridade)] m-0">
-                Tela de conferência
-              </h3>
-              <p className="text-sm text-[var(--color-cinza-texto)] m-0">
-                Confira os dados reconhecidos. Edite se necessário antes de processar.
-              </p>
+          <div className="flex justify-between">
+            <button className="btn btn-outline" onClick={() => setStep(2)}><ArrowLeft size={16} /> Voltar</button>
+            <button className="btn btn-primary" onClick={() => setStep(4)}>
+              Próximo — Conferir <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Conference */}
+      {step === 4 && (
+        <div className="space-y-6 animate-fade-in-up">
+          <div className="card">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="step-number">4</div>
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">Conferência</h2>
+                  <p className="text-sm text-[var(--color-cinza-texto)] m-0">Confira os dados antes de salvar. Edite se necessário.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="badge badge-success text-sm">
+                  <CheckCircle2 size={14} /> {mockFormRows.length} registros
+                </span>
+                {selectedModo === 'foto' && (
+                  <>
+                    <span className="badge badge-warning text-sm">
+                      <AlertTriangle size={14} /> 2 marcações duvidosas
+                    </span>
+                    <button className="btn btn-outline text-xs">
+                      <RefreshCw size={14} /> Reprocessar imagem
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="badge badge-success text-sm">
-                <CheckCircle2 size={14} />
-                {reconhecidos} registros reconhecidos
-              </span>
-              <button className="btn btn-outline text-xs">
-                <RefreshCw size={14} />
-                Reprocessar imagem
+
+            {selectedModo === 'foto' && (
+              <div className="bg-[var(--color-amarelo-alerta-light)] border border-[var(--color-amarelo-alerta)] rounded-xl p-3 mb-4 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-[var(--color-amarelo-alerta)] flex-shrink-0" />
+                <span className="text-sm text-[var(--color-cinza-escuro)]">
+                  <strong>Atenção:</strong> 2 marcações não foram reconhecidas com segurança. Revise os itens destacados em amarelo.
+                </span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="data-table text-xs">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Aluno</th>
+                    <th>Presença</th>
+                    {selectedAcomp === 'pre_cmt_5' && <th>Vídeo</th>}
+                    {selectedAcomp === 'pre_cmt_5' && <th>P. Chave</th>}
+                    <th>Fixação</th>
+                    <th>Praticar</th>
+                    <th>Atenção</th>
+                    <th>Partic.</th>
+                    <th>Comport.</th>
+                    <th>Pontualid.</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mockFormRows.map((row, i) => (
+                    <tr key={row.alunoId} className={i === 2 || i === 5 ? 'row-warning' : ''}>
+                      <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>
+                      <td className="font-medium whitespace-nowrap">{row.nome}</td>
+                      <td><span className="badge badge-success text-[10px]">Presente</span></td>
+                      {selectedAcomp === 'pre_cmt_5' && <td className="font-semibold text-[var(--color-verde-sucesso)]">Fez</td>}
+                      {selectedAcomp === 'pre_cmt_5' && <td className="font-semibold text-[var(--color-amarelo-alerta)]">Metade</td>}
+                      <td className="font-semibold text-[var(--color-verde-sucesso)]">Fez</td>
+                      <td className="font-semibold text-[var(--color-amarelo-alerta)]">Metade</td>
+                      <td className="font-semibold text-[var(--color-verde-sucesso)]">Atento</td>
+                      <td className="text-center font-bold">2</td>
+                      <td className="text-center font-bold">3</td>
+                      <td><span className="badge badge-success text-[10px]">Pontual</span></td>
+                      <td>
+                        {i === 2 || i === 5 ? (
+                          <span className="badge badge-warning"><AlertTriangle size={10} /> Revisar</span>
+                        ) : (
+                          <span className="badge badge-success"><CheckCircle2 size={10} /> OK</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-[var(--color-cinza-borda)]">
+              <div className="flex items-center gap-1.5 text-xs text-[var(--color-cinza-texto)]">
+                <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)]" /> Reconhecido com confiança
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-[var(--color-cinza-texto)]">
+                <AlertTriangle size={14} className="text-[var(--color-amarelo-alerta)]" /> Revisar dado
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between">
+            <button className="btn btn-outline" onClick={() => setStep(3)}><ArrowLeft size={16} /> Voltar</button>
+            <div className="flex gap-3">
+              <button className="btn btn-outline" onClick={() => { setStep(1); setSelectedAcomp(null); }}>
+                <X size={16} /> Cancelar
+              </button>
+              <button className="btn btn-primary" onClick={() => { setStep(5); setSaved(true); }}>
+                <Save size={16} /> Salvar registro
               </button>
             </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="w-12">#</th>
-                  <th>Nº Aluno</th>
-                  <th>Nome do Aluno</th>
-                  <th className="text-center">Acertos</th>
-                  <th className="text-center">Erros</th>
-                  <th className="text-center">% Aproveitamento</th>
-                  <th className="text-center">Situação</th>
-                  <th className="w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockRecords.map((record) => (
-                  <tr
-                    key={record.id}
-                    className={record.status === 'revisar' ? 'row-warning' : ''}
-                  >
-                    <td className="font-bold text-[var(--color-azul-autoridade)]">{record.id}</td>
-                    <td className="font-mono text-sm">{record.numAluno}</td>
-                    <td className="font-medium">{record.nome}</td>
-                    <td className="text-center font-semibold">{record.acertos}</td>
-                    <td className="text-center font-semibold">{record.erros}</td>
-                    <td className="text-center">
-                      <span
-                        className={`font-bold ${
-                          record.aproveitamento >= 80
-                            ? 'text-[var(--color-verde-sucesso)]'
-                            : record.aproveitamento >= 60
-                            ? 'text-[var(--color-amarelo-alerta)]'
-                            : 'text-[var(--color-vermelho-erro)]'
-                        }`}
-                      >
-                        {record.aproveitamento}%
-                      </span>
-                    </td>
-                    <td className="text-center">{statusIcon(record.status)}</td>
-                    <td>
-                      <button className="p-1 hover:bg-[var(--color-cinza-fundo)] rounded">
-                        <ChevronDown size={16} className="text-[var(--color-cinza-texto)]" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-[var(--color-cinza-borda)]">
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-cinza-texto)]">
-              <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)]" />
-              Reconhecido com confiança
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-cinza-texto)]">
-              <AlertTriangle size={14} className="text-[var(--color-amarelo-alerta)]" />
-              Revisar dado
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-cinza-texto)]">
-              <XCircle size={14} className="text-[var(--color-vermelho-erro)]" />
-              Não reconhecido
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-cinza-borda)]">
-            <button className="btn btn-outline w-full sm:w-auto">
-              <X size={16} />
-              Cancelar
-            </button>
-            <button className="btn btn-secondary w-full sm:w-auto">
-              <Settings size={16} />
-              Processar
-            </button>
-            <button className="btn btn-primary w-full sm:w-auto">
-              <Save size={16} />
-              Salvar registro
-            </button>
           </div>
         </div>
       )}

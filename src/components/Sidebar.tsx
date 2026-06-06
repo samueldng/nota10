@@ -16,10 +16,9 @@ import {
   GraduationCap,
   UserCheck,
   BookOpen,
-  ClipboardList,
   History,
-  UserCircle,
-  TrendingUp,
+  Trophy,
+  UserCog,
 } from 'lucide-react';
 
 interface SubItem {
@@ -38,43 +37,32 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Home', href: '/', icon: <Home size={20} /> },
   { label: 'Lançar Registro', href: '/lancar', icon: <FileEdit size={20} /> },
-  { label: 'Gerar Folhas', href: '/gerar-folhas', icon: <FileText size={20} /> },
+  { label: 'Folhas de Acompanhamento', href: '/folhas', icon: <FileText size={20} /> },
   {
     label: 'Cadastros',
     href: '/cadastros',
     icon: <Users size={20} />,
     subItems: [
-      { label: 'Turmas', href: '/cadastros/turmas', icon: <GraduationCap size={16} /> },
       { label: 'Alunos', href: '/cadastros/alunos', icon: <UserCheck size={16} /> },
-      { label: 'Responsáveis', href: '/cadastros/responsaveis', icon: <UserCircle size={16} /> },
+      { label: 'Turmas', href: '/cadastros/turmas', icon: <GraduationCap size={16} /> },
+      { label: 'Professores', href: '/cadastros/professores', icon: <UserCog size={16} /> },
+      { label: 'Acompanhamentos', href: '/cadastros/acompanhamentos', icon: <BookOpen size={16} /> },
     ],
   },
   {
-    label: 'Registros',
-    href: '/registros',
+    label: 'Histórico',
+    href: '/historico',
     icon: <Database size={20} />,
-    subItems: [
-      { label: 'Base de Dados', href: '/registros', icon: <ClipboardList size={16} /> },
-      { label: 'Log de Alterações', href: '/registros/log', icon: <History size={16} /> },
-    ],
   },
   {
     label: 'Relatórios',
     href: '/relatorios',
     icon: <BarChart3 size={20} />,
-    subItems: [
-      { label: 'Por Aluno', href: '/relatorios', icon: <TrendingUp size={16} /> },
-      { label: 'Por Turma', href: '/relatorios/turma', icon: <BookOpen size={16} /> },
-    ],
   },
   {
-    label: 'Configurações',
-    href: '/configuracoes',
-    icon: <Settings size={20} />,
-    subItems: [
-      { label: 'Usuários', href: '/configuracoes/usuarios', icon: <Users size={16} /> },
-      { label: 'Sistema', href: '/configuracoes/sistema', icon: <Settings size={16} /> },
-    ],
+    label: 'Ranking',
+    href: '/ranking',
+    icon: <Trophy size={20} />,
   },
 ];
 
