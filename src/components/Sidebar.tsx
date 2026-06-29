@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import {
   Home,
   FileEdit,
@@ -10,15 +11,16 @@ import {
   Users,
   Database,
   BarChart3,
-  Settings,
   ChevronDown,
   Star,
   GraduationCap,
   UserCheck,
   BookOpen,
-  History,
   Trophy,
   UserCog,
+  LogOut,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 interface SubItem {
@@ -73,6 +75,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { logout, isDbOnline } = useAuth();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   const toggleMenu = (label: string) => {
@@ -160,14 +163,38 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Footer */}
-        <div className="sidebar-footer">
-          <div className="flex items-start gap-2">
-            <Star size={16} className="text-[var(--color-amarelo-conquista)] mt-0.5 flex-shrink-0" fill="currentColor" />
-            <div>
-              <p className="text-white/90 text-xs font-medium leading-tight">Gestão escolar</p>
-              <p className="text-white/50 text-xs leading-tight">simples, precisa e eficiente.</p>
+        {/* Footer info & Logout */}
+        <div className="sidebar-footer space-y-4">
+          {/* Database Connectivity Indicator */}
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-white/90">
+            {isDbOnline ? (
+              <>
+                <Wifi size={12} className="text-[var(--color-verde-sucesso)]" />
+                <span className="text-white/90">Supabase Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={12} className="text-[var(--color-amarelo-conquista)]" />
+                <span className="text-[var(--color-amarelo-conquista)]">Banco: Modo Demo (Local)</span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-white/10 pt-3">
+            <div className="flex items-start gap-1.5">
+              <Star size={14} className="text-[var(--color-amarelo-conquista)] mt-0.5 flex-shrink-0" fill="currentColor" />
+              <div>
+                <p className="text-white/90 text-[10px] font-medium leading-none">Gestão escolar</p>
+                <p className="text-white/40 text-[9px] mt-0.5">simples e precisa</p>
+              </div>
             </div>
+            <button
+              onClick={logout}
+              className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+              title="Sair da Conta"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
