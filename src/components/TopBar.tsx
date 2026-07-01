@@ -19,16 +19,14 @@ export default function TopBar({ title, onMenuToggle, userRole }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="flex items-center gap-4">
-        {/* Toggle button - only visible on admin layout mobile */}
-        {user?.role === 'admin' && (
-          <button
-            onClick={onMenuToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-[var(--color-cinza-fundo)] transition-colors"
-            aria-label="Abrir menu"
-          >
-            <Menu size={22} className="text-[var(--color-azul-autoridade)]" />
-          </button>
-        )}
+        {/* Toggle button - visible on mobile layouts */}
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden p-2 rounded-lg hover:bg-[var(--color-cinza-fundo)] transition-colors"
+          aria-label="Abrir menu"
+        >
+          <Menu size={22} className="text-[var(--color-azul-autoridade)]" />
+        </button>
         <h1 className="text-lg font-bold text-[var(--color-azul-autoridade)] m-0">
           {title}
         </h1>
