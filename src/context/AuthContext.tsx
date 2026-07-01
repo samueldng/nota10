@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getProfessores, getAlunos } from '@/lib/api';
-import type { Aluno } from '@/lib/mockData';
+import type { Aluno, PlanoAluno } from '@/lib/mockData';
 
 export type UserRole = 'admin' | 'parent';
 
@@ -13,6 +13,10 @@ export interface AuthUser {
   alunoId?: string; // Only for parents
   alunoNumero?: string; // Only for parents
   alunoNome?: string; // Only for parents
+  plano?: PlanoAluno; // Only for parents
+  turmaId?: string; // Only for parents
+  turma?: string; // Only for parents
+  primeiroAcesso?: boolean; // Only for parents
 }
 
 interface AuthContextType {
@@ -113,10 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsParent = async (matriculaOrTelefone: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      if (password !== '123456') {
-        return { success: false, error: 'Senha incorreta (use a padrão 123456).' };
-      }
-
       // Fetch students from DB/mock
       const alunos = await getAlunos();
       const cleanInput = matriculaOrTelefone.replace(/\D/g, '');
@@ -132,12 +132,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: 'Matrícula ou celular não encontrado.' };
       }
 
+      // Check password: match either student's senhaInicial or standard 123456
+      const validPasswords = ['123456', aluno.senhaInicial, (aluno.responsavel1?.telefone || '').slice(-4)].filter(Boolean);
+      if (!validPasswords.includes(password)) {
+        return { success: false, error: `Senha incorreta. Use a do aluno (${aluno.senhaInicial || 'não configurada'}) ou 123456.` };
+      }
+
       const sessionUser: AuthUser = {
         name: aluno.responsavel1?.nome || `Responsável de ${aluno.nome}`,
         role: 'parent',
         alunoId: aluno.id,
         alunoNumero: aluno.numero,
-        alunoNome: aluno.nome
+        alunoNome: aluno.nome,
+        plano: aluno.plano || 'padrao',
+        turmaId: aluno.turmaId,
+        turma: aluno.turma,
+        primeiroAcesso: aluno.primeiroAcesso || false,
       };
       setUser(sessionUser);
       localStorage.setItem('nota10_session', JSON.stringify(sessionUser));

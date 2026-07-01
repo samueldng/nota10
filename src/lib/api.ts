@@ -46,18 +46,27 @@ export async function getAlunos(): Promise<Aluno[]> {
   try {
     const { data, error } = await supabase.from('alunos').select('*').order('nome');
     if (error) throw error;
-    return data.map(d => ({
-      id: d.id,
-      numero: d.numero,
-      nome: d.nome,
-      turmaId: d.turma_id,
-      turma: d.turma_nome,
-      acompanhamento: d.acompanhamento,
-      status: d.status,
-      responsavel1: { nome: d.responsavel1_nome, telefone: d.responsavel1_telefone },
-      responsavel2: { nome: d.responsavel2_nome, telefone: d.responsavel2_telefone },
-      endereco: { rua: d.endereco_rua, bairro: d.endereco_bairro, cidade: d.endereco_cidade }
-    })) as Aluno[];
+    return data.map(d => {
+      const mockAluno = mock.alunos.find(ma => ma.numero === d.numero || ma.nome === d.nome);
+      return {
+        id: d.id,
+        numero: d.numero,
+        nome: d.nome,
+        turmaId: d.turma_id,
+        turma: d.turma_nome,
+        acompanhamento: d.acompanhamento,
+        status: d.status,
+        responsavel1: { nome: d.responsavel1_nome, telefone: d.responsavel1_telefone },
+        responsavel2: { nome: d.responsavel2_nome, telefone: d.responsavel2_telefone },
+        endereco: { rua: d.endereco_rua, bairro: d.endereco_bairro, cidade: d.endereco_cidade },
+        // Fallback to mock values for newly added portal fields if missing in DB
+        plano: d.plano || mockAluno?.plano || 'padrao',
+        senhaInicial: d.senha_inicial || mockAluno?.senhaInicial || '123456',
+        primeiroAcesso: d.primeiro_acesso !== undefined && d.primeiro_acesso !== null
+          ? d.primeiro_acesso
+          : (mockAluno?.primeiroAcesso || false)
+      };
+    }) as Aluno[];
   } catch (err) {
     console.warn("Supabase getAlunos failed, falling back to mock data:", err);
     return mock.alunos;

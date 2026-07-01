@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import PortalSidebar from '@/components/PortalSidebar';
 import TopBar from '@/components/TopBar';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Star } from 'lucide-react';
+import { planoLabels } from '@/lib/mockData';
 
 const pageTitles: Record<string, string> = {
   '/': 'Home',
@@ -15,10 +17,22 @@ const pageTitles: Record<string, string> = {
   '/cadastros/turmas': 'Cadastros › Turmas',
   '/cadastros/professores': 'Cadastros › Professores',
   '/cadastros/acompanhamentos': 'Cadastros › Acompanhamentos',
+  '/cadastros/cronograma': 'Cadastros › Cronograma Semanal',
+  '/cadastros/conteudo': 'Cadastros › Conteúdo do Portal',
   '/historico': 'Histórico',
   '/relatorios': 'Relatórios do Aluno',
   '/ranking': 'Ranking',
-  '/responsavel': 'Portal do Aluno',
+  // Portal pages
+  '/portal': 'Início',
+  '/portal/bem-vindos': 'Bem-vindos',
+  '/portal/trilha': 'Trilha de Estudos',
+  '/portal/videoaulas': 'Videoaulas',
+  '/portal/simulados': 'Simulados',
+  '/portal/acompanhamento': 'Acompanhamento',
+  '/portal/relatorios': 'Relatórios',
+  '/portal/materiais': 'Materiais',
+  '/portal/comunicados': 'Comunicados',
+  '/portal/suporte': 'Suporte',
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -42,11 +56,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (user.role === 'admin') {
           router.push('/');
         } else {
-          router.push('/responsavel');
+          router.push('/portal');
         }
-      } else if (user.role === 'parent' && pathname !== '/responsavel') {
-        // Parents can ONLY access the parent dashboard
-        router.push('/responsavel');
+      } else if (user.role === 'parent') {
+        // Parents can ONLY access portal routes
+        if (!pathname.startsWith('/portal')) {
+          router.push('/portal');
+        }
+      } else if (user.role === 'admin') {
+        // Admins should not access portal routes
+        if (pathname.startsWith('/portal')) {
+          router.push('/');
+        }
       }
     }
   }, [isAuthenticated, user, isLoading, pathname, router]);
@@ -78,23 +99,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  // Parents Area Layout (Bypasses sidebar/management panel)
-  if (user?.role === 'parent') {
+  // ─── PORTAL DO ALUNO (Parents Layout) ───
+  if (user?.role === 'parent' && pathname.startsWith('/portal')) {
+    const title = pageTitles[pathname] || 'Portal do Aluno';
+    const planoLabel = user.plano ? planoLabels[user.plano] : 'Padrão';
+
     return (
-      <div className="min-h-screen bg-[var(--color-cinza-fundo)] flex flex-col">
-        <TopBar
-          title={pageTitles[pathname] || 'Portal do Aluno'}
-          onMenuToggle={() => {}}
-          userRole="Pais e Alunos"
-        />
-        <main className="flex-1 p-4 sm:p-6 overflow-x-hidden w-full max-w-7xl mx-auto">
-          {children}
-        </main>
+      <div className="flex min-h-screen">
+        <PortalSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+        <div className="main-content flex-1 flex flex-col lg:ml-[256px] transition-all duration-300 w-full">
+          <TopBar
+            title={title}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            userRole={`Plano ${planoLabel}`}
+          />
+          <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
+            {children}
+          </main>
+        </div>
       </div>
     );
   }
 
-  // Admin / Teacher Layout (Full App Shell)
+  // ─── ADMIN / TEACHER Layout (Full App Shell) ───
   let title = pageTitles[pathname];
   if (!title) {
     if (pathname.startsWith('/cadastros/alunos/')) title = 'Cadastros › Página do Aluno';

@@ -6,6 +6,7 @@
 // ── Tipos ──
 
 export type Acompanhamento = 'pre_cmt_5' | 'projeto_4' | 'reforco';
+export type PlanoAluno = 'padrao' | 'acompanhamento' | 'elite';
 export type Presenca = 'presente' | 'atrasado' | 'faltou';
 export type TriState = 'nao_fez' | 'metade' | 'fez';
 export type Atencao = 'desinteressado' | 'distraido' | 'atento';
@@ -52,7 +53,10 @@ export interface Aluno {
   turmaId: string;
   turma: string;
   acompanhamento: Acompanhamento;
+  plano: PlanoAluno;
   status: StatusAluno;
+  senhaInicial?: string;
+  primeiroAcesso?: boolean;
   responsavel1: Responsavel;
   responsavel2: Responsavel;
   endereco: {
@@ -245,19 +249,32 @@ export const turmas: Turma[] = [
 ];
 
 export const alunos: Aluno[] = [
-  { id: 'a1', numero: '0123', nome: 'Ana Clara Pereira da Silva', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'Maria Pereira da Silva', telefone: '(11) 99999-1234' }, responsavel2: { nome: 'José Carlos Silva', telefone: '(11) 99999-5678' }, endereco: { rua: 'Rua das Flores, 123', bairro: 'Jardim Primavera', cidade: 'São Paulo' } },
-  { id: 'a2', numero: '0124', nome: 'Bruno Santos Lima', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'Cláudia Santos', telefone: '(11) 99999-2345' }, responsavel2: { nome: 'Ricardo Lima', telefone: '(11) 99999-6789' }, endereco: { rua: 'Av. Brasil, 456', bairro: 'Centro', cidade: 'São Paulo' } },
-  { id: 'a3', numero: '0125', nome: 'Carla Beatriz Rocha', turmaId: 'T002', turma: '5B Tarde', acompanhamento: 'pre_cmt_5', status: 'inativo', responsavel1: { nome: 'Fernanda Rocha', telefone: '(11) 99999-3456' }, responsavel2: { nome: 'Paulo Rocha', telefone: '(11) 99999-7890' }, endereco: { rua: 'Rua do Comércio, 789', bairro: 'Vila Nova', cidade: 'São Paulo' } },
-  { id: 'a4', numero: '0126', nome: 'Davi Fernandes Costa', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'José Costa', telefone: '(11) 99999-4567' }, responsavel2: { nome: 'Mariana Fernandes', telefone: '(11) 99999-8901' }, endereco: { rua: 'Rua São José, 321', bairro: 'Bela Vista', cidade: 'São Paulo' } },
-  { id: 'a5', numero: '0127', nome: 'Eduarda Martins Souza', turmaId: 'T004', turma: '4A Manhã', acompanhamento: 'projeto_4', status: 'ativo', responsavel1: { nome: 'Rita Martins', telefone: '(11) 99999-5670' }, responsavel2: { nome: 'André Souza', telefone: '(11) 99999-9012' }, endereco: { rua: 'Rua da Escola, 654', bairro: 'Parque Industrial', cidade: 'São Paulo' } },
-  { id: 'a6', numero: '0128', nome: 'Felipe Almeida Oliveira', turmaId: 'T004', turma: '4A Manhã', acompanhamento: 'projeto_4', status: 'ativo', responsavel1: { nome: 'Marcos Almeida', telefone: '(11) 99999-6781' }, responsavel2: { nome: 'Sandra Oliveira', telefone: '(11) 99999-0123' }, endereco: { rua: 'Av. Paulista, 987', bairro: 'Consolação', cidade: 'São Paulo' } },
-  { id: 'a7', numero: '0129', nome: 'Gabriela Pereira Santos', turmaId: 'T006', turma: 'Reforço Geral', acompanhamento: 'reforco', status: 'ativo', responsavel1: { nome: 'Paula Pereira', telefone: '(11) 99999-7892' }, responsavel2: { nome: 'Fernando Santos', telefone: '(11) 99999-1230' }, endereco: { rua: 'Rua Esperança, 111', bairro: 'Liberdade', cidade: 'São Paulo' } },
-  { id: 'a8', numero: '0130', nome: 'Henrique Ribeiro Gomes', turmaId: 'T002', turma: '5B Tarde', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'Luciana Ribeiro', telefone: '(11) 99999-8903' }, responsavel2: { nome: 'Roberto Gomes', telefone: '(11) 99999-2341' }, endereco: { rua: 'Rua das Palmeiras, 222', bairro: 'Vila Mariana', cidade: 'São Paulo' } },
-  { id: 'a9', numero: '0131', nome: 'Isabela Ferreira Nunes', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'Tatiana Ferreira', telefone: '(11) 99999-9014' }, responsavel2: { nome: 'Carlos Nunes', telefone: '(11) 99999-3452' }, endereco: { rua: 'Rua do Sol, 333', bairro: 'Pinheiros', cidade: 'São Paulo' } },
-  { id: 'a10', numero: '0132', nome: 'João Pedro Araújo', turmaId: 'T005', turma: '4B Tarde', acompanhamento: 'projeto_4', status: 'ativo', responsavel1: { nome: 'Ana Araújo', telefone: '(11) 99999-0125' }, responsavel2: { nome: 'Pedro Araújo', telefone: '(11) 99999-4563' }, endereco: { rua: 'Rua Lírios, 444', bairro: 'Moema', cidade: 'São Paulo' } },
-  { id: 'a11', numero: '0133', nome: 'Larissa Mendes Carvalho', turmaId: 'T006', turma: 'Reforço Geral', acompanhamento: 'reforco', status: 'ativo', responsavel1: { nome: 'Juliana Mendes', telefone: '(11) 99999-1236' }, responsavel2: { nome: 'Wagner Carvalho', telefone: '(11) 99999-5674' }, endereco: { rua: 'Av. Independência, 555', bairro: 'Ipiranga', cidade: 'São Paulo' } },
-  { id: 'a12', numero: '0134', nome: 'Mateus Oliveira Lima', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', status: 'ativo', responsavel1: { nome: 'Cristiane Oliveira', telefone: '(11) 99999-2347' }, responsavel2: { nome: 'Eduardo Lima', telefone: '(11) 99999-6785' }, endereco: { rua: 'Rua Harmonia, 666', bairro: 'Vila Madalena', cidade: 'São Paulo' } },
+  { id: 'a1', numero: '0123', nome: 'Ana Clara Pereira da Silva', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', plano: 'elite', status: 'ativo', senhaInicial: '1234', primeiroAcesso: false, responsavel1: { nome: 'Maria Pereira da Silva', telefone: '(11) 99999-1234' }, responsavel2: { nome: 'José Carlos Silva', telefone: '(11) 99999-5678' }, endereco: { rua: 'Rua das Flores, 123', bairro: 'Jardim Primavera', cidade: 'São Paulo' } },
+  { id: 'a2', numero: '0124', nome: 'Bruno Santos Lima', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', plano: 'acompanhamento', status: 'ativo', senhaInicial: '2345', primeiroAcesso: false, responsavel1: { nome: 'Cláudia Santos', telefone: '(11) 99999-2345' }, responsavel2: { nome: 'Ricardo Lima', telefone: '(11) 99999-6789' }, endereco: { rua: 'Av. Brasil, 456', bairro: 'Centro', cidade: 'São Paulo' } },
+  { id: 'a3', numero: '0125', nome: 'Carla Beatriz Rocha', turmaId: 'T002', turma: '5B Tarde', acompanhamento: 'pre_cmt_5', plano: 'padrao', status: 'inativo', senhaInicial: '3456', primeiroAcesso: true, responsavel1: { nome: 'Fernanda Rocha', telefone: '(11) 99999-3456' }, responsavel2: { nome: 'Paulo Rocha', telefone: '(11) 99999-7890' }, endereco: { rua: 'Rua do Comércio, 789', bairro: 'Vila Nova', cidade: 'São Paulo' } },
+  { id: 'a4', numero: '0126', nome: 'Davi Fernandes Costa', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', plano: 'padrao', status: 'ativo', senhaInicial: '4567', primeiroAcesso: false, responsavel1: { nome: 'José Costa', telefone: '(11) 99999-4567' }, responsavel2: { nome: 'Mariana Fernandes', telefone: '(11) 99999-8901' }, endereco: { rua: 'Rua São José, 321', bairro: 'Bela Vista', cidade: 'São Paulo' } },
+  { id: 'a5', numero: '0127', nome: 'Eduarda Martins Souza', turmaId: 'T004', turma: '4A Manhã', acompanhamento: 'projeto_4', plano: 'acompanhamento', status: 'ativo', senhaInicial: '5670', primeiroAcesso: false, responsavel1: { nome: 'Rita Martins', telefone: '(11) 99999-5670' }, responsavel2: { nome: 'André Souza', telefone: '(11) 99999-9012' }, endereco: { rua: 'Rua da Escola, 654', bairro: 'Parque Industrial', cidade: 'São Paulo' } },
+  { id: 'a6', numero: '0128', nome: 'Felipe Almeida Oliveira', turmaId: 'T004', turma: '4A Manhã', acompanhamento: 'projeto_4', plano: 'elite', status: 'ativo', senhaInicial: '6781', primeiroAcesso: false, responsavel1: { nome: 'Marcos Almeida', telefone: '(11) 99999-6781' }, responsavel2: { nome: 'Sandra Oliveira', telefone: '(11) 99999-0123' }, endereco: { rua: 'Av. Paulista, 987', bairro: 'Consolação', cidade: 'São Paulo' } },
+  { id: 'a7', numero: '0129', nome: 'Gabriela Pereira Santos', turmaId: 'T006', turma: 'Reforço Geral', acompanhamento: 'reforco', plano: 'padrao', status: 'ativo', senhaInicial: '7892', primeiroAcesso: false, responsavel1: { nome: 'Paula Pereira', telefone: '(11) 99999-7892' }, responsavel2: { nome: 'Fernando Santos', telefone: '(11) 99999-1230' }, endereco: { rua: 'Rua Esperança, 111', bairro: 'Liberdade', cidade: 'São Paulo' } },
+  { id: 'a8', numero: '0130', nome: 'Henrique Ribeiro Gomes', turmaId: 'T002', turma: '5B Tarde', acompanhamento: 'pre_cmt_5', plano: 'acompanhamento', status: 'ativo', senhaInicial: '8903', primeiroAcesso: false, responsavel1: { nome: 'Luciana Ribeiro', telefone: '(11) 99999-8903' }, responsavel2: { nome: 'Roberto Gomes', telefone: '(11) 99999-2341' }, endereco: { rua: 'Rua das Palmeiras, 222', bairro: 'Vila Mariana', cidade: 'São Paulo' } },
+  { id: 'a9', numero: '0131', nome: 'Isabela Ferreira Nunes', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', plano: 'padrao', status: 'ativo', senhaInicial: '9014', primeiroAcesso: true, responsavel1: { nome: 'Tatiana Ferreira', telefone: '(11) 99999-9014' }, responsavel2: { nome: 'Carlos Nunes', telefone: '(11) 99999-3452' }, endereco: { rua: 'Rua do Sol, 333', bairro: 'Pinheiros', cidade: 'São Paulo' } },
+  { id: 'a10', numero: '0132', nome: 'João Pedro Araújo', turmaId: 'T005', turma: '4B Tarde', acompanhamento: 'projeto_4', plano: 'padrao', status: 'ativo', senhaInicial: '0125', primeiroAcesso: false, responsavel1: { nome: 'Ana Araújo', telefone: '(11) 99999-0125' }, responsavel2: { nome: 'Pedro Araújo', telefone: '(11) 99999-4563' }, endereco: { rua: 'Rua Lírios, 444', bairro: 'Moema', cidade: 'São Paulo' } },
+  { id: 'a11', numero: '0133', nome: 'Larissa Mendes Carvalho', turmaId: 'T006', turma: 'Reforço Geral', acompanhamento: 'reforco', plano: 'acompanhamento', status: 'ativo', senhaInicial: '1236', primeiroAcesso: false, responsavel1: { nome: 'Juliana Mendes', telefone: '(11) 99999-1236' }, responsavel2: { nome: 'Wagner Carvalho', telefone: '(11) 99999-5674' }, endereco: { rua: 'Av. Independência, 555', bairro: 'Ipiranga', cidade: 'São Paulo' } },
+  { id: 'a12', numero: '0134', nome: 'Mateus Oliveira Lima', turmaId: 'T001', turma: '5A Manhã', acompanhamento: 'pre_cmt_5', plano: 'elite', status: 'ativo', senhaInicial: '2347', primeiroAcesso: false, responsavel1: { nome: 'Cristiane Oliveira', telefone: '(11) 99999-2347' }, responsavel2: { nome: 'Eduardo Lima', telefone: '(11) 99999-6785' }, endereco: { rua: 'Rua Harmonia, 666', bairro: 'Vila Madalena', cidade: 'São Paulo' } },
 ];
+
+// ── Labels de Plano ──
+export const planoLabels: Record<PlanoAluno, string> = {
+  padrao: 'Padrão',
+  acompanhamento: 'Acompanhamento',
+  elite: 'Elite',
+};
+
+export const planoBadgeColors: Record<PlanoAluno, { bg: string; text: string; border: string }> = {
+  padrao: { bg: '#e8eef7', text: '#1A3A6B', border: '#1A3A6B' },
+  acompanhamento: { bg: '#fdf5d3', text: '#92400E', border: '#F5C800' },
+  elite: { bg: 'linear-gradient(135deg, #fdf5d3, #fef3c7)', text: '#78350F', border: '#D97706' },
+};
 
 export const registrosLancados: RegistroLancado[] = [
   { id: 1, data: '06/06/2026', acompanhamento: 'pre_cmt_5', turma: '5A Manhã', aluno: 'Turma inteira', disciplina: 'Português', bloco: 'Bloco 3', professor: 'João Silva', origem: 'foto', status: 'salvo', lancadoPor: 'Prof. João' },
@@ -289,6 +306,119 @@ export const logAuditoria: LogAuditoria[] = [
 export const disciplinas = ['Português', 'Matemática'];
 export const blocos = ['Bloco 1', 'Bloco 2', 'Bloco 3', 'Bloco 4'];
 
+// ── Matriz de Acesso por Plano ──
+// true = liberado, false = bloqueado
+export const PLAN_ACCESS: Record<string, Record<PlanoAluno, boolean>> = {
+  'inicio_registro_semana': { padrao: false, acompanhamento: true, elite: true },
+  'acompanhamento': { padrao: false, acompanhamento: true, elite: true },
+  'relatorio_mensal': { padrao: false, acompanhamento: true, elite: true },
+  'relatorio_simulado': { padrao: false, acompanhamento: false, elite: true },
+};
+
+// ── XP Config ──
+export const XP_VALUES = {
+  revisao_bloco: 10,
+  assistir_videoaula: 15,
+  fazer_palavra_chave: 20,
+  aula_presencial: 30,
+  fazer_fixacao: 15,
+  completar_simulado: 50,
+};
+
+// ── Portal Types ──
+
+export interface ConquistaAluno {
+  id: string;
+  nome: string;
+  descricao: string;
+  icone: string;
+  desbloqueada: boolean;
+  dataDesbloqueio?: string;
+}
+
+export interface TarefaSemana {
+  id: string;
+  ordem: number;
+  titulo: string;
+  tipo: 'revisao' | 'pre_aula' | 'aula_presencial' | 'simulado' | 'atividade';
+  disciplina?: string;
+  bloco?: string;
+  xp: number;
+  status: 'concluido' | 'em_andamento' | 'pendente';
+  subTarefas?: {
+    id: string;
+    titulo: string;
+    tipo: 'videoaula' | 'apostila' | 'fixacao';
+    status: 'concluido' | 'em_andamento' | 'pendente';
+    xp: number;
+  }[];
+}
+
+export interface CronogramaSemana {
+  turmaId: string;
+  semana: string;
+  periodo: string;
+  tarefas: TarefaSemana[];
+}
+
+export interface Videoaula {
+  id: string;
+  titulo: string;
+  disciplina: string;
+  bloco: string;
+  duracao: string;
+  status: 'assistido' | 'disponivel' | 'bloqueado';
+  xp: number;
+  thumbnailColor: string;
+}
+
+export interface Simulado {
+  id: string;
+  titulo: string;
+  data: string;
+  status: 'realizado' | 'pendente' | 'agendado';
+  totalQuestoes?: number;
+  acertos?: number;
+  temGabarito: boolean;
+  temCorrecaoVideo: boolean;
+  resultadoPorBloco?: {
+    bloco: string;
+    disciplina: string;
+    acertos: number;
+    total: number;
+    classificacao: 'muito_bom' | 'regular' | 'precisa_revisar';
+  }[];
+}
+
+export interface RegistroSemanal {
+  semana: string;
+  presenca: boolean;
+  palavraChave: boolean;
+  fixacao: boolean;
+  atencao: 'atento' | 'distraido' | 'desinteressado';
+  comportamento: 'excelente' | 'bom' | 'agitado';
+  pontualidade: boolean;
+  observacaoProfessora?: string;
+}
+
+export interface ComunicadoEscola {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  tipo: 'urgente' | 'informativo' | 'aviso';
+  data: string;
+  turmas: string[];
+}
+
+export interface MaterialDownload {
+  id: string;
+  titulo: string;
+  tipo: 'apostila' | 'cronograma' | 'revisao' | 'combinados';
+  turmaId: string;
+  tamanho: string;
+  dataUpload: string;
+}
+
 // ── Helpers ──
 
 export function getAlunosByTurma(turmaId: string): Aluno[] {
@@ -310,4 +440,8 @@ export function getFraseMotivacional(): string {
 
 export function getAcompanhamentoLabel(a: Acompanhamento): string {
   return acompanhamentoLabels[a];
+}
+
+export function canAccessFeature(feature: string, plano: PlanoAluno): boolean {
+  return PLAN_ACCESS[feature]?.[plano] ?? true;
 }

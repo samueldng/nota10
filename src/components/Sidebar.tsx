@@ -20,7 +20,9 @@ import {
   UserCog,
   LogOut,
   Wifi,
-  WifiOff
+  WifiOff,
+  Calendar,
+  PlayCircle
 } from 'lucide-react';
 
 interface SubItem {
@@ -49,6 +51,8 @@ const navItems: NavItem[] = [
       { label: 'Turmas', href: '/cadastros/turmas', icon: <GraduationCap size={16} /> },
       { label: 'Professores', href: '/cadastros/professores', icon: <UserCog size={16} /> },
       { label: 'Acompanhamentos', href: '/cadastros/acompanhamentos', icon: <BookOpen size={16} /> },
+      { label: 'Cronograma Semanal', href: '/cadastros/cronograma', icon: <Calendar size={16} /> },
+      { label: 'Conteúdo do Portal', href: '/cadastros/conteudo', icon: <PlayCircle size={16} /> },
     ],
   },
   {

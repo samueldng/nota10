@@ -151,7 +151,7 @@ export default function RelatoriosPage() {
         <div className="lg:col-span-3 card flex flex-col">
           <div className="flex items-center justify-between mb-4 border-b border-[var(--color-cinza-borda)] pb-3">
             <h3 className="text-base font-bold text-[var(--color-azul-autoridade)]">
-              Parecer pedagógico estruturado (Gerado por IA)
+              Parecer pedagógico estruturado
             </h3>
             <button className="btn btn-outline text-xs" onClick={() => setShowParecerEdit(!showParecerEdit)}>
               <Edit3 size={14} /> {showParecerEdit ? 'Salvar Edição' : 'Editar texto'}

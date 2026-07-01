@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   Plus, Search, Edit3, Eye, X, Save, UserCheck, Phone, MapPin,
 } from 'lucide-react';
-import { acompanhamentoLabels, type Acompanhamento, type Aluno } from '@/lib/mockData';
+import { acompanhamentoLabels, planoLabels, type Acompanhamento, type Aluno, type PlanoAluno } from '@/lib/mockData';
 import { getAlunos } from '@/lib/api';
 
 export default function CadastroAlunosPage() {
@@ -82,6 +82,7 @@ export default function CadastroAlunosPage() {
                 <th>Nome Completo</th>
                 <th>Turma</th>
                 <th>Acompanhamento</th>
+                <th>Plano</th>
                 <th>Responsável 1</th>
                 <th>Telefone</th>
                 <th>Status</th>
@@ -106,6 +107,15 @@ export default function CadastroAlunosPage() {
                       'badge-success'
                     }`}>
                       {acompanhamentoLabels[aluno.acompanhamento]}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge text-xs font-bold ${
+                      aluno.plano === 'elite' ? 'badge-warning' :
+                      aluno.plano === 'acompanhamento' ? 'badge-info' :
+                      'badge-outline'
+                    }`}>
+                      {planoLabels[aluno.plano || 'padrao']}
                     </span>
                   </td>
                   <td className="text-sm">{aluno.responsavel1.nome}</td>
@@ -162,13 +172,21 @@ export default function CadastroAlunosPage() {
                     <label className="form-label">Nome Completo</label>
                     <input className="form-input" defaultValue={editAluno?.nome || ''} placeholder="Nome completo do aluno" />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <div className="form-group">
                       <label className="form-label">Acompanhamento</label>
                       <select className="form-select" defaultValue={editAluno?.acompanhamento || ''}>
                         <option value="pre_cmt_5">Pré-CMT 5º Ano</option>
                         <option value="projeto_4">Projeto 4º Ano</option>
                         <option value="reforco">Reforço</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Plano Portal</label>
+                      <select className="form-select" defaultValue={editAluno?.plano || 'padrao'}>
+                        <option value="padrao">Padrão</option>
+                        <option value="acompanhamento">Acompanhamento</option>
+                        <option value="elite">Elite</option>
                       </select>
                     </div>
                     <div className="form-group">
@@ -194,6 +212,10 @@ export default function CadastroAlunosPage() {
                         </label>
                       </div>
                     </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Senha Inicial do Portal (Apenas Números)</label>
+                    <input className="form-input" defaultValue={editAluno?.senhaInicial || ''} placeholder="Ex: últimos 4 dígitos do WhatsApp" />
                   </div>
                 </div>
               </div>

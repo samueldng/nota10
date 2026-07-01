@@ -9,7 +9,7 @@ export default function LoginPage() {
   const { user, loginAsAdmin, loginAsParent, isAuthenticated, isDbOnline } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'admin' | 'parent'>('admin');
+  const [activeTab, setActiveTab] = useState<'admin' | 'parent'>('parent');
   const [email, setEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [matriculaOrPhone, setMatriculaOrPhone] = useState('');
@@ -68,13 +68,27 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-cinza-fundo)] flex flex-col justify-center items-center p-4">
-      {/* Top Database Status Indicator */}
-      <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full border border-[var(--color-cinza-borda)] shadow-sm text-xs font-semibold">
-        <Database size={14} className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} />
-        <span>Conexão:</span>
-        <span className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'}>
-          {isDbOnline ? 'Supabase Online' : 'Modo Demo (Local)'}
-        </span>
+      {/* Top Right Control - Access to Admin / Professor Portal */}
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <button
+          onClick={() => {
+            setActiveTab(activeTab === 'parent' ? 'admin' : 'parent');
+            setError(null);
+          }}
+          className="flex items-center gap-2 bg-white hover:bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] px-4 py-2 rounded-full border border-[var(--color-cinza-borda)] shadow-sm text-xs font-bold transition-all cursor-pointer hover:shadow-md"
+        >
+          {activeTab === 'parent' ? (
+            <>
+              <User size={14} className="text-[var(--color-azul-autoridade)]" />
+              <span>Área do Professor / Admin</span>
+            </>
+          ) : (
+            <>
+              <Phone size={14} className="text-[var(--color-azul-autoridade)]" />
+              <span>Área de Pais e Alunos</span>
+            </>
+          )}
+        </button>
       </div>
 
       <div className="w-full max-w-md animate-fade-in-up">
@@ -101,30 +115,24 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-white rounded-3xl shadow-lg border border-[var(--color-cinza-borda)] overflow-hidden">
-          {/* Tab Headers */}
-          <div className="flex border-b border-[var(--color-cinza-borda)] bg-gray-50">
-            <button
-              onClick={() => { setActiveTab('admin'); setError(null); }}
-              className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 flex items-center justify-center gap-2 ${
-                activeTab === 'admin'
-                  ? 'border-[var(--color-azul-autoridade)] text-[var(--color-azul-autoridade)] bg-white'
-                  : 'border-transparent text-[var(--color-cinza-texto)] hover:bg-gray-100'
-              }`}
-            >
-              <User size={16} />
-              Admin / Professor
-            </button>
-            <button
-              onClick={() => { setActiveTab('parent'); setError(null); }}
-              className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 flex items-center justify-center gap-2 ${
-                activeTab === 'parent'
-                  ? 'border-[var(--color-azul-autoridade)] text-[var(--color-azul-autoridade)] bg-white'
-                  : 'border-transparent text-[var(--color-cinza-texto)] hover:bg-gray-100'
-              }`}
-            >
-              <Phone size={16} />
-              Pais e Alunos
-            </button>
+          {/* Header representing the Active Mode */}
+          <div className="px-6 py-5 border-b border-[var(--color-cinza-borda)] bg-gray-50/50 flex items-center justify-between">
+            <h2 className="text-base font-bold text-[var(--color-azul-autoridade)] flex items-center gap-2 m-0">
+              {activeTab === 'parent' ? (
+                <>
+                  <Phone size={18} className="text-[var(--color-azul-autoridade)]" />
+                  Acesso de Pais e Alunos
+                </>
+              ) : (
+                <>
+                  <User size={18} className="text-[var(--color-azul-autoridade)]" />
+                  Área do Professor / Admin
+                </>
+              )}
+            </h2>
+            {activeTab === 'admin' && (
+              <span className="badge badge-info">Restrito</span>
+            )}
           </div>
 
           {/* Form Content */}
@@ -175,6 +183,20 @@ export default function LoginPage() {
                 >
                   {loading ? 'Entrando...' : 'Acessar Área Administrativa'}
                 </button>
+
+                {/* Back Link to Parent Login */}
+                <div className="text-center mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('parent');
+                      setError(null);
+                    }}
+                    className="text-xs font-semibold text-[var(--color-cinza-texto)] hover:text-[var(--color-azul-autoridade)] hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                  >
+                    ← Voltar para Acesso de Pais
+                  </button>
+                </div>
 
                 {/* Helper info */}
                 <div className="mt-4 p-3 bg-[var(--color-azul-lightest)] rounded-xl border border-[var(--color-azul-light)]/40">
@@ -243,9 +265,15 @@ export default function LoginPage() {
         </div>
 
         {/* Footer info */}
-        <p className="text-center text-[10px] text-[var(--color-cinza-texto)] mt-6">
-          Nota 10 Educacional © 2026. Todos os direitos reservados.
-        </p>
+        <div className="flex flex-col items-center gap-2 mt-6">
+          <p className="text-center text-[10px] text-[var(--color-cinza-texto)] m-0">
+            Nota 10 Educacional © 2026. Todos os direitos reservados.
+          </p>
+          <div className="flex items-center gap-1 text-[9px] font-semibold text-[var(--color-cinza-texto)] opacity-60">
+            <Database size={10} className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} />
+            <span>Status: {isDbOnline ? 'Supabase Conectado' : 'Modo Demonstrativo (Local)'}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
   alunos, turmas, registrosLancados,
-  acompanhamentoLabels, getTurmasByAcompanhamento
+  acompanhamentoLabels, planoLabels, getTurmasByAcompanhamento
 } from '@/lib/mockData';
 
 export default function PaginaAlunoPage() {
@@ -54,6 +54,24 @@ export default function PaginaAlunoPage() {
                 <p className="text-xs text-[var(--color-cinza-texto)]">Acompanhamento</p>
                 <p className="font-semibold text-sm">
                   <span className="badge badge-info">{acompanhamentoLabels[aluno.acompanhamento]}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-cinza-texto)]">Plano do Portal</p>
+                <p className="font-semibold text-sm">
+                  <span className={`badge font-bold text-xs ${
+                    aluno.plano === 'elite' ? 'badge-warning' :
+                    aluno.plano === 'acompanhamento' ? 'badge-info' :
+                    'badge-outline'
+                  }`}>
+                    Plano {planoLabels[aluno.plano || 'padrao']}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-cinza-texto)]">Senha de Acesso</p>
+                <p className="font-mono text-xs text-[var(--color-cinza-escuro)] bg-[var(--color-cinza-fundo)] px-2.5 py-1.5 rounded-lg border border-[var(--color-cinza-borda)] inline-block mt-0.5">
+                  {aluno.senhaInicial || 'Não configurada'}
                 </p>
               </div>
               <div>
