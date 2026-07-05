@@ -33,3 +33,14 @@ export async function query(text: string, params?: any[]) {
 export function getPool() {
   return pool;
 }
+
+/**
+ * Get a dedicated client from the pool for transaction support.
+ * IMPORTANT: Always call client.release() when done, even on errors.
+ */
+export async function getClient() {
+  if (!pool) {
+    throw new Error('Database pool not initialized. Check if DATABASE_URL is set.');
+  }
+  return pool.connect();
+}
