@@ -271,7 +271,7 @@ export default function LoginPage() {
           </p>
           <div className="flex items-center gap-1 text-[9px] font-semibold text-[var(--color-cinza-texto)] opacity-60">
             <Database size={10} className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} />
-            <span>Status: {isDbOnline ? 'Supabase Conectado' : 'Modo Demonstrativo (Local)'}</span>
+            <span>Status: {isDbOnline ? 'Banco de dados conectado' : 'Modo Demonstrativo (Local)'}</span>
           </div>
         </div>
       </div>

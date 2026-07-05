@@ -174,7 +174,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {isDbOnline ? (
               <>
                 <Wifi size={12} className="text-[var(--color-verde-sucesso)]" />
-                <span className="text-white/90">Supabase Online</span>
+                <span className="text-white/90">Banco de dados online</span>
               </>
             ) : (
               <>
