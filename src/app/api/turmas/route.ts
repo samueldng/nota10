@@ -189,10 +189,13 @@ export async function DELETE(request: Request) {
     // Step A: Remove professor links from junction table
     await client.query(`DELETE FROM turma_professores WHERE turma_id = $1`, [id]);
 
-    // Step B: Detach students (set turma_id to NULL) — alunos FK has NO cascade
+    // Step B: Remove cronograma atividades for this turma
+    await client.query(`DELETE FROM cronograma_atividades WHERE turma_id = $1`, [id]);
+
+    // Step C: Detach students (set turma_id to NULL) — alunos FK has NO cascade
     await client.query(`UPDATE alunos SET turma_id = NULL WHERE turma_id = $1`, [id]);
 
-    // Step C: Delete the turma record
+    // Step D: Delete the turma record
     const result = await client.query(`DELETE FROM turmas WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rows.length === 0) {

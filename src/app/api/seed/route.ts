@@ -13,6 +13,7 @@ export async function GET() {
     await query('DELETE FROM log_auditoria');
     await query('DELETE FROM folhas_geradas');
     await query('DELETE FROM registros_lancados');
+    await query('DELETE FROM cronograma_atividades');
     await query('DELETE FROM alunos');
     await query('DELETE FROM turma_professores');
     await query('DELETE FROM turmas');

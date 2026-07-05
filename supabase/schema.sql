@@ -88,3 +88,23 @@ CREATE TABLE log_auditoria (
 
 -- Políticas de Segurança não se aplicam a PostgreSQL local sem extensão de RLS ativada explicitamente.
 -- Todas as tabelas são públicas para acesso direto do pool da VPS.
+
+-- Cronograma Semanal (Trilha de Atividades / XP)
+CREATE TABLE cronograma_atividades (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  turma_id UUID NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
+  semana_numero INT NOT NULL,
+  datas_semana VARCHAR(50) NOT NULL,
+  ordem INT NOT NULL DEFAULT 1,
+  tipo VARCHAR(50) NOT NULL,
+  disciplina VARCHAR(100),
+  bloco VARCHAR(50),
+  titulo VARCHAR(255) NOT NULL,
+  xp_total INT NOT NULL DEFAULT 0,
+  subtarefas JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for fast lookups by turma + week
+CREATE INDEX idx_cronograma_turma_semana ON cronograma_atividades (turma_id, semana_numero);
