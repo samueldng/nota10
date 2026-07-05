@@ -69,6 +69,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
     }
 
+    // Resolve the actual UUID of the class from the database using class name or mock ID map
+    let resolvedTurmaId: string | null = null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (turmaId && uuidRegex.test(turmaId)) {
+      resolvedTurmaId = turmaId;
+    } else {
+      let lookupName = turma || '';
+      if (!lookupName && turmaId) {
+        const mockToNameMap: Record<string, string> = {
+          'T001': '5A Manhã',
+          'T002': '5B Tarde',
+          'T003': '5C Manhã',
+          'T004': '4A Manhã',
+          'T005': '4B Tarde',
+          'T006': 'Reforço Geral',
+          'T007': '5A Manhã 2025'
+        };
+        lookupName = mockToNameMap[turmaId] || '';
+      }
+      
+      if (lookupName) {
+        const turmaRes = await query(`SELECT id FROM turmas WHERE nome = $1 LIMIT 1`, [lookupName]);
+        if (turmaRes.rows.length > 0) {
+          resolvedTurmaId = turmaRes.rows[0].id;
+        }
+      }
+    }
+
     const result = await query(
       `INSERT INTO alunos (
         numero, nome, turma_id, turma_nome, acompanhamento, status, plano, senha_inicial, primeiro_acesso,
@@ -78,7 +107,7 @@ export async function POST(request: Request) {
       [
         numero,
         nome,
-        turmaId || null,
+        resolvedTurmaId,
         turma || '',
         acompanhamento || 'pre_cmt_5',
         status || 'ativo',
@@ -154,6 +183,35 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Identificador do aluno ausente.' }, { status: 400 });
     }
 
+    // Resolve the actual UUID of the class from the database using class name or mock ID map
+    let resolvedTurmaId: string | null = null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (turmaId && uuidRegex.test(turmaId)) {
+      resolvedTurmaId = turmaId;
+    } else {
+      let lookupName = turma || '';
+      if (!lookupName && turmaId) {
+        const mockToNameMap: Record<string, string> = {
+          'T001': '5A Manhã',
+          'T002': '5B Tarde',
+          'T003': '5C Manhã',
+          'T004': '4A Manhã',
+          'T005': '4B Tarde',
+          'T006': 'Reforço Geral',
+          'T007': '5A Manhã 2025'
+        };
+        lookupName = mockToNameMap[turmaId] || '';
+      }
+      
+      if (lookupName) {
+        const turmaRes = await query(`SELECT id FROM turmas WHERE nome = $1 LIMIT 1`, [lookupName]);
+        if (turmaRes.rows.length > 0) {
+          resolvedTurmaId = turmaRes.rows[0].id;
+        }
+      }
+    }
+
     const result = await query(
       `UPDATE alunos SET
         numero = $1, 
@@ -176,7 +234,7 @@ export async function PUT(request: Request) {
       [
         numero,
         nome,
-        turmaId || null,
+        resolvedTurmaId,
         turma || '',
         acompanhamento,
         status,
