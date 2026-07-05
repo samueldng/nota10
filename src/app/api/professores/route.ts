@@ -225,3 +225,46 @@ export async function PUT(request: Request) {
     client.release();
   }
 }
+
+// ─── DELETE ─────────────────────────────────────────────────────────────────────
+
+export async function DELETE(request: Request) {
+  const client = await getClient();
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      client.release();
+      return NextResponse.json({ error: 'Identificador do professor ausente.' }, { status: 400 });
+    }
+
+    await client.query('BEGIN');
+
+    // Step A: Remove all turma links (child rows in junction table)
+    await client.query(`DELETE FROM turma_professores WHERE professor_id = $1`, [id]);
+
+    // Step B: Remove the professor record itself
+    const result = await client.query(`DELETE FROM professores WHERE id = $1 RETURNING id`, [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return NextResponse.json({ error: 'Professor não encontrado.' }, { status: 404 });
+    }
+
+    await client.query('COMMIT');
+
+    return NextResponse.json({ success: true, message: 'Professor excluído com sucesso.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erro no DELETE /api/professores:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao excluir o registro no banco de dados.' },
+      { status: 500 }
+    );
+  } finally {
+    client.release();
+  }
+}

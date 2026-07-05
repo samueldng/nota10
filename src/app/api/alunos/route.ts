@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, getClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -293,17 +293,39 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const client = await getClient();
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+
     if (!id) {
-      return NextResponse.json({ error: 'Missing student ID' }, { status: 400 });
+      client.release();
+      return NextResponse.json({ error: 'Identificador do aluno ausente.' }, { status: 400 });
     }
 
-    await query(`DELETE FROM alunos WHERE id = $1`, [id]);
-    return NextResponse.json({ success: true, message: 'Student deleted successfully' });
+    await client.query('BEGIN');
+
+    // Delete the student record
+    const result = await client.query(`DELETE FROM alunos WHERE id = $1 RETURNING id`, [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return NextResponse.json({ error: 'Aluno não encontrado.' }, { status: 404 });
+    }
+
+    await client.query('COMMIT');
+
+    return NextResponse.json({ success: true, message: 'Aluno excluído com sucesso.' });
   } catch (err: any) {
-    console.error('Error deleting student:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erro no DELETE /api/alunos:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao excluir o registro no banco de dados.' },
+      { status: 500 }
+    );
+  } finally {
+    client.release();
   }
 }

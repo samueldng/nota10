@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, getClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -173,17 +173,45 @@ export async function PUT(request: Request) {
 
 
 export async function DELETE(request: Request) {
+  const client = await getClient();
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+
     if (!id) {
-      return NextResponse.json({ error: 'Missing class ID' }, { status: 400 });
+      client.release();
+      return NextResponse.json({ error: 'Identificador da turma ausente.' }, { status: 400 });
     }
 
-    await query(`DELETE FROM turmas WHERE id = $1`, [id]);
-    return NextResponse.json({ success: true, message: 'Class deleted successfully' });
+    await client.query('BEGIN');
+
+    // Step A: Remove professor links from junction table
+    await client.query(`DELETE FROM turma_professores WHERE turma_id = $1`, [id]);
+
+    // Step B: Detach students (set turma_id to NULL) — alunos FK has NO cascade
+    await client.query(`UPDATE alunos SET turma_id = NULL WHERE turma_id = $1`, [id]);
+
+    // Step C: Delete the turma record
+    const result = await client.query(`DELETE FROM turmas WHERE id = $1 RETURNING id`, [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return NextResponse.json({ error: 'Turma não encontrada.' }, { status: 404 });
+    }
+
+    await client.query('COMMIT');
+
+    return NextResponse.json({ success: true, message: 'Turma excluída com sucesso.' });
   } catch (err: any) {
-    console.error('Error deleting class:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erro no DELETE /api/turmas:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao excluir o registro no banco de dados.' },
+      { status: 500 }
+    );
+  } finally {
+    client.release();
   }
 }
