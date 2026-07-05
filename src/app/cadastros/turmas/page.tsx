@@ -1,17 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Plus, Search, Edit3, Eye, Trash2, GraduationCap, X, Save, Clock, BookOpen, UserCog
+  Plus, Search, Edit3, Eye, Trash2, GraduationCap, X, Save, Clock, BookOpen, UserCog, CheckCircle,
 } from 'lucide-react';
 import {
-  turmas as mockTurmas,
   professores,
   disciplinas,
   acompanhamentoLabels,
   type Acompanhamento,
+  type StatusTurma,
+  type Turma,
   getAlunosByTurma
 } from '@/lib/mockData';
+import { getTurmas, createTurma, updateTurma, deleteTurma } from '@/lib/api';
+
+interface TurmaForm {
+  nome: string;
+  acompanhamento: Acompanhamento;
+  turno: string;
+  dias: string;
+  horario: string;
+  disciplinas: string[];
+  professoresIds: string[];
+  status: StatusTurma;
+}
+
+const EMPTY_FORM: TurmaForm = {
+  nome: '',
+  acompanhamento: 'pre_cmt_5',
+  turno: 'Manhã',
+  dias: '',
+  horario: '',
+  disciplinas: [],
+  professoresIds: [],
+  status: 'ativa',
+};
 
 export default function CadastroTurmasPage() {
   const [search, setSearch] = useState('');
@@ -19,10 +43,130 @@ export default function CadastroTurmasPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editTurmaId, setEditTurmaId] = useState<string | null>(null);
+  const [turmasList, setTurmasList] = useState<Turma[]>([]);
+  const [form, setForm] = useState<TurmaForm>(EMPTY_FORM);
+  const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const editTurma = editTurmaId ? mockTurmas.find(t => t.id === editTurmaId) : null;
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getTurmas();
+        setTurmasList(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
-  const filtered = mockTurmas.filter((t) => {
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  const openCreateModal = () => {
+    setEditTurmaId(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEditModal = (turma: Turma) => {
+    setEditTurmaId(turma.id);
+    setForm({
+      nome: turma.nome,
+      acompanhamento: turma.acompanhamento,
+      turno: turma.turno,
+      dias: turma.dias,
+      horario: turma.horario,
+      disciplinas: [...turma.disciplinas],
+      professoresIds: [...turma.professores],
+      status: turma.status,
+    });
+    setShowModal(true);
+  };
+
+  const toggleDisciplina = (d: string) => {
+    setForm(prev => ({
+      ...prev,
+      disciplinas: prev.disciplinas.includes(d)
+        ? prev.disciplinas.filter(x => x !== d)
+        : [...prev.disciplinas, d],
+    }));
+  };
+
+  const toggleProfessor = (id: string) => {
+    setForm(prev => ({
+      ...prev,
+      professoresIds: prev.professoresIds.includes(id)
+        ? prev.professoresIds.filter(x => x !== id)
+        : [...prev.professoresIds, id],
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!form.nome.trim()) return;
+
+    try {
+      if (editTurmaId) {
+        const original = turmasList.find(t => t.id === editTurmaId);
+        if (!original) return;
+        const updatedData: Turma = {
+          ...original,
+          nome: form.nome,
+          acompanhamento: form.acompanhamento,
+          turno: form.turno,
+          dias: form.dias,
+          horario: form.horario,
+          disciplinas: form.disciplinas,
+          professores: form.professoresIds,
+          status: form.status,
+        };
+        const result = await updateTurma(updatedData);
+        setTurmasList(prev => prev.map(t => t.id === editTurmaId ? result : t));
+        setToast('Turma atualizada com sucesso!');
+      } else {
+        const newTurmaPayload = {
+          nome: form.nome,
+          acompanhamento: form.acompanhamento,
+          turno: form.turno,
+          dias: form.dias,
+          horario: form.horario,
+          disciplinas: form.disciplinas,
+          professores: form.professoresIds,
+          status: form.status,
+        };
+        const result = await createTurma(newTurmaPayload);
+        setTurmasList(prev => [...prev, result]);
+        setToast('Turma criada com sucesso!');
+      }
+      setShowModal(false);
+    } catch (err: any) {
+      console.error(err);
+      alert('Erro ao salvar turma: ' + err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta turma?')) {
+      try {
+        await deleteTurma(id);
+        setTurmasList(prev => prev.filter(t => t.id !== id));
+        setToast('Turma removida.');
+      } catch (err: any) {
+        console.error(err);
+        alert('Erro ao remover turma: ' + err.message);
+      }
+    }
+  };
+
+  const editTurma = editTurmaId ? turmasList.find(t => t.id === editTurmaId) : null;
+
+  const filtered = turmasList.filter((t) => {
     if (search && !t.nome.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterAcomp && t.acompanhamento !== filterAcomp) return false;
     if (filterStatus && t.status !== filterStatus) return false;
@@ -35,9 +179,16 @@ export default function CadastroTurmasPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[60] bg-[var(--color-verde-sucesso)] text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in-up text-sm font-bold">
+          <CheckCircle size={18} /> {toast}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in-up">
         <p className="text-[var(--color-cinza-texto)]">Gerencie as turmas de cada acompanhamento.</p>
-        <button className="btn btn-primary" onClick={() => { setEditTurmaId(null); setShowModal(true); }}>
+        <button className="btn btn-primary" onClick={openCreateModal}>
           <Plus size={16} /> Nova Turma
         </button>
       </div>
@@ -122,10 +273,10 @@ export default function CadastroTurmasPage() {
                   </td>
                   <td>
                     <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => { setEditTurmaId(turma.id); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-[var(--color-azul-lightest)] transition-colors" title="Editar">
+                      <button onClick={() => openEditModal(turma)} className="p-1.5 rounded-lg hover:bg-[var(--color-azul-lightest)] transition-colors" title="Editar">
                         <Edit3 size={15} className="text-[var(--color-azul-autoridade)]" />
                       </button>
-                      <button className="p-1.5 rounded-lg hover:bg-[var(--color-vermelho-light)] transition-colors" title="Excluir">
+                      <button onClick={() => handleDelete(turma.id)} className="p-1.5 rounded-lg hover:bg-[var(--color-vermelho-light)] transition-colors" title="Excluir">
                         <Trash2 size={15} className="text-[var(--color-vermelho-erro)]" />
                       </button>
                     </div>
@@ -137,7 +288,7 @@ export default function CadastroTurmasPage() {
         </div>
         <div className="px-6 py-4 border-t border-[var(--color-cinza-borda)]">
           <span className="text-sm text-[var(--color-cinza-texto)]">
-            Mostrando {filtered.length} de {mockTurmas.length} turmas
+            Mostrando {filtered.length} de {turmasList.length} turmas
           </span>
         </div>
       </div>
@@ -147,18 +298,23 @@ export default function CadastroTurmasPage() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in-up p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-[var(--color-azul-autoridade)]">{editTurma ? 'Editar Turma' : 'Nova Turma'}</h3>
+              <h3 className="text-lg font-bold text-[var(--color-azul-autoridade)]">{editTurmaId ? 'Editar Turma' : 'Nova Turma'}</h3>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-[var(--color-cinza-fundo)] rounded-lg"><X size={20} /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
-                  <label className="form-label">Nome da Turma</label>
-                  <input className="form-input" defaultValue={editTurma?.nome || ''} placeholder="Ex: 5C Manhã" />
+                  <label className="form-label">Nome da Turma *</label>
+                  <input
+                    className="form-input"
+                    value={form.nome}
+                    onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                    placeholder="Ex: 5C Manhã"
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Acompanhamento</label>
-                  <select className="form-select" defaultValue={editTurma?.acompanhamento || ''}>
+                  <select className="form-select" value={form.acompanhamento} onChange={(e) => setForm({ ...form, acompanhamento: e.target.value as Acompanhamento })}>
                     <option value="pre_cmt_5">Pré-CMT 5º Ano</option>
                     <option value="projeto_4">Projeto 4º Ano</option>
                     <option value="reforco">Reforço</option>
@@ -169,17 +325,17 @@ export default function CadastroTurmasPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="form-group">
                   <label className="form-label">Turno</label>
-                  <select className="form-select" defaultValue={editTurma?.turno || ''}>
+                  <select className="form-select" value={form.turno} onChange={(e) => setForm({ ...form, turno: e.target.value })}>
                     <option>Manhã</option><option>Tarde</option><option>Noite</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Dias da Semana</label>
-                  <input className="form-input" defaultValue={editTurma?.dias || ''} placeholder="Ex: Seg, Qua" />
+                  <input className="form-input" value={form.dias} onChange={(e) => setForm({ ...form, dias: e.target.value })} placeholder="Ex: Seg, Qua" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Horário</label>
-                  <input className="form-input" defaultValue={editTurma?.horario || ''} placeholder="Ex: 08:00 - 12:00" />
+                  <input className="form-input" value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="Ex: 08:00 - 12:00" />
                 </div>
               </div>
 
@@ -189,7 +345,12 @@ export default function CadastroTurmasPage() {
                   <div className="grid grid-cols-2 gap-2 p-3 bg-[var(--color-cinza-fundo)] rounded-xl">
                     {disciplinas.concat('Multidisciplinar').map(d => (
                       <label key={d} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" className="accent-[var(--color-azul-autoridade)] w-4 h-4" defaultChecked={editTurma?.disciplinas.includes(d)} />
+                        <input
+                          type="checkbox"
+                          className="accent-[var(--color-azul-autoridade)] w-4 h-4"
+                          checked={form.disciplinas.includes(d)}
+                          onChange={() => toggleDisciplina(d)}
+                        />
                         <span>{d}</span>
                       </label>
                     ))}
@@ -200,7 +361,12 @@ export default function CadastroTurmasPage() {
                   <div className="flex flex-col gap-2 p-3 bg-[var(--color-cinza-fundo)] rounded-xl max-h-[120px] overflow-y-auto">
                     {professores.filter(p => p.status === 'ativo').map(p => (
                       <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" className="accent-[var(--color-azul-autoridade)] w-4 h-4" defaultChecked={editTurma?.professores.includes(p.id)} />
+                        <input
+                          type="checkbox"
+                          className="accent-[var(--color-azul-autoridade)] w-4 h-4"
+                          checked={form.professoresIds.includes(p.id)}
+                          onChange={() => toggleProfessor(p.id)}
+                        />
                         <span>{p.nome}</span>
                       </label>
                     ))}
@@ -212,11 +378,11 @@ export default function CadastroTurmasPage() {
                 <label className="form-label">Status</label>
                 <div className="flex items-center gap-4 h-[42px]">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="statusTurma" defaultChecked={editTurma?.status !== 'inativa'} className="accent-[var(--color-verde-sucesso)]" />
+                    <input type="radio" name="statusTurma" checked={form.status === 'ativa'} onChange={() => setForm({ ...form, status: 'ativa' })} className="accent-[var(--color-verde-sucesso)]" />
                     <span className="text-sm font-medium">Ativa</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="statusTurma" defaultChecked={editTurma?.status === 'inativa'} className="accent-[var(--color-vermelho-erro)]" />
+                    <input type="radio" name="statusTurma" checked={form.status === 'inativa'} onChange={() => setForm({ ...form, status: 'inativa' })} className="accent-[var(--color-vermelho-erro)]" />
                     <span className="text-sm font-medium">Inativa</span>
                   </label>
                 </div>
@@ -241,8 +407,8 @@ export default function CadastroTurmasPage() {
             </div>
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-cinza-borda)]">
               <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>
-                <Save size={16} /> Salvar Turma
+              <button className="btn btn-primary" onClick={handleSave} disabled={!form.nome.trim()}>
+                <Save size={16} /> {editTurmaId ? 'Salvar Turma' : 'Criar Turma'}
               </button>
             </div>
           </div>

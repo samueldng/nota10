@@ -40,7 +40,10 @@ CREATE TABLE alunos (
   responsavel2_telefone TEXT,
   endereco_rua TEXT,
   endereco_bairro TEXT,
-  endereco_cidade TEXT
+  endereco_cidade TEXT,
+  plano TEXT DEFAULT 'padrao',
+  senha_inicial TEXT,
+  primeiro_acesso BOOLEAN DEFAULT true
 );
 
 -- Registros de Lançamento
@@ -83,25 +86,5 @@ CREATE TABLE log_auditoria (
   detalhe TEXT
 );
 
--- Políticas de Segurança (Permissivas para o MVP)
--- Permitindo leitura e escrita pública via chave anon
-ALTER TABLE professores ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON professores FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE turmas ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON turmas FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE turma_professores ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON turma_professores FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE alunos ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON alunos FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE registros_lancados ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON registros_lancados FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE folhas_geradas ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON folhas_geradas FOR ALL USING (true) WITH CHECK (true);
-
-ALTER TABLE log_auditoria ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "public_all" ON log_auditoria FOR ALL USING (true) WITH CHECK (true);
+-- Políticas de Segurança não se aplicam a PostgreSQL local sem extensão de RLS ativada explicitamente.
+-- Todas as tabelas são públicas para acesso direto do pool da VPS.

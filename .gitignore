@@ -30,8 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.local
+.env.production
+node_modules
+.next
 
 # vercel
 .vercel
@@ -39,3 +43,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dev / temp files
+chrome_launch.log
+chrome-profile*
+*.png
+test_report.md
+e2e_test.js
+eval_location.js
+get_alunos_db.js
+get_page_html.js
+run_e2e_flow.js
+check_dom.js

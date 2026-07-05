@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.gitignore
+*.png
+*.log
+chrome-profile*
+test_report.md
+README.md
+CLAUDE.md
+AGENTS.md
+.env*.local

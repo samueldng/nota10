@@ -1,111 +1,196 @@
-import { supabase } from './supabase';
-import type { Professor, Turma, Aluno, RegistroLancado, FolhaGerada, LogAuditoria } from './mockData'; // we can reuse the types from mockData
+import type { Professor, Turma, Aluno, RegistroLancado, LogAuditoria } from './mockData';
 import * as mock from './mockData';
 
-const useMock = !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
+// We fall back to mock data if there's no DATABASE_URL or if the API requests fail in dev mode.
+const isDev = process.env.NODE_ENV === 'development';
+
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`API returned status ${response.status}: ${response.statusText}`);
+  }
+  return response.json() as Promise<T>;
+}
 
 export async function getProfessores(): Promise<Professor[]> {
-  if (useMock) {
-    console.log("Using mock data for getProfessores");
+  try {
+    return await fetchJson<Professor[]>('/api/professores');
+  } catch (err) {
+    console.warn("API getProfessores failed, falling back to mock data:", err);
     return mock.professores;
   }
+}
+
+export async function createProfessor(prof: Omit<Professor, 'id'>): Promise<Professor> {
   try {
-    const { data, error } = await supabase.from('professores').select('*').order('nome');
-    if (error) throw error;
-    return data as Professor[];
+    return await fetchJson<Professor>('/api/professores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prof),
+    });
   } catch (err) {
-    console.warn("Supabase getProfessores failed, falling back to mock data:", err);
-    return mock.professores;
+    console.error("API createProfessor failed:", err);
+    throw err;
+  }
+}
+
+export async function updateProfessor(prof: Professor): Promise<Professor> {
+  try {
+    return await fetchJson<Professor>('/api/professores', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prof),
+    });
+  } catch (err) {
+    console.error("API updateProfessor failed:", err);
+    throw err;
   }
 }
 
 export async function getTurmas(): Promise<Turma[]> {
-  if (useMock) {
-    console.log("Using mock data for getTurmas");
+  try {
+    return await fetchJson<Turma[]>('/api/turmas');
+  } catch (err) {
+    console.warn("API getTurmas failed, falling back to mock data:", err);
     return mock.turmas;
   }
+}
+
+export async function createTurma(turma: Omit<Turma, 'id' | 'alunosCount'>): Promise<Turma> {
   try {
-    const { data, error } = await supabase.from('turmas').select('*').order('nome');
-    if (error) throw error;
-    return data.map(d => ({
-      ...d,
-      alunosCount: d.alunos_count
-    })) as Turma[];
+    return await fetchJson<Turma>('/api/turmas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(turma),
+    });
   } catch (err) {
-    console.warn("Supabase getTurmas failed, falling back to mock data:", err);
-    return mock.turmas;
+    console.error("API createTurma failed:", err);
+    throw err;
+  }
+}
+
+export async function updateTurma(turma: Turma): Promise<Turma> {
+  try {
+    return await fetchJson<Turma>('/api/turmas', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(turma),
+    });
+  } catch (err) {
+    console.error("API updateTurma failed:", err);
+    throw err;
+  }
+}
+
+export async function deleteTurma(id: string): Promise<void> {
+  try {
+    await fetchJson<any>(`/api/turmas?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.error("API deleteTurma failed:", err);
+    throw err;
   }
 }
 
 export async function getAlunos(): Promise<Aluno[]> {
-  if (useMock) {
-    console.log("Using mock data for getAlunos");
+  try {
+    return await fetchJson<Aluno[]>('/api/alunos');
+  } catch (err) {
+    console.warn("API getAlunos failed, falling back to mock data:", err);
     return mock.alunos;
   }
+}
+
+export async function createAluno(aluno: Omit<Aluno, 'id' | 'primeiroAcesso'>): Promise<Aluno> {
   try {
-    const { data, error } = await supabase.from('alunos').select('*').order('nome');
-    if (error) throw error;
-    return data.map(d => {
-      const mockAluno = mock.alunos.find(ma => ma.numero === d.numero || ma.nome === d.nome);
-      return {
-        id: d.id,
-        numero: d.numero,
-        nome: d.nome,
-        turmaId: d.turma_id,
-        turma: d.turma_nome,
-        acompanhamento: d.acompanhamento,
-        status: d.status,
-        responsavel1: { nome: d.responsavel1_nome, telefone: d.responsavel1_telefone },
-        responsavel2: { nome: d.responsavel2_nome, telefone: d.responsavel2_telefone },
-        endereco: { rua: d.endereco_rua, bairro: d.endereco_bairro, cidade: d.endereco_cidade },
-        // Fallback to mock values for newly added portal fields if missing in DB
-        plano: d.plano || mockAluno?.plano || 'padrao',
-        senhaInicial: d.senha_inicial || mockAluno?.senhaInicial || '123456',
-        primeiroAcesso: d.primeiro_acesso !== undefined && d.primeiro_acesso !== null
-          ? d.primeiro_acesso
-          : (mockAluno?.primeiroAcesso || false)
-      };
-    }) as Aluno[];
+    return await fetchJson<Aluno>('/api/alunos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aluno),
+    });
   } catch (err) {
-    console.warn("Supabase getAlunos failed, falling back to mock data:", err);
-    return mock.alunos;
+    console.error("API createAluno failed:", err);
+    throw err;
+  }
+}
+
+export async function updateAluno(aluno: Aluno): Promise<Aluno> {
+  try {
+    return await fetchJson<Aluno>('/api/alunos', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aluno),
+    });
+  } catch (err) {
+    console.error("API updateAluno failed:", err);
+    throw err;
+  }
+}
+
+export async function deleteAluno(id: string): Promise<void> {
+  try {
+    await fetchJson<any>(`/api/alunos?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    console.error("API deleteAluno failed:", err);
+    throw err;
   }
 }
 
 export async function getRegistros(): Promise<RegistroLancado[]> {
-  if (useMock) {
-    console.log("Using mock data for getRegistros");
+  try {
+    return await fetchJson<RegistroLancado[]>('/api/registros');
+  } catch (err) {
+    console.warn("API getRegistros failed, falling back to mock data:", err);
     return mock.registrosLancados;
   }
+}
+
+export async function createRegistro(registro: Omit<RegistroLancado, 'id'>): Promise<RegistroLancado> {
   try {
-    const { data, error } = await supabase.from('registros_lancados').select('*').order('id', { ascending: false });
-    if (error) throw error;
-    return data.map(d => ({
-      ...d,
-      lancadoPor: d.lancado_por,
-      editadoPor: d.editado_por,
-      dataEdicao: d.data_edicao
-    })) as RegistroLancado[];
+    return await fetchJson<RegistroLancado>('/api/registros', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(registro),
+    });
   } catch (err) {
-    console.warn("Supabase getRegistros failed, falling back to mock data:", err);
-    return mock.registrosLancados;
+    console.error("API createRegistro failed:", err);
+    throw err;
+  }
+}
+
+export async function updateRegistro(registro: RegistroLancado): Promise<RegistroLancado> {
+  try {
+    return await fetchJson<RegistroLancado>('/api/registros', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(registro),
+    });
+  } catch (err) {
+    console.error("API updateRegistro failed:", err);
+    throw err;
   }
 }
 
 export async function getLogs(): Promise<LogAuditoria[]> {
-  if (useMock) {
-    console.log("Using mock data for getLogs");
-    return mock.logAuditoria;
-  }
   try {
-    const { data, error } = await supabase.from('log_auditoria').select('*').order('id', { ascending: false });
-    if (error) throw error;
-    return data as LogAuditoria[];
+    return await fetchJson<LogAuditoria[]>('/api/logs');
   } catch (err) {
-    console.warn("Supabase getLogs failed, falling back to mock data:", err);
+    console.warn("API getLogs failed, falling back to mock data:", err);
     return mock.logAuditoria;
   }
 }
 
-
+export async function createLog(log: LogAuditoria): Promise<void> {
+  try {
+    await fetchJson<any>('/api/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(log),
+    });
+  } catch (err) {
+    console.error("API createLog failed:", err);
+  }
+}

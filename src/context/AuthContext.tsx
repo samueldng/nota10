@@ -39,21 +39,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check database connectivity and load session on mount
   useEffect(() => {
     async function checkDbAndSession() {
-      // 1. Check Supabase connection
+      // 1. Check database connectivity via health API
       try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        if (url && !url.includes('placeholder')) {
-          const res = await fetch(`${url}/rest/v1/professores?select=id&limit=1`, {
-            headers: {
-              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''}`
-            }
-          });
-          if (res.status === 200) {
-            setIsDbOnline(true);
-          } else {
-            setIsDbOnline(false);
-          }
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          setIsDbOnline(data.database === 'connected');
         } else {
           setIsDbOnline(false);
         }
