@@ -37,27 +37,40 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { nome, email, status, turmas: linkedTurmas } = body;
 
+    if (!nome || !email) {
+      return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
+    }
+
     // 1. Insert professor
     const result = await query(
-      `INSERT INTO professores (nome, email, status) VALUES ($1, $2, $3) RETURNING id`,
+      `INSERT INTO professores (nome, email, status) VALUES ($1, $2, $3) RETURNING *`,
       [nome, email, status || 'ativo']
     );
-    const profId = result.rows[0].id;
+    const row = result.rows[0];
 
     // 2. Insert links to turmas
     if (linkedTurmas && Array.isArray(linkedTurmas) && linkedTurmas.length > 0) {
       for (const tId of linkedTurmas) {
         await query(
           `INSERT INTO turma_professores (turma_id, professor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [tId, profId]
+          [tId, row.id]
         );
       }
     }
 
-    return NextResponse.json({ id: profId, nome, email, status, turmas: linkedTurmas || [] });
+    return NextResponse.json({
+      id: row.id,
+      nome: row.nome,
+      email: row.email,
+      status: row.status,
+      turmas: linkedTurmas || [],
+    }, { status: 201 });
   } catch (err: any) {
-    console.error('Error creating professor:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Erro no POST /api/professores:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -67,30 +80,45 @@ export async function PUT(request: Request) {
     const { id, nome, email, status, turmas: linkedTurmas } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing professor ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Identificador do professor ausente.' }, { status: 400 });
     }
 
     // 1. Update professor
-    await query(
-      `UPDATE professores SET nome = $1, email = $2, status = $3 WHERE id = $4`,
+    const result = await query(
+      `UPDATE professores SET nome = $1, email = $2, status = $3 WHERE id = $4 RETURNING *`,
       [nome, email, status, id]
     );
 
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Professor não encontrado.' }, { status: 404 });
+    }
+
+    const row = result.rows[0];
+
     // 2. Update links (delete old, insert new)
-    await query(`DELETE FROM turma_professores WHERE professor_id = $1`, [id]);
+    await query(`DELETE FROM turma_professores WHERE professor_id = $1`, [row.id]);
 
     if (linkedTurmas && Array.isArray(linkedTurmas) && linkedTurmas.length > 0) {
       for (const tId of linkedTurmas) {
         await query(
           `INSERT INTO turma_professores (turma_id, professor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [tId, id]
+          [tId, row.id]
         );
       }
     }
 
-    return NextResponse.json({ id, nome, email, status, turmas: linkedTurmas || [] });
+    return NextResponse.json({
+      id: row.id,
+      nome: row.nome,
+      email: row.email,
+      status: row.status,
+      turmas: linkedTurmas || [],
+    });
   } catch (err: any) {
-    console.error('Error updating professor:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Erro no PUT /api/professores:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao atualizar o registro no banco de dados.' },
+      { status: 500 }
+    );
   }
 }

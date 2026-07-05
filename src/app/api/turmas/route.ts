@@ -41,92 +41,136 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { nome, acompanhamento, turno, dias, horario, disciplinas: discArray, status, professores: linkedProfs } = body;
+    const { 
+      nome, 
+      acompanhamento, 
+      turno, 
+      dias, 
+      horario, 
+      disciplinas, 
+      status, 
+      professores: linkedProfs 
+    } = body;
+
+    if (!nome || !acompanhamento || !turno) {
+      return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
+    }
 
     // 1. Insert class
     const result = await query(
       `INSERT INTO turmas (nome, acompanhamento, turno, dias, horario, disciplinas, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [nome, acompanhamento, turno, dias, horario, discArray || [], status || 'ativa']
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nome, acompanhamento, turno, dias, horario, disciplinas || [], status || 'ativa']
     );
-    const turmaId = result.rows[0].id;
+    const row = result.rows[0];
 
     // 2. Insert links to professors
     if (linkedProfs && Array.isArray(linkedProfs) && linkedProfs.length > 0) {
       for (const pId of linkedProfs) {
         await query(
           `INSERT INTO turma_professores (turma_id, professor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [turmaId, pId]
+          [row.id, pId]
         );
       }
     }
 
     return NextResponse.json({
-      id: turmaId,
-      nome,
-      acompanhamento,
-      turno,
-      dias,
-      horario,
-      disciplinas: discArray || [],
-      alunosCount: 0,
-      status,
+      id: row.id,
+      nome: row.nome,
+      acompanhamento: row.acompanhamento,
+      turno: row.turno,
+      dias: row.dias,
+      horario: row.horario,
+      disciplinas: row.disciplinas || [],
+      alunosCount: row.alunos_count || 0,
+      status: row.status,
       professores: linkedProfs || [],
-    });
+    }, { status: 201 });
   } catch (err: any) {
-    console.error('Error creating class:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Erro no POST /api/turmas:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
+      { status: 500 }
+    );
   }
 }
 
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, nome, acompanhamento, turno, dias, horario, disciplinas: discArray, status, professores: linkedProfs } = body;
+    const { 
+      id, 
+      nome, 
+      acompanhamento, 
+      turno, 
+      dias, 
+      horario, 
+      disciplinas, 
+      status, 
+      professores: linkedProfs 
+    } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing class ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Identificador da turma ausente.' }, { status: 400 });
     }
 
     // 1. Update class
-    await query(
-      `UPDATE turmas SET nome = $1, acompanhamento = $2, turno = $3, dias = $4, horario = $5, disciplinas = $6, status = $7 WHERE id = $8`,
-      [nome, acompanhamento, turno, dias, horario, discArray || [], status, id]
+    const result = await query(
+      `UPDATE turmas SET 
+        nome = $1, 
+        acompanhamento = $2, 
+        turno = $3, 
+        dias = $4, 
+        horario = $5, 
+        disciplinas = $6, 
+        status = $7 
+      WHERE id = $8 RETURNING *`,
+      [nome, acompanhamento, turno, dias, horario, disciplinas || [], status, id]
     );
 
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Turma não encontrada.' }, { status: 404 });
+    }
+
+    const row = result.rows[0];
+
     // 2. Update links (delete old, insert new)
-    await query(`DELETE FROM turma_professores WHERE turma_id = $1`, [id]);
+    await query(`DELETE FROM turma_professores WHERE turma_id = $1`, [row.id]);
 
     if (linkedProfs && Array.isArray(linkedProfs) && linkedProfs.length > 0) {
       for (const pId of linkedProfs) {
         await query(
           `INSERT INTO turma_professores (turma_id, professor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [id, pId]
+          [row.id, pId]
         );
       }
     }
 
     // Get current student count
-    const countRes = await query(`SELECT COUNT(*)::int as count FROM alunos WHERE turma_id = $1`, [id]);
+    const countRes = await query(`SELECT COUNT(*)::int as count FROM alunos WHERE turma_id = $1`, [row.id]);
     const count = countRes.rows[0]?.count || 0;
 
     return NextResponse.json({
-      id,
-      nome,
-      acompanhamento,
-      turno,
-      dias,
-      horario,
-      disciplinas: discArray || [],
+      id: row.id,
+      nome: row.nome,
+      acompanhamento: row.acompanhamento,
+      turno: row.turno,
+      dias: row.dias,
+      horario: row.horario,
+      disciplinas: row.disciplinas || [],
       alunosCount: count,
-      status,
+      status: row.status,
       professores: linkedProfs || [],
     });
   } catch (err: any) {
-    console.error('Error updating class:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Erro no PUT /api/turmas:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao atualizar o registro no banco de dados.' },
+      { status: 500 }
+    );
   }
 }
+
 
 export async function DELETE(request: Request) {
   try {

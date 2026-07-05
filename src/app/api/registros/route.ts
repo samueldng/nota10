@@ -39,15 +39,29 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
-      lancadoPor, editadoPor, dataEdicao
+      data,
+      acompanhamento,
+      turma,
+      aluno,
+      disciplina,
+      bloco,
+      professor,
+      origem,
+      status,
+      lancadoPor,
+      editadoPor,
+      dataEdicao
     } = body;
+
+    if (!data || !acompanhamento || !turma || !aluno || !disciplina || !bloco || !professor || !lancadoPor) {
+      return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
+    }
 
     const result = await query(
       `INSERT INTO registros_lancados (
         data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
         lancado_por, editado_por, data_edicao
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         data,
         acompanhamento,
@@ -64,10 +78,37 @@ export async function POST(request: Request) {
       ]
     );
 
-    const insertedId = result.rows[0].id;
+    const row = result.rows[0];
 
     return NextResponse.json({
-      id: insertedId,
+      id: row.id,
+      data: row.data,
+      acompanhamento: row.acompanhamento,
+      turma: row.turma,
+      aluno: row.aluno,
+      disciplina: row.disciplina,
+      bloco: row.bloco,
+      professor: row.professor,
+      origem: row.origem,
+      status: row.status,
+      lancadoPor: row.lancado_por,
+      editadoPor: row.editado_por || undefined,
+      dataEdicao: row.data_edicao || undefined,
+    }, { status: 201 });
+  } catch (err: any) {
+    console.error('Erro no POST /api/registros:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const {
+      id,
       data,
       acompanhamento,
       turma,
@@ -79,31 +120,28 @@ export async function POST(request: Request) {
       status,
       lancadoPor,
       editadoPor,
-      dataEdicao,
-    });
-  } catch (err: any) {
-    console.error('Error creating registration:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const body = await request.json();
-    const {
-      id, data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
-      lancadoPor, editadoPor, dataEdicao
+      dataEdicao
     } = body;
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing registration ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Identificador do registro ausente.' }, { status: 400 });
     }
 
-    await query(
+    const result = await query(
       `UPDATE registros_lancados SET
-        data = $1, acompanhamento = $2, turma = $3, aluno = $4, disciplina = $5, bloco = $6, professor = $7,
-        origem = $8, status = $9, lancado_por = $10, editado_por = $11, data_edicao = $12
-      WHERE id = $13`,
+        data = $1, 
+        acompanhamento = $2, 
+        turma = $3, 
+        aluno = $4, 
+        disciplina = $5, 
+        bloco = $6, 
+        professor = $7,
+        origem = $8, 
+        status = $9, 
+        lancado_por = $10, 
+        editado_por = $11, 
+        data_edicao = $12
+      WHERE id = $13 RETURNING *`,
       [
         data,
         acompanhamento,
@@ -121,23 +159,32 @@ export async function PUT(request: Request) {
       ]
     );
 
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Registro não encontrado.' }, { status: 404 });
+    }
+
+    const row = result.rows[0];
+
     return NextResponse.json({
-      id,
-      data,
-      acompanhamento,
-      turma,
-      aluno,
-      disciplina,
-      bloco,
-      professor,
-      origem,
-      status,
-      lancadoPor,
-      editadoPor,
-      dataEdicao,
+      id: row.id,
+      data: row.data,
+      acompanhamento: row.acompanhamento,
+      turma: row.turma,
+      aluno: row.aluno,
+      disciplina: row.disciplina,
+      bloco: row.bloco,
+      professor: row.professor,
+      origem: row.origem,
+      status: row.status,
+      lancadoPor: row.lancado_por,
+      editadoPor: row.editado_por || undefined,
+      dataEdicao: row.data_edicao || undefined,
     });
   } catch (err: any) {
-    console.error('Error updating registration:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('Erro no PUT /api/registros:', err);
+    return NextResponse.json(
+      { error: err.message || 'Falha ao atualizar o registro no banco de dados.' },
+      { status: 500 }
+    );
   }
 }
