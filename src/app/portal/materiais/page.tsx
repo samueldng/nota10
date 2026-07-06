@@ -72,7 +72,12 @@ export default function MateriaisPage() {
     }
   }, [toast]);
 
-  const handleDownload = async (matId: string) => {
+  const handleDownload = async (matId: string, urlAccess: string) => {
+    // Abrir a URL imediatamente para evitar bloqueio do navegador
+    if (urlAccess) {
+      window.open(formatExternalUrl(urlAccess), '_blank');
+    }
+
     if (atividadesConcluidas.includes(matId)) return;
 
     try {
@@ -175,18 +180,15 @@ export default function MateriaisPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <a
-                    href={formatExternalUrl(mat.urlAcesso)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => handleDownload(mat.id)}
-                    className={`btn flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0 no-underline ${
+                  <button
+                    onClick={() => handleDownload(mat.id, mat.urlAcesso)}
+                    className={`btn flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0 cursor-pointer ${
                       isCompleted ? 'btn-outline border-[var(--color-verde-sucesso)]/30 text-[var(--color-verde-sucesso)]' : 'btn-secondary'
                     }`}
                   >
                     <Download size={14} />
                     <span>{isCompleted ? 'Rebaixar' : 'Baixar'}</span>
-                  </a>
+                  </button>
                 </div>
               </div>
             );
