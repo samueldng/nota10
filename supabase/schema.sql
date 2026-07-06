@@ -108,3 +108,38 @@ CREATE TABLE cronograma_atividades (
 
 -- Index for fast lookups by turma + week
 CREATE INDEX idx_cronograma_turma_semana ON cronograma_atividades (turma_id, semana_numero);
+
+-- Comunicados (turma_id NULL = comunicado global visível para todos)
+CREATE TABLE comunicados (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  turma_id UUID REFERENCES turmas(id) ON DELETE CASCADE,
+  titulo VARCHAR(255) NOT NULL,
+  tipo_criticidade VARCHAR(50) NOT NULL,
+  descricao TEXT NOT NULL,
+  data_publicacao DATE NOT NULL,
+  status BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_comunicados_turma ON comunicados (turma_id);
+CREATE INDEX idx_comunicados_tipo ON comunicados (tipo_criticidade);
+
+-- Conteúdos de Mídia (Unificação: videoaula, pdf, simulado)
+CREATE TABLE conteudos_midia (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  turma_id UUID NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
+  tipo_conteudo VARCHAR(50) NOT NULL,
+  titulo VARCHAR(255) NOT NULL,
+  descricao TEXT,
+  url_acesso VARCHAR(512) NOT NULL,
+  disciplina VARCHAR(100),
+  data_disponibilizacao DATE,
+  status BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_conteudos_turma ON conteudos_midia (turma_id);
+CREATE INDEX idx_conteudos_tipo ON conteudos_midia (tipo_conteudo);
+CREATE INDEX idx_conteudos_turma_tipo ON conteudos_midia (turma_id, tipo_conteudo);
