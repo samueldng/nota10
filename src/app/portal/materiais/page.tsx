@@ -1,24 +1,38 @@
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
-import { getMateriais } from '@/lib/portalData';
-import type { MaterialDownload } from '@/lib/mockData';
-import { Download, FileText, Calendar, Search } from 'lucide-react';
+import { Download, FileText, Calendar, Search, CheckCircle, Zap } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function MateriaisPage() {
   const { user } = useAuth();
+  const alunoId = user?.alunoId || 'a1';
   const turmaId = user?.turmaId;
   const [materiais, setMateriais] = useState<any[]>([]);
+  const [atividadesConcluidas, setAtividadesConcluidas] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('todos');
+  const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadProgresso = async () => {
+    try {
+      const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAtividadesConcluidas(data.atividadesConcluidas || []);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar progresso:', e);
+    }
+  };
+
+  const loadMateriais = async () => {
     if (!turmaId) return;
 
-    fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=pdf`)
-      .then((res) => res.json())
-      .then((data) => {
+    try {
+      const res = await fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=pdf`);
+      if (res.ok) {
+        const data = await res.json();
         if (Array.isArray(data)) {
           const formatted = data.map((item: any) => {
             let extra = { tipo: 'apostila', tamanho: '5.2 MB' };
@@ -39,9 +53,48 @@ export default function MateriaisPage() {
           });
           setMateriais(formatted);
         }
-      })
-      .catch((err) => console.error('Erro ao carregar materiais:', err));
-  }, [turmaId]);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar materiais:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadProgresso();
+    loadMateriais();
+  }, [turmaId, alunoId]);
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  const handleDownload = async (matId: string) => {
+    if (atividadesConcluidas.includes(matId)) return;
+
+    try {
+      const res = await fetch('/api/progresso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alunoId,
+          tipoAcao: 'material',
+          xpGanho: 5,
+          atividadeId: matId,
+        }),
+      });
+      if (res.ok) {
+        setToast('+5 XP!');
+        loadProgresso();
+        window.dispatchEvent(new Event('nota10_progress_updated'));
+      }
+    } catch (err) {
+      console.error('Erro ao registrar XP de material:', err);
+    }
+  };
 
   const formatExternalUrl = (url: string) => {
     if (!url) return '#';
@@ -89,39 +142,55 @@ export default function MateriaisPage() {
       {/* Materials List */}
       <div className="space-y-3">
         {filtered.length > 0 ? (
-          filtered.map((mat, index) => (
-            <div
-              key={mat.id}
-              className="card animate-fade-in-up flex items-center justify-between gap-4 p-4 hover:shadow-md transition-shadow"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-[var(--color-azul-lightest)] flex items-center justify-center flex-shrink-0 text-[var(--color-azul-autoridade)]">
-                  <FileText size={20} />
+          filtered.map((mat, index) => {
+            const isCompleted = atividadesConcluidas.includes(mat.id);
+            return (
+              <div
+                key={mat.id}
+                className="card animate-fade-in-up flex items-center justify-between gap-4 p-4 hover:shadow-md transition-shadow relative"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--color-azul-lightest)] flex items-center justify-center flex-shrink-0 text-[var(--color-azul-autoridade)]">
+                    <FileText size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] truncate leading-snug">
+                      {mat.titulo}
+                    </h4>
+                    <p className="text-[10px] text-[var(--color-cinza-texto)] flex items-center gap-2 mt-1">
+                      <span>Tamanho: <strong className="text-[var(--color-cinza-escuro)]">{mat.tamanho}</strong></span>
+                      <span>•</span>
+                      <span className="flex items-center gap-0.5"><Calendar size={10} /> {mat.dataUpload}</span>
+                      {isCompleted && (
+                        <>
+                          <span>•</span>
+                          <span className="text-[9px] text-[var(--color-verde-sucesso)] font-extrabold flex items-center gap-0.5">
+                            <CheckCircle size={10} /> Baixado
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] truncate leading-snug">
-                    {mat.titulo}
-                  </h4>
-                  <p className="text-[10px] text-[var(--color-cinza-texto)] flex items-center gap-2 mt-1">
-                    <span>Tamanho: <strong className="text-[var(--color-cinza-escuro)]">{mat.tamanho}</strong></span>
-                    <span>•</span>
-                    <span className="flex items-center gap-0.5"><Calendar size={10} /> {mat.dataUpload}</span>
-                  </p>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={formatExternalUrl(mat.urlAcesso)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => handleDownload(mat.id)}
+                    className={`btn flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0 no-underline ${
+                      isCompleted ? 'btn-outline border-[var(--color-verde-sucesso)]/30 text-[var(--color-verde-sucesso)]' : 'btn-secondary'
+                    }`}
+                  >
+                    <Download size={14} />
+                    <span>{isCompleted ? 'Rebaixar' : 'Baixar'}</span>
+                  </a>
                 </div>
               </div>
-
-              <a
-                href={formatExternalUrl(mat.urlAcesso)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-secondary flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0 no-underline"
-              >
-                <Download size={14} />
-                <span>Baixar</span>
-              </a>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="card text-center py-12 animate-fade-in-up">
             <FileText size={28} className="text-[var(--color-cinza-texto)] mx-auto mb-3" />
@@ -129,6 +198,16 @@ export default function MateriaisPage() {
           </div>
         )}
       </div>
+
+      {/* Toast de XP */}
+      {toast && (
+        <div 
+          className="fixed top-6 right-6 z-[60] text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in-up text-sm font-black border border-[var(--color-amarelo-conquista)]/30"
+          style={{ background: 'linear-gradient(135deg, var(--color-amarelo-conquista) 0%, #F59E0B 100%)', color: 'var(--color-azul-autoridade)' }}
+        >
+          <Zap size={18} fill="currentColor" /> {toast}
+        </div>
+      )}
     </div>
   );
 }

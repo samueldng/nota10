@@ -3,8 +3,57 @@ import { query, getClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (id) {
+      const result = await query(`
+        SELECT id, numero, nome, turma_id, turma_nome, acompanhamento, status,
+               responsavel1_nome, responsavel1_telefone,
+               responsavel2_nome, responsavel2_telefone,
+               endereco_rua, endereco_bairro, endereco_cidade,
+               plano, senha_inicial, primeiro_acesso,
+               xp_total, nivel
+        FROM alunos
+        WHERE id = $1
+      `, [id]);
+
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: 'Aluno não encontrado' }, { status: 404 });
+      }
+
+      const row = result.rows[0];
+      return NextResponse.json({
+        id: row.id,
+        numero: row.numero,
+        nome: row.nome,
+        turmaId: row.turma_id,
+        turma: row.turma_nome,
+        acompanhamento: row.acompanhamento,
+        plano: row.plano || 'padrao',
+        status: row.status,
+        senhaInicial: row.senha_inicial || '',
+        primeiroAcesso: row.primeiro_acesso ?? false,
+        xpTotal: row.xp_total || 0,
+        nivel: row.nivel || 1,
+        responsavel1: {
+          nome: row.responsavel1_nome,
+          telefone: row.responsavel1_telefone,
+        },
+        responsavel2: {
+          nome: row.responsavel2_nome || '',
+          telefone: row.responsavel2_telefone || '',
+        },
+        endereco: {
+          rua: row.endereco_rua || '',
+          bairro: row.endereco_bairro || '',
+          cidade: row.endereco_cidade || '',
+        },
+      });
+    }
+
     const result = await query(`
       SELECT id, numero, nome, turma_id, turma_nome, acompanhamento, status,
              responsavel1_nome, responsavel1_telefone,

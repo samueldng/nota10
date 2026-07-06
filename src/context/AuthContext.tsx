@@ -56,7 +56,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem('nota10_session');
       if (stored) {
         try {
-          setUser(JSON.parse(stored));
+          const sessionUser = JSON.parse(stored);
+          setUser(sessionUser);
+
+          // Sincronizar plano do aluno diretamente do banco em segundo plano se for responsável
+          if (sessionUser.role === 'parent' && sessionUser.alunoId) {
+            fetch(`/api/alunos?id=${sessionUser.alunoId}`)
+              .then((res) => {
+                if (res.ok) return res.json();
+                throw new Error('Falha ao buscar perfil do aluno');
+              })
+              .then((freshAluno) => {
+                if (freshAluno && freshAluno.plano) {
+                  const updatedUser = {
+                    ...sessionUser,
+                    plano: freshAluno.plano,
+                    turmaId: freshAluno.turmaId,
+                    turma: freshAluno.turma,
+                    alunoNome: freshAluno.nome,
+                  };
+                  setUser(updatedUser);
+                  localStorage.setItem('nota10_session', JSON.stringify(updatedUser));
+                }
+              })
+              .catch((err) => console.error('Erro ao sincronizar plano do aluno:', err));
+          }
         } catch (e) {
           localStorage.removeItem('nota10_session');
         }

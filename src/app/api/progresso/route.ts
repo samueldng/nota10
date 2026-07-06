@@ -51,12 +51,19 @@ export async function GET(request: Request) {
       [alunoId]
     );
 
+    // Buscar atividades concluídas
+    const completasRes = await query(
+      `SELECT DISTINCT atividade_id FROM aluno_progresso WHERE aluno_id = $1 AND atividade_id IS NOT NULL`,
+      [alunoId]
+    );
+
     return NextResponse.json({
       xpTotal: xp_total || 0,
       nivel: nivel || 1,
       xpAtual,
       xpProximo: XP_POR_NIVEL,
       progresso: Math.round((xpAtual / XP_POR_NIVEL) * 100),
+      atividadesConcluidas: completasRes.rows.map((row) => row.atividade_id),
       historico: historicoRes.rows.map((row) => ({
         id: row.id,
         atividadeId: row.atividade_id,
@@ -102,7 +109,7 @@ export async function POST(request: Request) {
     }
 
     // Validate tipoAcao
-    const VALID_TIPOS = ['videoaula', 'simulado', 'revisao', 'fixacao', 'aula_presencial', 'pre_aula', 'palavra_chave'];
+    const VALID_TIPOS = ['videoaula', 'simulado', 'revisao', 'fixacao', 'aula_presencial', 'pre_aula', 'palavra_chave', 'material'];
     if (!VALID_TIPOS.includes(tipoAcao)) {
       client.release();
       return NextResponse.json(

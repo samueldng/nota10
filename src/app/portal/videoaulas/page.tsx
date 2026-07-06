@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { completeTask, isItemCompleted } from '@/lib/portalData';
 import type { Videoaula } from '@/lib/portalData';
-import { PlayCircle, CheckCircle2, Lock, Zap, Clock, X, Award, Flame, Play } from 'lucide-react';
+import { PlayCircle, CheckCircle2, Lock, Zap, Clock, X, Award, Flame, Play, Loader2 } from 'lucide-react';
 
 export default function VideoaulasPage() {
   const { user } = useAuth();
@@ -13,13 +12,32 @@ export default function VideoaulasPage() {
   const [videoaulas, setVideoaulas] = useState<Videoaula[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<Videoaula | null>(null);
   
+  // DB-driven completion state
+  const [atividadesConcluidas, setAtividadesConcluidas] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   // Celebration modal state
   const [showCelebration, setShowCelebration] = useState(false);
   const [gainedXp, setGainedXp] = useState(0);
   const [newLevel, setNewLevel] = useState(0);
   const [isLvlUp, setIsLvlUp] = useState(false);
 
-  const loadVideos = async () => {
+  const loadProgresso = async () => {
+    try {
+      const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAtividadesConcluidas(data.atividadesConcluidas || []);
+        return data.atividadesConcluidas || [];
+      }
+    } catch (e) {
+      console.error('Erro ao carregar progresso:', e);
+    }
+    return [];
+  };
+
+  const loadVideos = async (completedList: string[]) => {
     if (!user?.turmaId) return;
 
     try {
@@ -40,7 +58,7 @@ export default function VideoaulasPage() {
             } catch (e) {}
           }
           
-          const completed = isItemCompleted(alunoId, item.id);
+          const completed = completedList.includes(item.id);
 
           return {
             id: item.id,
@@ -62,14 +80,19 @@ export default function VideoaulasPage() {
     }
   };
 
+  const loadData = async () => {
+    const list = await loadProgresso();
+    await loadVideos(list);
+  };
+
   useEffect(() => {
     if (user?.turmaId) {
-      loadVideos();
+      loadData();
     }
     
     // Listen for progress updates
     const handleProgressUpdate = () => {
-      loadVideos();
+      loadData();
     };
     window.addEventListener('nota10_progress_updated', handleProgressUpdate);
     return () => {
@@ -77,27 +100,63 @@ export default function VideoaulasPage() {
     };
   }, [alunoId, user?.turmaId]);
 
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
   const handleOpenVideo = (video: Videoaula) => {
     if (video.status === 'bloqueado') return;
     setSelectedVideo(video);
   };
 
-  const handleSimulateWatch = () => {
-    if (!selectedVideo) return;
+  const handleSimulateWatch = async () => {
+    if (!selectedVideo || isSubmitting) return;
     
-    const wasCompleted = isItemCompleted(alunoId, selectedVideo.id);
-    if (!wasCompleted) {
-      // Complete video task and get XP
-      const res = completeTask(alunoId, selectedVideo.id, selectedVideo.xp);
-      
-      setGainedXp(selectedVideo.xp);
-      setIsLvlUp(res.leveledUp);
-      setNewLevel(res.newLevel);
-      setShowCelebration(true);
+    const wasCompleted = atividadesConcluidas.includes(selectedVideo.id);
+    if (wasCompleted) {
+      setSelectedVideo(null);
+      return;
     }
     
-    setSelectedVideo(null);
-    loadVideos();
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/progresso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alunoId,
+          tipoAcao: 'videoaula',
+          xpGanho: selectedVideo.xp || 15,
+          atividadeId: selectedVideo.id
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        setGainedXp(selectedVideo.xp || 15);
+        setIsLvlUp(data.leveledUp);
+        setNewLevel(data.nivel);
+        setShowCelebration(true);
+        setToast(`+${selectedVideo.xp || 15} XP!`);
+
+        // Notify other parts of the dashboard to reload
+        window.dispatchEvent(new Event('nota10_progress_updated'));
+      } else {
+        const errData = await response.json();
+        alert('Erro ao registrar progresso: ' + (errData.error || 'Erro desconhecido'));
+      }
+    } catch (err) {
+      console.error('Erro ao salvar progresso:', err);
+    } finally {
+      setIsSubmitting(false);
+      setSelectedVideo(null);
+      loadData();
+    }
   };
 
   // Extrair ID do youtube se houver
@@ -117,7 +176,7 @@ export default function VideoaulasPage() {
     <div className="max-w-5xl mx-auto space-y-8 relative">
       {disciplinas.map((disciplina) => {
         const videos = videoaulas.filter(v => v.disciplina === disciplina);
-        const assistidos = videos.filter(v => isItemCompleted(alunoId, v.id)).length;
+        const assistidos = videos.filter(v => atividadesConcluidas.includes(v.id)).length;
         const total = videos.length;
         const progresso = total > 0 ? Math.round((assistidos / total) * 100) : 0;
 
@@ -143,7 +202,7 @@ export default function VideoaulasPage() {
             {/* Video Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((video) => {
-                const completed = isItemCompleted(alunoId, video.id);
+                const completed = atividadesConcluidas.includes(video.id);
                 return (
                   <div
                     key={video.id}
@@ -252,8 +311,27 @@ export default function VideoaulasPage() {
                 <Zap size={14} className="text-[var(--color-amarelo-conquista)]" fill="currentColor" />
                 <span className="text-xs font-bold text-[var(--color-cinza-escuro)]">Assista até o fim para ganhar +{selectedVideo.xp} XP</span>
               </div>
-              <button onClick={handleSimulateWatch} className="btn btn-primary text-xs py-2 px-4 flex items-center gap-1.5">
-                <CheckCircle2 size={14} /> Concluir e Ganhar XP
+              <button 
+                onClick={handleSimulateWatch} 
+                disabled={atividadesConcluidas.includes(selectedVideo.id) || isSubmitting}
+                className="btn btn-primary text-xs py-2 px-4 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : atividadesConcluidas.includes(selectedVideo.id) ? (
+                  <>
+                    <CheckCircle2 size={14} />
+                    <span>Concluído</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} />
+                    <span>Concluir e Ganhar XP</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -296,6 +374,15 @@ export default function VideoaulasPage() {
               Sensacional! Continuar Estudando
             </button>
           </div>
+        </div>
+      )}
+      {/* Toast de XP */}
+      {toast && (
+        <div 
+          className="fixed top-6 right-6 z-[60] text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in-up text-sm font-black border border-[var(--color-amarelo-conquista)]/30"
+          style={{ background: 'linear-gradient(135deg, var(--color-amarelo-conquista) 0%, #F59E0B 100%)', color: 'var(--color-azul-autoridade)' }}
+        >
+          <Zap size={18} fill="currentColor" /> {toast}
         </div>
       )}
     </div>
