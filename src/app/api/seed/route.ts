@@ -10,6 +10,7 @@ export async function GET() {
 
     // 1. Limpar tabelas (A ordem importa por causa das FKs)
     console.log('Limpando tabelas...');
+    await query('DELETE FROM aluno_progresso');
     await query('DELETE FROM log_auditoria');
     await query('DELETE FROM folhas_geradas');
     await query('DELETE FROM registros_lancados');

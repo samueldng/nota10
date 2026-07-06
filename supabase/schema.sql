@@ -143,3 +143,27 @@ CREATE TABLE conteudos_midia (
 CREATE INDEX idx_conteudos_turma ON conteudos_midia (turma_id);
 CREATE INDEX idx_conteudos_tipo ON conteudos_midia (tipo_conteudo);
 CREATE INDEX idx_conteudos_turma_tipo ON conteudos_midia (turma_id, tipo_conteudo);
+
+-- ══════════════════════════════════════════════════════════════
+-- Gamificação: Progresso do Aluno (XP persistido no banco)
+-- ══════════════════════════════════════════════════════════════
+
+-- Tabela de progresso individual (cada ação gera um registro)
+CREATE TABLE aluno_progresso (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  aluno_id UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+  atividade_id UUID REFERENCES cronograma_atividades(id) ON DELETE SET NULL,
+  tipo_acao VARCHAR(50) NOT NULL,
+  xp_ganho INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_progresso_aluno ON aluno_progresso (aluno_id);
+CREATE INDEX idx_progresso_atividade ON aluno_progresso (atividade_id);
+CREATE INDEX idx_progresso_tipo ON aluno_progresso (tipo_acao);
+
+-- Colunas de gamificação na tabela alunos (cache desnormalizado para performance)
+-- ALTER TABLE alunos ADD COLUMN xp_total INT DEFAULT 0;
+-- ALTER TABLE alunos ADD COLUMN nivel INT DEFAULT 1;
+-- (Essas colunas são adicionadas via ALTER TABLE na migração gamificacao_migration.sql)
+

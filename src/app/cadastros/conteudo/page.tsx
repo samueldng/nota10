@@ -33,6 +33,7 @@ export default function PainelConteudoAdminPage() {
     tipo: 'apostila' as any,
     turmaId: 'todas',
     tamanho: '5.2 MB',
+    urlAcesso: '',
   });
 
   const [comunicadoForm, setComunicadoForm] = useState({
@@ -161,7 +162,7 @@ export default function PainelConteudoAdminPage() {
           tipoConteudo: 'pdf',
           titulo: materialForm.titulo,
           descricao: JSON.stringify(extra),
-          urlAcesso: materialForm.titulo + '.pdf',
+          urlAcesso: materialForm.urlAcesso || materialForm.titulo + '.pdf',
           disciplina: materialForm.tipo === 'combinados' ? 'Geral' : 'Revisão',
           dataDisponibilizacao: new Date().toISOString().split('T')[0],
           status: true,
@@ -192,6 +193,7 @@ export default function PainelConteudoAdminPage() {
         tipo: 'apostila',
         turmaId: 'todas',
         tamanho: '5.2 MB',
+        urlAcesso: '',
       });
     } catch (err: any) {
       console.error(err);
@@ -680,6 +682,22 @@ export default function PainelConteudoAdminPage() {
                       <option key={t.id} value={t.id}>{t.nome}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label flex items-center gap-1">
+                    <LinkIcon size={12} /> URL de Acesso (Google Drive / OneDrive)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={materialForm.urlAcesso}
+                    onChange={(e) => setMaterialForm({ ...materialForm, urlAcesso: e.target.value })}
+                    placeholder="https://drive.google.com/file/d/... ou https://onedrive.live.com/..."
+                  />
+                  <p className="text-[10px] text-[var(--color-cinza-texto)] mt-1">
+                    Cole o link compartilhável do PDF. Se vazio, será gerado automaticamente.
+                  </p>
                 </div>
               </div>
             )}

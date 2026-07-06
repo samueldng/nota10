@@ -10,7 +10,8 @@ export async function GET() {
              responsavel1_nome, responsavel1_telefone,
              responsavel2_nome, responsavel2_telefone,
              endereco_rua, endereco_bairro, endereco_cidade,
-             plano, senha_inicial, primeiro_acesso
+             plano, senha_inicial, primeiro_acesso,
+             xp_total, nivel
       FROM alunos
       ORDER BY nome
     `);
@@ -26,6 +27,8 @@ export async function GET() {
       status: row.status,
       senhaInicial: row.senha_inicial || '',
       primeiroAcesso: row.primeiro_acesso ?? false,
+      xpTotal: row.xp_total || 0,
+      nivel: row.nivel || 1,
       responsavel1: {
         nome: row.responsavel1_nome,
         telefone: row.responsavel1_telefone,

@@ -3,7 +3,7 @@
 import { useAuth } from '@/context/AuthContext';
 import PlanLock from '@/components/portal/PlanLock';
 import {
-  getXPTotal, getNivel, getXPParaProximoNivel, getStreak,
+  getNivel, getXPParaProximoNivel,
   getConquistas, getProgressoDisciplina, getCronogramaSemana,
   getProximaAula, getRegistroSemanal, getIniciais, getAvatarColor,
 } from '@/lib/portalData';
@@ -13,7 +13,7 @@ import {
   CheckCircle2, Circle, Loader2, BookOpen, Star,
 } from 'lucide-react';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function PortalInicioPage() {
   const { user } = useAuth();
@@ -30,26 +30,51 @@ export default function PortalInicioPage() {
   const [conquistas, setConquistas] = useState<any[]>([]);
   const [progressoDisciplina, setProgressoDisciplina] = useState<any[]>([]);
   const [cronograma, setCronograma] = useState<CronogramaSemana | null>(null);
+  const [dbLoaded, setDbLoaded] = useState(false);
 
-  const loadData = () => {
-    const xp = getXPTotal(alunoId);
-    setXpTotal(xp);
-    setNivel(getNivel(xp));
-    setXpProgress(getXPParaProximoNivel(xp));
-    setStreak(getStreak(alunoId));
+  const loadData = useCallback(async () => {
+    // 1. Try to load XP from the database first
+    try {
+      const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setXpTotal(data.xpTotal || 0);
+        setNivel(data.nivel || 1);
+        setXpProgress({
+          atual: data.xpAtual || 0,
+          proximo: data.xpProximo || 100,
+          progresso: data.progresso || 0,
+        });
+        setDbLoaded(true);
+      } else {
+        // Fallback to computed values from xpTotal = 0
+        setXpTotal(0);
+        setNivel(1);
+        setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
+      }
+    } catch (err) {
+      // API not available — default values
+      console.warn('Progresso API não disponível, usando valores padrão:', err);
+      setXpTotal(0);
+      setNivel(1);
+      setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
+    }
+
+    // 2. Streak, conquistas, progresso still use portalData (localStorage) for now
+    setStreak(0); // Reset streak — will be migrated in a future phase
     setConquistas(getConquistas(alunoId));
     setProgressoDisciplina(getProgressoDisciplina(alunoId));
     setCronograma(getCronogramaSemana(turmaId));
-  };
+  }, [alunoId, turmaId]);
 
   useEffect(() => {
     loadData();
-    // Listen for progress updates
+    // Listen for progress updates (cross-component sync)
     window.addEventListener('nota10_progress_updated', loadData);
     return () => {
       window.removeEventListener('nota10_progress_updated', loadData);
     };
-  }, [alunoId, turmaId]);
+  }, [loadData]);
 
   if (!cronograma) return null;
 
