@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { getVideoaulas, completeTask, isItemCompleted } from '@/lib/portalData';
+import { completeTask, isItemCompleted } from '@/lib/portalData';
 import type { Videoaula } from '@/lib/portalData';
 import { PlayCircle, CheckCircle2, Lock, Zap, Clock, X, Award, Flame, Play } from 'lucide-react';
 
@@ -19,19 +19,63 @@ export default function VideoaulasPage() {
   const [newLevel, setNewLevel] = useState(0);
   const [isLvlUp, setIsLvlUp] = useState(false);
 
-  const loadVideos = () => {
-    setVideoaulas(getVideoaulas(alunoId));
+  const loadVideos = async () => {
+    if (!user?.turmaId) return;
+
+    try {
+      const res = await fetch(`/api/conteudos?turmaId=${user.turmaId}&tipoConteudo=videoaula`);
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = data.map((item: any) => {
+          let extra = {
+            bloco: 'Bloco 1',
+            duracao: '15:00',
+            xp: 15,
+            videoSource: 'youtube',
+            thumbnailColor: item.disciplina === 'Português' ? '#8B5CF6' : '#F59E0B'
+          };
+          if (item.descricao) {
+            try {
+              extra = { ...extra, ...JSON.parse(item.descricao) };
+            } catch (e) {}
+          }
+          
+          const completed = isItemCompleted(alunoId, item.id);
+
+          return {
+            id: item.id,
+            titulo: item.titulo,
+            disciplina: item.disciplina,
+            bloco: extra.bloco,
+            duracao: extra.duracao,
+            status: completed ? 'assistido' : 'disponivel',
+            xp: extra.xp,
+            thumbnailColor: extra.thumbnailColor,
+            videoSource: extra.videoSource,
+            videoUrl: item.urlAcesso,
+          } as Videoaula;
+        });
+        setVideoaulas(formatted);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar videoaulas:', err);
+    }
   };
 
   useEffect(() => {
-    loadVideos();
+    if (user?.turmaId) {
+      loadVideos();
+    }
     
     // Listen for progress updates
-    window.addEventListener('nota10_progress_updated', loadVideos);
-    return () => {
-      window.removeEventListener('nota10_progress_updated', loadVideos);
+    const handleProgressUpdate = () => {
+      loadVideos();
     };
-  }, [alunoId]);
+    window.addEventListener('nota10_progress_updated', handleProgressUpdate);
+    return () => {
+      window.removeEventListener('nota10_progress_updated', handleProgressUpdate);
+    };
+  }, [alunoId, user?.turmaId]);
 
   const handleOpenVideo = (video: Videoaula) => {
     if (video.status === 'bloqueado') return;

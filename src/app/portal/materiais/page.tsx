@@ -8,13 +8,38 @@ import { useState, useEffect } from 'react';
 
 export default function MateriaisPage() {
   const { user } = useAuth();
-  const turmaId = user?.turmaId || 'T001';
-  const [materiais, setMateriais] = useState<MaterialDownload[]>([]);
+  const turmaId = user?.turmaId;
+  const [materiais, setMateriais] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('todos');
 
   useEffect(() => {
-    setMateriais(getMateriais(turmaId));
+    if (!turmaId) return;
+
+    fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=pdf`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const formatted = data.map((item: any) => {
+            let extra = { tipo: 'apostila', tamanho: '5.2 MB' };
+            if (item.descricao) {
+              try {
+                extra = { ...extra, ...JSON.parse(item.descricao) };
+              } catch (e) {}
+            }
+            return {
+              id: item.id,
+              titulo: item.titulo,
+              tipo: extra.tipo,
+              tamanho: extra.tamanho,
+              turmaId: item.turmaId,
+              dataUpload: item.dataDisponibilizacao ? new Date(item.dataDisponibilizacao).toLocaleDateString('pt-BR') : '',
+            };
+          });
+          setMateriais(formatted);
+        }
+      })
+      .catch((err) => console.error('Erro ao carregar materiais:', err));
   }, [turmaId]);
 
   const filtered = materiais.filter((m) => {

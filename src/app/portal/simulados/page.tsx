@@ -1,7 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { getSimulados } from '@/lib/portalData';
 import { canAccessFeature, planoLabels } from '@/lib/mockData';
 import { FileText, Calendar, CheckCircle2, Clock, Lock, BarChart3, PlayCircle, ArrowRight } from 'lucide-react';
 
@@ -9,7 +9,47 @@ export default function SimuladosPage() {
   const { user } = useAuth();
   const alunoId = user?.alunoId || 'a1';
   const plano = user?.plano || 'padrao';
-  const simulados = getSimulados(alunoId);
+  const turmaId = user?.turmaId;
+  const [simulados, setSimulados] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!turmaId) return;
+
+    fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=simulado`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const formatted = data.map((item: any) => {
+            let extra = {
+              status: 'agendado',
+              totalQuestoes: 40,
+              acertos: 0,
+              temGabarito: false,
+              temCorrecaoVideo: false,
+              resultadoPorBloco: []
+            };
+            if (item.descricao) {
+              try {
+                extra = { ...extra, ...JSON.parse(item.descricao) };
+              } catch (e) {}
+            }
+            return {
+              id: item.id,
+              titulo: item.titulo,
+              data: item.dataDisponibilizacao ? new Date(item.dataDisponibilizacao).toLocaleDateString('pt-BR') : '',
+              status: extra.status,
+              totalQuestoes: extra.totalQuestoes,
+              acertos: extra.acertos,
+              temGabarito: extra.temGabarito,
+              temCorrecaoVideo: extra.temCorrecaoVideo,
+              resultadoPorBloco: extra.resultadoPorBloco,
+            };
+          });
+          setSimulados(formatted);
+        }
+      })
+      .catch((err) => console.error('Erro ao carregar simulados:', err));
+  }, [turmaId]);
 
   const realizados = simulados.filter(s => s.status === 'realizado');
   const agendados = simulados.filter(s => s.status === 'agendado');

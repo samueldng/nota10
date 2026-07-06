@@ -32,11 +32,27 @@ const tipoConfig: Record<string, { label: string; bg: string; text: string; bord
 
 export default function ComunicadosPage() {
   const { user } = useAuth();
-  const turmaId = user?.turmaId || 'T001';
-  const [comunicados, setComunicados] = useState<ComunicadoEscola[]>([]);
+  const turmaId = user?.turmaId;
+  const [comunicados, setComunicados] = useState<any[]>([]);
 
   useEffect(() => {
-    setComunicados(getComunicados(turmaId));
+    if (!turmaId) return;
+
+    fetch(`/api/comunicados?turmaId=${turmaId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const formatted = data.map((com: any) => ({
+            id: com.id,
+            titulo: com.titulo,
+            conteudo: com.descricao,
+            tipo: com.tipoCriticidade,
+            data: com.dataPublicacao ? new Date(com.dataPublicacao).toLocaleDateString('pt-BR') : '',
+          }));
+          setComunicados(formatted);
+        }
+      })
+      .catch((err) => console.error('Erro ao carregar comunicados:', err));
   }, [turmaId]);
 
   return (
