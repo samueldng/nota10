@@ -120,100 +120,112 @@ export default function PortalInicioPage() {
 
       {/* ── 4.2 Painel de Gamificação ── */}
       <div className="card animate-fade-in-up delay-1">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Avatar + Level + XP */}
-          <div className="flex items-center gap-4 lg:min-w-[260px]">
-            <div className="relative">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shadow-lg"
-                style={{ backgroundColor: avatarColor }}
-              >
-                {iniciais}
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-autoridade)] flex items-center justify-center text-[10px] font-black border-2 border-white">
-                {nivel}
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-[var(--color-azul-autoridade)]">
-                Nível {nivel} — {firstName}
-              </p>
-              <div className="mt-2 h-3 bg-[var(--color-cinza-fundo)] rounded-full overflow-hidden border border-[var(--color-cinza-borda)]">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${xpProgress.progresso}%`,
-                    background: 'linear-gradient(90deg, var(--color-amarelo-conquista), #F59E0B)',
-                  }}
-                />
-              </div>
-              <p className="text-[10px] text-[var(--color-cinza-texto)] mt-1 flex items-center gap-1">
-                <Zap size={10} className="text-[var(--color-amarelo-conquista)]" />
-                {xpProgress.atual} / {xpProgress.proximo} XP para o próximo nível
-              </p>
-            </div>
+        {!dbLoaded ? (
+          <div className="flex items-center justify-center py-10 gap-2">
+            <Loader2 className="animate-spin text-[var(--color-azul-autoridade)]" size={24} />
+            <span className="text-sm text-[var(--color-cinza-texto)] font-bold">Carregando progresso do aluno...</span>
           </div>
-
-          {/* Streak */}
-          <div className="flex items-center gap-3 lg:border-l lg:border-[var(--color-cinza-borda)] lg:pl-6">
-            <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center border border-orange-200">
-              <Flame size={24} className="text-orange-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-extrabold text-orange-500 leading-none">{streak}</p>
-              <p className="text-[10px] text-[var(--color-cinza-texto)] font-bold">semanas seguidas</p>
-            </div>
-          </div>
-
-          {/* Progress by discipline */}
-          <div className="flex-1 lg:border-l lg:border-[var(--color-cinza-borda)] lg:pl-6 space-y-3">
-            {progressoDisciplina.map((p) => (
-              <div key={p.disciplina}>
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-xs font-bold text-[var(--color-azul-autoridade)]">{p.disciplina}</p>
-                  <p className="text-[10px] text-[var(--color-cinza-texto)]">{p.blocosCompletos}/{p.blocosTotal} blocos</p>
-                </div>
-                <div className="flex gap-1">
-                  {Array.from({ length: p.blocosTotal }).map((_, i) => (
+        ) : (() => {
+          const xpAtualDoNivel = xpTotal % 100;
+          return (
+            <>
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Avatar + Level + XP */}
+                <div className="flex items-center gap-4 lg:min-w-[260px]">
+                  <div className="relative">
                     <div
-                      key={i}
-                      className={`h-2.5 flex-1 rounded-full transition-all ${
-                        i < p.blocosCompletos
-                          ? 'bg-[var(--color-verde-sucesso)]'
-                          : i === p.blocoAtual - 1
-                          ? 'bg-[var(--color-amarelo-conquista)] animate-pulse'
-                          : 'bg-[var(--color-cinza-borda)]'
-                      }`}
-                    />
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shadow-lg"
+                      style={{ backgroundColor: avatarColor }}
+                    >
+                      {iniciais}
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-autoridade)] flex items-center justify-center text-[10px] font-black border-2 border-white">
+                      {nivel}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-[var(--color-azul-autoridade)]">
+                      Nível {nivel} — {firstName}
+                    </p>
+                    <div className="mt-2 h-3 bg-[var(--color-cinza-fundo)] rounded-full overflow-hidden border border-[var(--color-cinza-borda)]">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${xpAtualDoNivel}%`,
+                          background: 'linear-gradient(90deg, var(--color-amarelo-conquista), #F59E0B)',
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[var(--color-cinza-texto)] mt-1 flex items-center gap-1">
+                      <Zap size={10} className="text-[var(--color-amarelo-conquista)]" />
+                      {xpAtualDoNivel} / 100 XP para o próximo nível
+                    </p>
+                  </div>
+                </div>
+
+                {/* Streak */}
+                <div className="flex items-center gap-3 lg:border-l lg:border-[var(--color-cinza-borda)] lg:pl-6">
+                  <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center border border-orange-200">
+                    <Flame size={24} className="text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-extrabold text-orange-500 leading-none">{streak}</p>
+                    <p className="text-[10px] text-[var(--color-cinza-texto)] font-bold">semanas seguidas</p>
+                  </div>
+                </div>
+
+                {/* Progress by discipline */}
+                <div className="flex-1 lg:border-l lg:border-[var(--color-cinza-borda)] lg:pl-6 space-y-3">
+                  {progressoDisciplina.map((p) => (
+                    <div key={p.disciplina}>
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs font-bold text-[var(--color-azul-autoridade)]">{p.disciplina}</p>
+                        <p className="text-[10px] text-[var(--color-cinza-texto)]">{p.blocosCompletos}/{p.blocosTotal} blocos</p>
+                      </div>
+                      <div className="flex gap-1">
+                        {Array.from({ length: p.blocosTotal }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`h-2.5 flex-1 rounded-full transition-all ${
+                              i < p.blocosCompletos
+                                ? 'bg-[var(--color-verde-sucesso)]'
+                                : i === p.blocoAtual - 1
+                                ? 'bg-[var(--color-amarelo-conquista)] animate-pulse'
+                                : 'bg-[var(--color-cinza-borda)]'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Conquistas */}
-        <div className="mt-5 pt-4 border-t border-[var(--color-cinza-borda)]">
-          <h4 className="text-xs font-bold text-[var(--color-azul-autoridade)] mb-3 flex items-center gap-1.5">
-            <Trophy size={14} className="text-[var(--color-amarelo-conquista)]" /> Conquistas
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {conquistas.map((c) => (
-              <div
-                key={c.id}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                  c.desbloqueada
-                    ? 'bg-[var(--color-amarelo-alerta-light)] border-[var(--color-amarelo-conquista)]/30 text-[var(--color-cinza-escuro)]'
-                    : 'bg-[var(--color-cinza-fundo)] border-[var(--color-cinza-borda)] text-[var(--color-cinza-texto)] opacity-50'
-                }`}
-                title={c.descricao}
-              >
-                {c.desbloqueada ? c.icone : <Lock size={10} />}
-                {c.nome}
+              {/* Conquistas */}
+              <div className="mt-5 pt-4 border-t border-[var(--color-cinza-borda)]">
+                <h4 className="text-xs font-bold text-[var(--color-azul-autoridade)] mb-3 flex items-center gap-1.5">
+                  <Trophy size={14} className="text-[var(--color-amarelo-conquista)]" /> Conquistas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {conquistas.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                        c.desbloqueada
+                          ? 'bg-[var(--color-amarelo-alerta-light)] border-[var(--color-amarelo-conquista)]/30 text-[var(--color-cinza-escuro)]'
+                          : 'bg-[var(--color-cinza-fundo)] border-[var(--color-cinza-borda)] text-[var(--color-cinza-texto)] opacity-50'
+                      }`}
+                      title={c.descricao}
+                    >
+                      {c.desbloqueada ? c.icone : <Lock size={10} />}
+                      {c.nome}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* ── 4.3 "O que fazer esta semana" ── */}

@@ -33,6 +33,7 @@ export default function MateriaisPage() {
               tipo: extra.tipo,
               tamanho: extra.tamanho,
               turmaId: item.turmaId,
+              urlAcesso: item.urlAcesso,
               dataUpload: item.dataDisponibilizacao ? new Date(item.dataDisponibilizacao).toLocaleDateString('pt-BR') : '',
             };
           });
@@ -41,6 +42,14 @@ export default function MateriaisPage() {
       })
       .catch((err) => console.error('Erro ao carregar materiais:', err));
   }, [turmaId]);
+
+  const formatExternalUrl = (url: string) => {
+    if (!url) return '#';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    return `https://${url}`;
+  };
 
   const filtered = materiais.filter((m) => {
     if (search && !m.titulo.toLowerCase().includes(search.toLowerCase())) return false;
@@ -102,10 +111,15 @@ export default function MateriaisPage() {
                 </div>
               </div>
 
-              <button className="btn btn-secondary flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0">
+              <a
+                href={formatExternalUrl(mat.urlAcesso)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary flex items-center gap-2 text-xs py-2 px-3 flex-shrink-0 no-underline"
+              >
                 <Download size={14} />
                 <span>Baixar</span>
-              </button>
+              </a>
             </div>
           ))
         ) : (
