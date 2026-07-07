@@ -104,16 +104,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="sidebar-logo">
           <Link href="/" className="flex items-center no-underline" onClick={onClose}>
-            <Image
-              src="/logo-nota10.png"
+            <img
+              src="/logo-nota10.svg"
               alt="Nota 10 Educacional"
-              width={165}
-              height={80}
-              className="h-11 w-auto"
-              style={{
-                filter: 'drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(1px 1px 0 #fff) drop-shadow(-1px -1px 0 #fff)'
-              }}
-              priority
+              className="h-10 w-auto"
+              style={{ filter: 'brightness(0) invert(1)' }}
             />
           </Link>
         </div>

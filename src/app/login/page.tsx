@@ -96,13 +96,10 @@ export default function LoginPage() {
         {/* Brand Logo Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center">
-            <Image
-              src="/logo-nota10.png"
+            <img
+              src="/logo-nota10.svg"
               alt="Nota 10 Educacional"
-              width={360}
-              height={200}
-              className="h-28 w-auto drop-shadow-md"
-              priority
+              className="h-16 w-auto"
             />
           </div>
           <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">
