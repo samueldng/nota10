@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getIniciais, getAvatarColor } from '@/lib/portalData';
@@ -86,17 +87,18 @@ export default function PortalSidebar({ isOpen, onClose }: PortalSidebarProps) {
 
         {/* Logo */}
         <div className="sidebar-logo">
-          <Link href="/portal" className="flex items-center gap-2 no-underline" onClick={onClose}>
-            <div className="flex items-center">
-              <span className="text-white font-extrabold text-2xl tracking-tight">Nota</span>
-              <span className="relative">
-                <span className="text-[var(--color-amarelo-conquista)] font-extrabold text-3xl leading-none">10</span>
-                <Star size={10} className="absolute -top-1 -right-2 text-[var(--color-amarelo-conquista)]" fill="currentColor" />
-              </span>
-            </div>
-            <div className="ml-1">
-              <span className="text-white/60 text-[10px] font-medium block leading-tight">Portal do Aluno</span>
-            </div>
+          <Link href="/portal" className="flex items-center no-underline" onClick={onClose}>
+            <Image
+              src="/logo-nota10.png"
+              alt="Nota 10 Educacional"
+              width={165}
+              height={80}
+              className="h-11 w-auto"
+              style={{
+                filter: 'drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(1px 1px 0 #fff) drop-shadow(-1px -1px 0 #fff)'
+              }}
+              priority
+            />
           </Link>
         </div>
 

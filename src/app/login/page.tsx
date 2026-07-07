@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Star, Lock, User, Phone, CheckCircle, Database } from 'lucide-react';
+import Image from 'next/image';
+import { Lock, User, Phone, CheckCircle, Database } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, loginAsAdmin, loginAsParent, isAuthenticated, isDbOnline } = useAuth();
@@ -94,19 +95,15 @@ export default function LoginPage() {
       <div className="w-full max-w-md animate-fade-in-up">
         {/* Brand Logo Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 bg-[var(--color-azul-autoridade)] px-6 py-3 rounded-2xl shadow-md">
-            <span className="text-white font-extrabold text-3xl tracking-tight">Nota</span>
-            <span className="relative">
-              <span className="text-[var(--color-amarelo-conquista)] font-extrabold text-4xl leading-none font-sans">10</span>
-              <Star
-                size={12}
-                className="absolute -top-1 -right-2.5 text-[var(--color-amarelo-conquista)]"
-                fill="currentColor"
-              />
-            </span>
-            <span className="text-white/80 text-sm font-semibold pl-2 border-l border-white/20 ml-2">
-              Educacional
-            </span>
+          <div className="inline-flex items-center justify-center">
+            <Image
+              src="/logo-nota10.png"
+              alt="Nota 10 Educacional"
+              width={360}
+              height={200}
+              className="h-28 w-auto drop-shadow-md"
+              priority
+            />
           </div>
           <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">
             Gestão escolar simples, precisa e eficiente.

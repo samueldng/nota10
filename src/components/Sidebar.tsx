@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -102,21 +103,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         {/* Logo */}
         <div className="sidebar-logo">
-          <Link href="/" className="flex items-center gap-2 no-underline" onClick={onClose}>
-            <div className="flex items-center">
-              <span className="text-white font-extrabold text-2xl tracking-tight">Nota</span>
-              <span className="relative">
-                <span className="text-[var(--color-amarelo-conquista)] font-extrabold text-3xl leading-none">10</span>
-                <Star
-                  size={10}
-                  className="absolute -top-1 -right-2 text-[var(--color-amarelo-conquista)]"
-                  fill="currentColor"
-                />
-              </span>
-            </div>
-            <div className="ml-1">
-              <span className="text-white/80 text-xs font-medium block leading-tight">Educacional</span>
-            </div>
+          <Link href="/" className="flex items-center no-underline" onClick={onClose}>
+            <Image
+              src="/logo-nota10.png"
+              alt="Nota 10 Educacional"
+              width={165}
+              height={80}
+              className="h-11 w-auto"
+              style={{
+                filter: 'drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(1px 1px 0 #fff) drop-shadow(-1px -1px 0 #fff)'
+              }}
+              priority
+            />
           </Link>
         </div>
 
