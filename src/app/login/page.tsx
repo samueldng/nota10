@@ -97,9 +97,9 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center">
             <img
-              src="/logo-nota10.svg"
+              src="/Materias/logo.png"
               alt="Nota 10 Educacional"
-              className="h-16 w-auto"
+              className="h-28 w-auto drop-shadow-md"
             />
           </div>
           <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">

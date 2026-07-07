@@ -44,13 +44,10 @@ export default function BemVindosPage() {
         {/* Left column: logo precmt */}
         <div className="bg-white rounded-3xl border border-[var(--color-cinza-borda)] p-5 md:sticky md:top-24 flex flex-col items-center justify-center shadow-sm animate-fade-in-up delay-1">
           <div className="flex items-center justify-center py-4">
-            <Image
-              src="/logo-precmt.png"
+            <img
+              src="/Materias/logo_precmt.png"
               alt="Pré CMT Nota 10"
-              width={140}
-              height={105}
               className="h-20 w-auto object-contain drop-shadow-md"
-              priority
             />
           </div>
           <div className="w-full border-t border-[var(--color-cinza-borda)] mt-2 pt-3 text-center">
