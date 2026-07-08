@@ -19,9 +19,16 @@ export async function GET(request: Request) {
       );
     }
 
-    // Buscar plano do aluno diretamente no banco
+    // Buscar plano do aluno diretamente no banco com sua turma ativa
     const alunoRes = await query(
-      `SELECT id, nome, plano, turma_nome FROM alunos WHERE id = $1`,
+      `SELECT a.id, a.nome, a.plano,
+              (SELECT t.nome 
+               FROM matriculas m 
+               JOIN turmas t ON m.turma_id = t.id 
+               WHERE m.aluno_id = a.id AND m.status = 'ativo' 
+               LIMIT 1) as turma_nome 
+       FROM alunos a 
+       WHERE a.id = $1`,
       [alunoId]
     );
 

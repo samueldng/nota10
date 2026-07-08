@@ -66,31 +66,36 @@ export async function GET() {
     console.log('Inserindo alunos...');
     for (const a of alunos) {
       const dbTurmaId = turmaMap.get(a.turmaId) || null;
-      await query(
+      const resAluno = await query(
         `INSERT INTO alunos (
-          numero, nome, turma_id, turma_nome, acompanhamento, status,
+          numero, nome, acompanhamento, plano, senha_inicial, primeiro_acesso,
           responsavel1_nome, responsavel1_telefone, responsavel2_nome, responsavel2_telefone,
-          endereco_rua, endereco_bairro, endereco_cidade, plano, senha_inicial, primeiro_acesso
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          endereco_rua, endereco_bairro, endereco_cidade
+        ) VALUES ($1, $2, ARRAY[$3]::text[], $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
         [
           a.numero,
           a.nome,
-          dbTurmaId,
-          a.turma,
           a.acompanhamento,
-          a.status,
+          a.plano || 'padrao',
+          a.senhaInicial || '123456',
+          a.primeiroAcesso || false,
           a.responsavel1.nome,
           a.responsavel1.telefone,
           a.responsavel2.nome || null,
           a.responsavel2.telefone || null,
           a.endereco.rua,
           a.endereco.bairro,
-          a.endereco.cidade,
-          a.plano || 'padrao',
-          a.senhaInicial || '123456',
-          a.primeiroAcesso || false
+          a.endereco.cidade
         ]
       );
+      
+      const dbAlunoId = resAluno.rows[0].id;
+      if (dbTurmaId) {
+        await query(
+          `INSERT INTO matriculas (aluno_id, turma_id, status) VALUES ($1, $2, 'ativo')`,
+          [dbAlunoId, dbTurmaId]
+        );
+      }
     }
 
     // 5. Inserir Registros Lançados

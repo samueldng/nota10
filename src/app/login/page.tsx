@@ -5,7 +5,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Lock, User, Phone, Database } from 'lucide-react';
-import logoOficial from '../../../public/logo-nota10.svg';
 
 export default function LoginPage() {
   const { user, loginAsAdmin, loginAsParent, isAuthenticated, isDbOnline } = useAuth();
@@ -97,12 +96,10 @@ export default function LoginPage() {
         {/* Brand Logo Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center">
-            <Image
-              src={logoOficial}
+            <img
+              src="/logo-nota10.png"
               alt="Nota 10 Educacional"
               className="h-28 w-auto mx-auto object-contain"
-              unoptimized
-              priority
             />
           </div>
           <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">

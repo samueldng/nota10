@@ -138,6 +138,25 @@ export async function POST(request: Request) {
     const oldXP = beforeRes.rows[0].xp_total || 0;
     const oldNivel = beforeRes.rows[0].nivel || 1;
 
+    // 1.5 Anti-spam check for duplicate activity progress
+    if (atividadeId) {
+      const existingRes = await client.query(
+        `SELECT id FROM aluno_progresso WHERE aluno_id = $1 AND atividade_id = $2 LIMIT 1`,
+        [alunoId, atividadeId]
+      );
+      if (existingRes.rows.length > 0) {
+        await client.query('ROLLBACK');
+        client.release();
+        return NextResponse.json({
+          xpTotal: oldXP,
+          nivel: oldNivel,
+          leveledUp: false,
+          alreadyCompleted: true,
+          message: 'Atividade já concluída anteriormente.'
+        });
+      }
+    }
+
     // 2. Insert progress record
     const insertRes = await client.query(
       `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)

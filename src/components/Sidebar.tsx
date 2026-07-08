@@ -105,7 +105,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="sidebar-logo">
           <Link href="/" className="flex items-center no-underline" onClick={onClose}>
             <img
-              src="/Materias/logo.png"
+              src="/logo-nota10.png"
               alt="Nota 10 Educacional"
               className="h-11 w-auto"
               style={{
