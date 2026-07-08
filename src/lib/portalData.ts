@@ -26,6 +26,7 @@ export interface Videoaula {
   thumbnailColor: string;
   videoSource: 'youtube' | 'local';
   videoUrl?: string; // link do youtube ou nome do arquivo local
+  turmaNome?: string;
 }
 
 // ── Configurações da Escola ──

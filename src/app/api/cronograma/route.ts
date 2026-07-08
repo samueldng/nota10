@@ -73,11 +73,33 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const rawTurmaId = searchParams.get('turmaId');
+    const alunoId = searchParams.get('alunoId');
     const semanaParam = searchParams.get('semana');
+
+    // 1. Se alunoId for fornecido, retornar todos os cronogramas de todas as turmas do aluno
+    if (alunoId) {
+      let sql = `
+        SELECT * FROM cronograma_atividades
+        WHERE turma_id IN (SELECT turma_id FROM matriculas WHERE aluno_id = $1 AND status = 'ativo')
+      `;
+      const params: any[] = [alunoId];
+
+      if (semanaParam) {
+        const semanaNum = parseInt(semanaParam, 10);
+        if (!isNaN(semanaNum)) {
+          sql += ` AND semana_numero = $2`;
+          params.push(semanaNum);
+        }
+      }
+
+      sql += ` ORDER BY semana_numero ASC, ordem ASC`;
+      const result = await query(sql, params);
+      return NextResponse.json(result.rows.map(formatRow));
+    }
 
     if (!rawTurmaId) {
       return NextResponse.json(
-        { error: 'Parâmetro turmaId é obrigatório.' },
+        { error: 'Parâmetro turmaId ou alunoId é obrigatório.' },
         { status: 400 }
       );
     }

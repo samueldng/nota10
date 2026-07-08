@@ -38,10 +38,8 @@ export default function VideoaulasPage() {
   };
 
   const loadVideos = async (completedList: string[]) => {
-    if (!user?.turmaId) return;
-
     try {
-      const res = await fetch(`/api/conteudos?turmaId=${user.turmaId}&tipoConteudo=videoaula`);
+      const res = await fetch(`/api/conteudos?alunoId=${alunoId}&tipoConteudo=videoaula`);
       if (res.ok) {
         const data = await res.json();
         const formatted = data.map((item: any) => {
@@ -59,7 +57,7 @@ export default function VideoaulasPage() {
           }
           
           const completed = completedList.includes(item.id);
-
+ 
           return {
             id: item.id,
             titulo: item.titulo,
@@ -71,7 +69,8 @@ export default function VideoaulasPage() {
             thumbnailColor: extra.thumbnailColor,
             videoSource: extra.videoSource,
             videoUrl: item.urlAcesso,
-          } as Videoaula;
+            turmaNome: item.turmaNome || '',
+          } as any;
         });
         setVideoaulas(formatted);
       }
@@ -249,10 +248,15 @@ export default function VideoaulasPage() {
                     <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] mb-1.5 leading-tight truncate">
                       {video.titulo}
                     </h4>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-cinza-texto)]">
+                     <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-cinza-texto)] flex-wrap">
                         <span className="flex items-center gap-0.5"><Clock size={10} /> {video.duracao}</span>
                         <span className="badge badge-info text-[9px] py-0">{video.bloco}</span>
+                        {video.turmaNome && (
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
+                            {video.turmaNome}
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] font-black text-[var(--color-amarelo-conquista)] flex items-center gap-0.5">
                         <Zap size={9} fill="currentColor" /> +{video.xp} XP
@@ -274,7 +278,10 @@ export default function VideoaulasPage() {
             <div className="bg-[var(--color-azul-autoridade)] text-white px-5 py-4 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-bold text-white m-0 truncate max-w-xl">{selectedVideo.titulo}</h4>
-                <p className="text-[10px] text-white/60 m-0 mt-0.5">{selectedVideo.disciplina} • {selectedVideo.bloco}</p>
+                <p className="text-[10px] text-white/60 m-0 mt-0.5">
+                  {selectedVideo.disciplina} • {selectedVideo.bloco}
+                  {selectedVideo.turmaNome && ` • ${selectedVideo.turmaNome}`}
+                </p>
               </div>
               <button onClick={() => setSelectedVideo(null)} className="p-1 hover:bg-white/10 rounded-lg text-white/80 hover:text-white">
                 <X size={20} />

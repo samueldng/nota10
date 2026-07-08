@@ -27,10 +27,8 @@ export default function MateriaisPage() {
   };
 
   const loadMateriais = async () => {
-    if (!turmaId) return;
-
     try {
-      const res = await fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=pdf`);
+      const res = await fetch(`/api/conteudos?alunoId=${alunoId}&tipoConteudo=pdf`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -47,6 +45,7 @@ export default function MateriaisPage() {
               tipo: extra.tipo,
               tamanho: extra.tamanho,
               turmaId: item.turmaId,
+              turmaNome: item.turmaNome || '',
               urlAcesso: item.urlAcesso,
               dataUpload: item.dataDisponibilizacao ? new Date(item.dataDisponibilizacao).toLocaleDateString('pt-BR') : '',
             };
@@ -62,7 +61,7 @@ export default function MateriaisPage() {
   useEffect(() => {
     loadProgresso();
     loadMateriais();
-  }, [turmaId, alunoId]);
+  }, [alunoId]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -163,10 +162,18 @@ export default function MateriaisPage() {
                     <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] truncate leading-snug">
                       {mat.titulo}
                     </h4>
-                    <p className="text-[10px] text-[var(--color-cinza-texto)] flex items-center gap-2 mt-1">
+                    <p className="text-[10px] text-[var(--color-cinza-texto)] flex items-center gap-2 mt-1 flex-wrap">
                       <span>Tamanho: <strong className="text-[var(--color-cinza-escuro)]">{mat.tamanho}</strong></span>
                       <span>•</span>
                       <span className="flex items-center gap-0.5"><Calendar size={10} /> {mat.dataUpload}</span>
+                      {mat.turmaNome && (
+                        <>
+                          <span>•</span>
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
+                            {mat.turmaNome}
+                          </span>
+                        </>
+                      )}
                       {isCompleted && (
                         <>
                           <span>•</span>

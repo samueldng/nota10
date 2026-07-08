@@ -60,8 +60,42 @@ export default function PortalInicioPage() {
       setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
     }
 
-    // 2. Streak, conquistas, progresso still use portalData (localStorage) for now
-    setStreak(0); // Reset streak — will be migrated in a future phase
+    // 2. Fetch cronograma from the backend API if online
+    try {
+      const cronogramaRes = await fetch(`/api/cronograma?alunoId=${alunoId}&semana=1`);
+      if (cronogramaRes.ok) {
+        const dbTasks = await cronogramaRes.json();
+        if (dbTasks && dbTasks.length > 0) {
+          const mappedTasks = dbTasks.map((t: any) => ({
+            id: t.id,
+            ordem: t.ordem,
+            titulo: t.titulo,
+            tipo: t.tipo,
+            disciplina: t.disciplina,
+            bloco: t.bloco,
+            xp: t.xpTotal,
+            turmaNome: t.turmaNome || '',
+            status: t.status || 'pendente',
+            subTarefas: t.subtarefas || []
+          }));
+          setCronograma({
+            turmaId: turmaId,
+            semana: 'Semana 1',
+            periodo: 'De 01/06 a 05/06',
+            tarefas: mappedTasks
+          });
+          setStreak(0);
+          setConquistas(getConquistas(alunoId));
+          setProgressoDisciplina(getProgressoDisciplina(alunoId));
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar cronograma do banco:', e);
+    }
+
+    // Streak, conquistas, progresso still use portalData (localStorage) for now
+    setStreak(0);
     setConquistas(getConquistas(alunoId));
     setProgressoDisciplina(getProgressoDisciplina(alunoId));
     setCronograma(getCronogramaSemana(turmaId));
@@ -260,9 +294,16 @@ export default function PortalInicioPage() {
                     <p className={`text-sm font-bold ${tarefa.status === 'concluido' ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-azul-autoridade)]'}`}>
                       {tarefa.titulo}
                     </p>
-                    {tarefa.disciplina && (
-                      <p className="text-[10px] text-[var(--color-cinza-texto)]">{tarefa.disciplina} • {tarefa.bloco}</p>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {tarefa.disciplina && (
+                        <span className="text-[10px] text-[var(--color-cinza-texto)]">{tarefa.disciplina} • {tarefa.bloco}</span>
+                      )}
+                      {(tarefa as any).turmaNome && (
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
+                          {(tarefa as any).turmaNome}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <span className="text-[10px] font-bold text-[var(--color-amarelo-conquista)] flex items-center gap-0.5 flex-shrink-0">

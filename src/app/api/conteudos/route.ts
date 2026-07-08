@@ -47,6 +47,7 @@ function formatRow(row: any) {
   return {
     id: row.id,
     turmaId: row.turma_id,
+    turmaNome: row.turma_nome || null,
     tipoConteudo: row.tipo_conteudo,
     titulo: row.titulo,
     descricao: row.descricao || null,
@@ -66,19 +67,45 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const rawTurmaId = searchParams.get('turmaId');
+    const alunoId = searchParams.get('alunoId');
     const tipoConteudo = searchParams.get('tipoConteudo');
 
-    // Admin view: no turmaId filter — return all
-    if (!rawTurmaId) {
-      let sql = `SELECT * FROM conteudos_midia`;
-      const params: any[] = [];
+    // 1. Se alunoId for fornecido, retornar todos os conteúdos de todas as turmas que o aluno está matriculado
+    if (alunoId) {
+      let sql = `
+        SELECT c.*, t.nome as turma_nome 
+        FROM conteudos_midia c
+        JOIN turmas t ON c.turma_id = t.id
+        WHERE c.status = true 
+          AND c.turma_id IN (SELECT turma_id FROM matriculas WHERE aluno_id = $1 AND status = 'ativo')
+      `;
+      const params: any[] = [alunoId];
 
       if (tipoConteudo) {
-        sql += ` WHERE tipo_conteudo = $1`;
+        sql += ` AND c.tipo_conteudo = $2`;
         params.push(tipoConteudo);
       }
 
-      sql += ` ORDER BY created_at DESC`;
+      sql += ` ORDER BY c.data_disponibilizacao DESC NULLS LAST, c.created_at DESC`;
+      const result = await query(sql, params);
+      return NextResponse.json(result.rows.map(formatRow));
+    }
+
+    // Admin view: no turmaId filter — return all
+    if (!rawTurmaId) {
+      let sql = `
+        SELECT c.*, t.nome as turma_nome 
+        FROM conteudos_midia c
+        LEFT JOIN turmas t ON c.turma_id = t.id
+      `;
+      const params: any[] = [];
+
+      if (tipoConteudo) {
+        sql += ` WHERE c.tipo_conteudo = $1`;
+        params.push(tipoConteudo);
+      }
+
+      sql += ` ORDER BY c.created_at DESC`;
 
       const result = await query(sql, params);
       return NextResponse.json(result.rows.map(formatRow));
@@ -94,15 +121,20 @@ export async function GET(request: Request) {
       );
     }
 
-    let sql = `SELECT * FROM conteudos_midia WHERE turma_id = $1`;
+    let sql = `
+      SELECT c.*, t.nome as turma_nome 
+      FROM conteudos_midia c
+      LEFT JOIN turmas t ON c.turma_id = t.id
+      WHERE c.turma_id = $1
+    `;
     const params: any[] = [resolvedTurmaId];
 
     if (tipoConteudo) {
-      sql += ` AND tipo_conteudo = $2`;
+      sql += ` AND c.tipo_conteudo = $2`;
       params.push(tipoConteudo);
     }
 
-    sql += ` ORDER BY data_disponibilizacao DESC NULLS LAST, created_at DESC`;
+    sql += ` ORDER BY c.data_disponibilizacao DESC NULLS LAST, c.created_at DESC`;
 
     const result = await query(sql, params);
 

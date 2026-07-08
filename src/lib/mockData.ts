@@ -64,6 +64,7 @@ export interface Aluno {
     bairro: string;
     cidade: string;
   };
+  matriculas?: any[];
 }
 
 // Registro Pré-CMT 5º Ano
@@ -370,6 +371,7 @@ export interface Videoaula {
   status: 'assistido' | 'disponivel' | 'bloqueado';
   xp: number;
   thumbnailColor: string;
+  turmaNome?: string;
 }
 
 export interface Simulado {
@@ -388,6 +390,7 @@ export interface Simulado {
     total: number;
     classificacao: 'muito_bom' | 'regular' | 'precisa_revisar';
   }[];
+  turmaNome?: string;
 }
 
 export interface RegistroSemanal {

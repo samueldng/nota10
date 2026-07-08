@@ -13,10 +13,22 @@ export async function POST(request: Request) {
 
     const cleanInput = matriculaOrTelefone.replace(/\D/g, '');
 
-    // Buscar todos os alunos que batam com a matrícula ou telefone nos campos responsavel1_telefone ou responsavel2_telefone
+    // Buscar alunos e suas matrículas (com nomes de turmas)
     const result = await query(`
-      SELECT id, numero, nome, turma_id, turma_nome, acompanhamento, status, plano, senha_inicial, primeiro_acesso,
-             responsavel1_nome, responsavel1_telefone, responsavel2_nome, responsavel2_telefone
+      SELECT id, numero, nome, acompanhamento, plano, senha_inicial, primeiro_acesso,
+             responsavel1_nome, responsavel1_telefone, responsavel2_nome, responsavel2_telefone,
+             COALESCE(
+               (SELECT json_agg(json_build_object(
+                  'id', m.id,
+                  'turmaId', m.turma_id,
+                  'turmaNome', t.nome,
+                  'status', m.status
+                ))
+                FROM matriculas m
+                JOIN turmas t ON m.turma_id = t.id
+                WHERE m.aluno_id = alunos.id),
+               '[]'::json
+             ) as matriculas
       FROM alunos
       WHERE numero = $1 
          OR REPLACE(REPLACE(REPLACE(REPLACE(responsavel1_telefone, ' ', ''), '-', ''), '(', ''), ')', '') = $2
@@ -29,7 +41,7 @@ export async function POST(request: Request) {
 
     const matchingAlunos = result.rows;
 
-    // Filtrar os alunos onde a senha é válida (senha_inicial, '123456' ou os últimos 4 dígitos do celular)
+    // Filtrar os alunos onde a senha é válida
     const validAlunos = matchingAlunos.filter(aluno => {
       const validPasswords = ['123456', aluno.senha_inicial, (aluno.responsavel1_telefone || '').replace(/\D/g, '').slice(-4)].filter(Boolean);
       return validPasswords.includes(password);
@@ -39,45 +51,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Senha incorreta.' }, { status: 401 });
     }
 
-    if (validAlunos.length === 1) {
-      const aluno = validAlunos[0];
-      const sessionUser = {
-        name: aluno.responsavel1_nome || `Responsável de ${aluno.nome}`,
-        role: 'parent',
-        alunoId: aluno.id,
-        alunoNumero: aluno.numero,
-        alunoNome: aluno.nome,
-        plano: aluno.plano || 'padrao',
-        turmaId: aluno.turma_id,
-        turma: aluno.turma_nome,
-        primeiroAcesso: aluno.primeiro_acesso ?? false,
-      };
+    // O login volta a ser direto (1 aluno encontrado)
+    const aluno = validAlunos[0];
+    const matriculas = typeof aluno.matriculas === 'string' ? JSON.parse(aluno.matriculas) : (aluno.matriculas || []);
+    
+    // Obter turma primária ativa
+    const activeMatriculas = matriculas.filter((m: any) => m.status === 'ativo');
+    const primaryMatricula = activeMatriculas[0] || matriculas[0];
 
-      return NextResponse.json({
-        success: true,
-        user: sessionUser
-      });
-    }
-
-    // Múltiplos perfis encontrados
-    const profiles = validAlunos.map(aluno => ({
-      id: aluno.id,
-      numero: aluno.numero,
-      nome: aluno.nome,
-      turma: aluno.turma_nome,
-      turmaId: aluno.turma_id,
+    const sessionUser = {
+      name: aluno.responsavel1_nome || `Responsável de ${aluno.nome}`,
+      role: 'parent',
+      alunoId: aluno.id,
+      alunoNumero: aluno.numero,
+      alunoNome: aluno.nome,
       plano: aluno.plano || 'padrao',
+      turmaId: primaryMatricula?.turmaId || '',
+      turma: primaryMatricula?.turmaNome || '',
       primeiroAcesso: aluno.primeiro_acesso ?? false,
-      responsavelNome: aluno.responsavel1_nome
-    }));
+      // Array com as turmas a que o aluno tem acesso
+      turmas: matriculas.map((m: any) => ({
+        id: m.turmaId,
+        nome: m.turmaNome,
+        status: m.status
+      }))
+    };
 
     return NextResponse.json({
-      requireProfileSelection: true,
-      profiles
-    }, { status: 206 });
+      success: true,
+      user: sessionUser
+    });
 
   } catch (err: any) {
-    console.error('Erro no login backend:', err);
+    console.error('Erro no login backend N:N:', err);
     return NextResponse.json({ error: err.message || 'Erro interno no servidor.' }, { status: 500 });
   }
 }

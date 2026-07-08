@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const result = await query(`
       SELECT t.id, t.nome, t.acompanhamento, t.turno, t.dias, t.horario, t.disciplinas, t.status,
-             (SELECT COUNT(*)::int FROM alunos a WHERE a.turma_id = t.id) as alunos_count,
+             (SELECT COUNT(*)::int FROM matriculas m WHERE m.turma_id = t.id) as alunos_count,
              COALESCE(
                array_to_json(array_remove(array_agg(tp.professor_id), NULL)),
                '[]'::json
@@ -147,7 +147,7 @@ export async function PUT(request: Request) {
     }
 
     // Get current student count
-    const countRes = await query(`SELECT COUNT(*)::int as count FROM alunos WHERE turma_id = $1`, [row.id]);
+    const countRes = await query(`SELECT COUNT(*)::int as count FROM matriculas WHERE turma_id = $1`, [row.id]);
     const count = countRes.rows[0]?.count || 0;
 
     return NextResponse.json({
@@ -198,8 +198,8 @@ export async function DELETE(request: Request) {
     // Step B3: Remove conteúdos de mídia desta turma
     await client.query(`DELETE FROM conteudos_midia WHERE turma_id = $1`, [id]);
 
-    // Step C: Detach students (set turma_id to NULL) — alunos FK has NO cascade
-    await client.query(`UPDATE alunos SET turma_id = NULL WHERE turma_id = $1`, [id]);
+    // Step C: Detach students by deleting their registrations in matriculas
+    await client.query(`DELETE FROM matriculas WHERE turma_id = $1`, [id]);
 
     // Step D: Delete the turma record
     const result = await client.query(`DELETE FROM turmas WHERE id = $1 RETURNING id`, [id]);

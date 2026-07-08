@@ -32,10 +32,8 @@ export default function SimuladosPage() {
   };
 
   const loadSimulados = async (completedList: string[]) => {
-    if (!turmaId) return;
-
     try {
-      const res = await fetch(`/api/conteudos?turmaId=${turmaId}&tipoConteudo=simulado`);
+      const res = await fetch(`/api/conteudos?alunoId=${alunoId}&tipoConteudo=simulado`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -76,6 +74,7 @@ export default function SimuladosPage() {
               temGabarito,
               temCorrecaoVideo,
               resultadoPorBloco,
+              turmaNome: item.turmaNome || '',
             };
           });
           setSimulados(formatted);
@@ -93,7 +92,7 @@ export default function SimuladosPage() {
 
   useEffect(() => {
     loadData();
-  }, [turmaId, alunoId]);
+  }, [alunoId]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -158,7 +157,14 @@ export default function SimuladosPage() {
             <div key={sim.id} className="card animate-fade-in-up delay-1">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-base font-bold text-[var(--color-azul-autoridade)]">{sim.titulo}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-bold text-[var(--color-azul-autoridade)] m-0">{sim.titulo}</h4>
+                    {sim.turmaNome && (
+                      <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
+                        {sim.turmaNome}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--color-cinza-texto)] flex items-center gap-1 mt-1">
                     <Calendar size={12} /> Realizado em {sim.data}
                   </p>
@@ -234,7 +240,14 @@ export default function SimuladosPage() {
             <div key={sim.id} className="card animate-fade-in-up delay-2 border-l-4 border-l-[var(--color-amarelo-alerta)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)]">{sim.titulo}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] m-0">{sim.titulo}</h4>
+                    {sim.turmaNome && (
+                      <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
+                        {sim.turmaNome}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--color-cinza-texto)] flex items-center gap-1 mt-1">
                     <Calendar size={12} /> Previsto para {sim.data}
                   </p>

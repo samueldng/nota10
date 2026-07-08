@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -29,8 +30,7 @@ interface AlunoForm {
   nome: string;
   acompanhamento: Acompanhamento;
   plano: PlanoAluno;
-  turma: string;
-  turmaId: string;
+  turmasIds: string[];
   status: 'ativo' | 'inativo';
   senhaInicial: string;
   resp1Nome: string;
@@ -46,8 +46,7 @@ const EMPTY_FORM: AlunoForm = {
   nome: '',
   acompanhamento: 'pre_cmt_5',
   plano: 'padrao',
-  turma: '5A Manhã',
-  turmaId: 'T001',
+  turmasIds: [],
   status: 'ativo',
   senhaInicial: '',
   resp1Nome: '',
@@ -59,14 +58,6 @@ const EMPTY_FORM: AlunoForm = {
   cidade: '',
 };
 
-const TURMA_MAP: Record<string, string> = {
-  '5A Manhã': 'T001',
-  '5B Tarde': 'T002',
-  '4A Manhã': 'T004',
-  '4B Tarde': 'T005',
-  'Reforço Geral': 'T006',
-};
-
 export default function CadastroAlunosPage() {
   const [search, setSearch] = useState('');
   const [filterTurma, setFilterTurma] = useState('');
@@ -76,6 +67,7 @@ export default function CadastroAlunosPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [turmasList, setTurmasList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<AlunoForm>(EMPTY_FORM);
 
@@ -84,6 +76,12 @@ export default function CadastroAlunosPage() {
       try {
         const data = await getAlunos();
         setAlunos(data);
+
+        const turmasRes = await fetch('/api/turmas');
+        if (turmasRes.ok) {
+          const tData = await turmasRes.json();
+          setTurmasList(tData);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -107,14 +105,14 @@ export default function CadastroAlunosPage() {
     setShowModal(true);
   };
 
-  const openEditModal = (aluno: Aluno) => {
+  const openEditModal = (aluno: Aluno & { matriculas?: any[] }) => {
     setEditAlunoId(aluno.id);
+    const resolvedIds = aluno.matriculas?.map((m: any) => m.turmaId) || (aluno.turmaId ? [aluno.turmaId] : []);
     setForm({
       nome: aluno.nome,
       acompanhamento: aluno.acompanhamento,
       plano: aluno.plano || 'padrao',
-      turma: aluno.turma,
-      turmaId: aluno.turmaId,
+      turmasIds: resolvedIds,
       status: aluno.status,
       senhaInicial: aluno.senhaInicial || '',
       resp1Nome: aluno.responsavel1.nome,
@@ -131,58 +129,46 @@ export default function CadastroAlunosPage() {
   const handleSave = async () => {
     if (!form.nome.trim()) return;
 
-    // Obter o ID da turma destino
-    const targetTurmaId = TURMA_MAP[form.turma] || 'T001';
+    if (form.turmasIds.length === 0) {
+      alert('Selecione pelo menos uma turma.');
+      return;
+    }
 
-    // Validar duplicidade no mesmo curso/turma
     const isDuplicate = alunos.some(a => {
       if (editAlunoId && a.id === editAlunoId) return false;
       const matchNome = a.nome.trim().toLowerCase() === form.nome.trim().toLowerCase();
       const matchPhone = a.responsavel1?.telefone?.replace(/\D/g, '') === form.resp1Tel.replace(/\D/g, '');
-      const matchTurma = a.turmaId === targetTurmaId;
-      return matchNome && matchPhone && matchTurma;
+      return matchNome && matchPhone;
     });
 
     if (isDuplicate) {
-      alert('Aviso: Já existe um aluno com este mesmo nome e telefone do responsável cadastrado nesta turma.');
+      alert('Aviso: Já existe um aluno cadastrado com este mesmo nome e telefone do responsável.');
       return;
     }
 
     try {
+      const payload = {
+        nome: form.nome,
+        acompanhamento: form.acompanhamento,
+        plano: form.plano,
+        turmasIds: form.turmasIds,
+        status: form.status,
+        senhaInicial: form.senhaInicial,
+        responsavel1: { nome: form.resp1Nome, telefone: form.resp1Tel },
+        responsavel2: { nome: form.resp2Nome, telefone: form.resp2Tel },
+        endereco: { rua: form.rua, bairro: form.bairro, city: form.cidade }, // backend mapping handles street properties
+      };
+
       if (editAlunoId) {
         // Edit existing
-        const original = alunos.find(a => a.id === editAlunoId);
-        if (!original) return;
-        const updatedData: Aluno = {
-          ...original,
-          nome: form.nome,
-          acompanhamento: form.acompanhamento,
-          plano: form.plano,
-          turma: form.turma,
-          turmaId: targetTurmaId,
-          status: form.status,
-          senhaInicial: form.senhaInicial,
-          responsavel1: { nome: form.resp1Nome, telefone: form.resp1Tel },
-          responsavel2: { nome: form.resp2Nome, telefone: form.resp2Tel },
-          endereco: { rua: form.rua, bairro: form.bairro, cidade: form.cidade },
-        };
-        const result = await updateAluno(updatedData);
+        const result = await updateAluno({ ...payload, id: editAlunoId } as any);
         setAlunos(prev => prev.map(a => a.id === editAlunoId ? result : a));
         setToast('Aluno atualizado com sucesso!');
       } else {
         // Create new
         const novoAlunoPayload = {
+          ...payload,
           numero: generateNextNumero(alunos),
-          nome: form.nome,
-          turmaId: targetTurmaId,
-          turma: form.turma,
-          acompanhamento: form.acompanhamento,
-          plano: form.plano,
-          status: form.status,
-          senhaInicial: form.senhaInicial,
-          responsavel1: { nome: form.resp1Nome, telefone: form.resp1Tel },
-          responsavel2: { nome: form.resp2Nome, telefone: form.resp2Tel },
-          endereco: { rua: form.rua, bairro: form.bairro, cidade: form.cidade },
         };
         const result = await createAluno(novoAlunoPayload as any);
         setAlunos(prev => [...prev, result]);
@@ -197,12 +183,15 @@ export default function CadastroAlunosPage() {
 
   const filtered = alunos.filter((a) => {
     if (search && !a.nome.toLowerCase().includes(search.toLowerCase()) && !a.numero.includes(search)) return false;
-    if (filterTurma && a.turma !== filterTurma) return false;
+    if (filterTurma) {
+      const hasTurma = (a as any).matriculas?.some((m: any) => m.turmaNome === filterTurma);
+      if (!hasTurma) return false;
+    }
     if (filterStatus && a.status !== filterStatus) return false;
     return true;
   });
 
-  if (loading) return <div className="p-10 text-center text-[var(--color-cinza-texto)]">Carregando alunos do Supabase...</div>;
+  if (loading) return <div className="p-10 text-center text-[var(--color-cinza-texto)]">Carregando alunos...</div>;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -214,7 +203,7 @@ export default function CadastroAlunosPage() {
       )}
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in-up">
-        <p className="text-[var(--color-cinza-texto)]">Gerencie os alunos de cada turma.</p>
+        <p className="text-[var(--color-cinza-texto)]">Gerencie os alunos e suas respectivas turmas vinculadas.</p>
         <button className="btn btn-primary" onClick={openCreateModal}>
           <Plus size={16} /> Novo Aluno
         </button>
@@ -228,11 +217,9 @@ export default function CadastroAlunosPage() {
           </div>
           <select className="form-select w-auto" value={filterTurma} onChange={(e) => setFilterTurma(e.target.value)}>
             <option value="">Todas as Turmas</option>
-            <option value="5A Manhã">5A Manhã</option>
-            <option value="5B Tarde">5B Tarde</option>
-            <option value="4A Manhã">4A Manhã</option>
-            <option value="4B Tarde">4B Tarde</option>
-            <option value="Reforço Geral">Reforço Geral</option>
+            {turmasList.map(t => (
+              <option key={t.id} value={t.nome}>{t.nome}</option>
+            ))}
           </select>
           <select className="form-select w-auto" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Todos Status</option>
@@ -249,7 +236,7 @@ export default function CadastroAlunosPage() {
               <tr>
                 <th>Nº</th>
                 <th>Nome Completo</th>
-                <th>Turma</th>
+                <th>Turmas</th>
                 <th>Acompanhamento</th>
                 <th>Plano</th>
                 <th>Responsável 1</th>
@@ -268,7 +255,26 @@ export default function CadastroAlunosPage() {
                       <span className="font-semibold">{aluno.nome}</span>
                     </div>
                   </td>
-                  <td className="text-sm">{aluno.turma}</td>
+                  <td className="text-sm">
+                    <div className="flex flex-wrap gap-1">
+                      {(aluno as any).matriculas && (aluno as any).matriculas.length > 0 ? (
+                        (aluno as any).matriculas.map((m: any) => (
+                          <span
+                            key={m.id}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                              m.status === 'ativo'
+                                ? 'bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)]'
+                                : 'bg-gray-150 text-gray-500'
+                            }`}
+                          >
+                            {m.turmaNome}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-gray-400 italic text-xs">Sem turma</span>
+                      )}
+                    </div>
+                  </td>
                   <td>
                     <span className={`badge text-xs ${
                       aluno.acompanhamento === 'pre_cmt_5' ? 'badge-info' :
@@ -349,7 +355,7 @@ export default function CadastroAlunosPage() {
                       placeholder="Nome completo do aluno"
                     />
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="form-group">
                       <label className="form-label">Acompanhamento</label>
                       <select
@@ -373,23 +379,6 @@ export default function CadastroAlunosPage() {
                         <option value="acompanhamento">Acompanhamento</option>
                         <option value="elite">Elite</option>
                       </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Turma</label>
-                      <select
-                        className="form-select"
-                        value={form.turma}
-                        onChange={(e) => setForm({ ...form, turma: e.target.value, turmaId: TURMA_MAP[e.target.value] || 'T001' })}
-                      >
-                        <option>5A Manhã</option>
-                        <option>5B Tarde</option>
-                        <option>4A Manhã</option>
-                        <option>4B Tarde</option>
-                        <option>Reforço Geral</option>
-                      </select>
-                      <span className="text-[10px] text-[var(--color-cinza-texto)] leading-snug mt-1 block italic">
-                        💡 Dica: Se o aluno faz dois cursos (ex: Reforço e Pré-CMT), faça um cadastro para cada curso. Eles terão matrículas separadas.
-                      </span>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Status</label>
@@ -417,6 +406,49 @@ export default function CadastroAlunosPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="form-group">
+                    <label className="form-label font-bold text-xs">Turmas Vinculadas</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gray-50 p-4 rounded-2xl border border-[var(--color-cinza-borda)] max-h-48 overflow-y-auto">
+                      {turmasList.map((t) => {
+                        const isChecked = form.turmasIds.includes(t.id);
+                        return (
+                          <label
+                            key={t.id}
+                            className={`flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border transition-all cursor-pointer select-none ${
+                              isChecked
+                                ? 'bg-[var(--color-azul-lightest)] border-[var(--color-azul-light)] text-[var(--color-azul-autoridade)] shadow-sm'
+                                : 'bg-white border-[var(--color-cinza-borda)] text-[var(--color-cinza-texto)] hover:bg-gray-100'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setForm({
+                                    ...form,
+                                    turmasIds: form.turmasIds.filter((id) => id !== t.id),
+                                  });
+                                } else {
+                                  setForm({
+                                    ...form,
+                                    turmasIds: [...form.turmasIds, t.id],
+                                  });
+                                }
+                              }}
+                              className="rounded text-[var(--color-azul-autoridade)] focus:ring-[var(--color-azul-autoridade)] w-4 h-4"
+                            />
+                            <span>{t.nome}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[10px] text-[var(--color-cinza-texto)] leading-snug mt-1.5 block italic">
+                      💡 Dica: Marque todas as turmas que o aluno frequenta (ex: Reforço + Pré-CMT). O XP acumulado será global.
+                    </span>
+                  </div>
+
                   <div className="form-group">
                     <label className="form-label">Senha Inicial do Portal (Apenas Números)</label>
                     <input
