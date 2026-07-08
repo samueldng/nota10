@@ -45,7 +45,7 @@ export default function BemVindosPage() {
         <div className="bg-white rounded-3xl border border-[var(--color-cinza-borda)] p-5 md:sticky md:top-24 flex flex-col items-center justify-center shadow-sm animate-fade-in-up delay-1">
           <div className="flex items-center justify-center py-4">
             <img
-              src="/Materias/logo_precmt.png"
+              src="/logo-pre-cmt.png"
               alt="Pré CMT Nota 10"
               className="h-20 w-auto object-contain drop-shadow-md"
             />

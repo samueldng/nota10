@@ -97,9 +97,9 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center">
             <img
-              src="/Materias/logo.png"
+              src="/logo-nota10.svg?v=2"
               alt="Nota 10 Educacional"
-              className="h-28 w-auto drop-shadow-md"
+              className="h-28 w-auto mx-auto object-contain"
             />
           </div>
           <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">
@@ -120,13 +120,29 @@ export default function LoginPage() {
               ) : (
                 <>
                   <User size={18} className="text-[var(--color-azul-autoridade)]" />
-                  Área do Professor / Admin
+                  Acesso de Professores / Gestão
                 </>
               )}
             </h2>
-            {activeTab === 'admin' && (
-              <span className="badge badge-info">Restrito</span>
-            )}
+            <button
+              onClick={() => {
+                setActiveTab(activeTab === 'parent' ? 'admin' : 'parent');
+                setError(null);
+              }}
+              className="text-xs font-bold text-[var(--color-azul-autoridade)] hover:underline flex items-center gap-1 cursor-pointer bg-none border-none p-0"
+            >
+              {activeTab === 'parent' ? (
+                <>
+                  <User size={14} />
+                  Área do Professor
+                </>
+              ) : (
+                <>
+                  <Phone size={14} />
+                  Área do Aluno
+                </>
+              )}
+            </button>
           </div>
 
           {/* Form Content */}
@@ -191,17 +207,6 @@ export default function LoginPage() {
                     ← Voltar para Acesso de Pais
                   </button>
                 </div>
-
-                {/* Helper info */}
-                <div className="mt-4 p-3 bg-[var(--color-azul-lightest)] rounded-xl border border-[var(--color-azul-light)]/40">
-                  <p className="text-[10px] text-[var(--color-azul-dark)] leading-relaxed">
-                    <strong>💡 Dica de Teste (Admin):</strong>
-                    <br />
-                    E-mail: <code>joao.silva@nota10.edu.br</code> ou <code>admin@nota10.com</code>
-                    <br />
-                    Senha: <code>admin123</code>
-                  </p>
-                </div>
               </form>
             ) : (
               <form onSubmit={handleParentSubmit} className="space-y-4">
@@ -242,17 +247,6 @@ export default function LoginPage() {
                 >
                   {loading ? 'Verificando...' : 'Acessar Painel do Aluno'}
                 </button>
-
-                {/* Helper info */}
-                <div className="mt-4 p-3 bg-[var(--color-amarelo-alerta-light)] rounded-xl border border-[var(--color-amarelo-alerta)]/30">
-                  <p className="text-[10px] text-[var(--color-amarelo-alerta)] leading-relaxed">
-                    <strong>💡 Dica de Teste (Pais):</strong>
-                    <br />
-                    Matrícula: <code>0123</code> ou Celular: <code>11999991234</code>
-                    <br />
-                    Senha: <code>123456</code>
-                  </p>
-                </div>
               </form>
             )}
           </div>
