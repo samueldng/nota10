@@ -48,6 +48,7 @@ next-env.d.ts
 chrome_launch.log
 chrome-profile*
 *.png
+!public/**/*.png
 test_report.md
 e2e_test.js
 eval_location.js
