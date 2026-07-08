@@ -24,7 +24,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   loginAsAdmin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginAsParent: (matriculaOrTelefone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginAsParent: (matriculaOrTelefone: string, password: string) => Promise<{ success: boolean; error?: string; requireProfileSelection?: boolean; profiles?: any[] }>;
+  selectProfile: (profile: any) => void;
   logout: () => void;
   isDbOnline: boolean;
 }
@@ -130,46 +131,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginAsParent = async (matriculaOrTelefone: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const loginAsParent = async (matriculaOrTelefone: string, password: string): Promise<{ success: boolean; error?: string; requireProfileSelection?: boolean; profiles?: any[] }> => {
     try {
-      // Fetch students from DB/mock
-      const alunos = await getAlunos();
-      const cleanInput = matriculaOrTelefone.replace(/\D/g, '');
-
-      const aluno = alunos.find(a => {
-        const matchMatricula = a.numero === cleanInput || a.numero === matriculaOrTelefone;
-        const matchPhone1 = (a.responsavel1?.telefone || '').replace(/\D/g, '') === cleanInput;
-        const matchPhone2 = (a.responsavel2?.telefone || '').replace(/\D/g, '') === cleanInput;
-        return matchMatricula || matchPhone1 || matchPhone2;
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matriculaOrTelefone, password })
       });
 
-      if (!aluno) {
-        return { success: false, error: 'Matrícula ou celular não encontrado.' };
+      if (response.status === 206) {
+        const data = await response.json();
+        return {
+          success: true,
+          requireProfileSelection: true,
+          profiles: data.profiles
+        };
       }
 
-      // Check password: match either student's senhaInicial or standard 123456
-      const validPasswords = ['123456', aluno.senhaInicial, (aluno.responsavel1?.telefone || '').slice(-4)].filter(Boolean);
-      if (!validPasswords.includes(password)) {
-        return { success: false, error: `Senha incorreta. Use a do aluno (${aluno.senhaInicial || 'não configurada'}) ou 123456.` };
+      if (!response.ok) {
+        const errData = await response.json();
+        return { success: false, error: errData.error || 'Erro ao realizar login.' };
       }
 
-      const sessionUser: AuthUser = {
-        name: aluno.responsavel1?.nome || `Responsável de ${aluno.nome}`,
-        role: 'parent',
-        alunoId: aluno.id,
-        alunoNumero: aluno.numero,
-        alunoNome: aluno.nome,
-        plano: aluno.plano || 'padrao',
-        turmaId: aluno.turmaId,
-        turma: aluno.turma,
-        primeiroAcesso: aluno.primeiroAcesso || false,
-      };
-      setUser(sessionUser);
-      localStorage.setItem('nota10_session', JSON.stringify(sessionUser));
-      return { success: true };
+      const data = await response.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+        localStorage.setItem('nota10_session', JSON.stringify(data.user));
+        return { success: true };
+      }
+
+      return { success: false, error: 'Resposta de login inválida.' };
     } catch (err: any) {
       return { success: false, error: 'Erro ao autenticar: ' + err.message };
     }
+  };
+
+  const selectProfile = (profile: any) => {
+    const sessionUser: AuthUser = {
+      name: profile.responsavelNome || `Responsável de ${profile.nome}`,
+      role: 'parent',
+      alunoId: profile.id,
+      alunoNumero: profile.numero,
+      alunoNome: profile.nome,
+      plano: profile.plano || 'padrao',
+      turmaId: profile.turmaId,
+      turma: profile.turma,
+      primeiroAcesso: profile.primeiroAcesso || false,
+    };
+    setUser(sessionUser);
+    localStorage.setItem('nota10_session', JSON.stringify(sessionUser));
   };
 
   const logout = () => {
@@ -178,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, loginAsAdmin, loginAsParent, logout, isDbOnline }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, loginAsAdmin, loginAsParent, selectProfile, logout, isDbOnline }}>
       {children}
     </AuthContext.Provider>
   );

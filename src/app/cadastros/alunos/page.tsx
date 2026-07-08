@@ -131,6 +131,23 @@ export default function CadastroAlunosPage() {
   const handleSave = async () => {
     if (!form.nome.trim()) return;
 
+    // Obter o ID da turma destino
+    const targetTurmaId = TURMA_MAP[form.turma] || 'T001';
+
+    // Validar duplicidade no mesmo curso/turma
+    const isDuplicate = alunos.some(a => {
+      if (editAlunoId && a.id === editAlunoId) return false;
+      const matchNome = a.nome.trim().toLowerCase() === form.nome.trim().toLowerCase();
+      const matchPhone = a.responsavel1?.telefone?.replace(/\D/g, '') === form.resp1Tel.replace(/\D/g, '');
+      const matchTurma = a.turmaId === targetTurmaId;
+      return matchNome && matchPhone && matchTurma;
+    });
+
+    if (isDuplicate) {
+      alert('Aviso: Já existe um aluno com este mesmo nome e telefone do responsável cadastrado nesta turma.');
+      return;
+    }
+
     try {
       if (editAlunoId) {
         // Edit existing
@@ -142,7 +159,7 @@ export default function CadastroAlunosPage() {
           acompanhamento: form.acompanhamento,
           plano: form.plano,
           turma: form.turma,
-          turmaId: TURMA_MAP[form.turma] || original.turmaId,
+          turmaId: targetTurmaId,
           status: form.status,
           senhaInicial: form.senhaInicial,
           responsavel1: { nome: form.resp1Nome, telefone: form.resp1Tel },
@@ -157,7 +174,7 @@ export default function CadastroAlunosPage() {
         const novoAlunoPayload = {
           numero: generateNextNumero(alunos),
           nome: form.nome,
-          turmaId: TURMA_MAP[form.turma] || 'T001',
+          turmaId: targetTurmaId,
           turma: form.turma,
           acompanhamento: form.acompanhamento,
           plano: form.plano,
@@ -370,6 +387,9 @@ export default function CadastroAlunosPage() {
                         <option>4B Tarde</option>
                         <option>Reforço Geral</option>
                       </select>
+                      <span className="text-[10px] text-[var(--color-cinza-texto)] leading-snug mt-1 block italic">
+                        💡 Dica: Se o aluno faz dois cursos (ex: Reforço e Pré-CMT), faça um cadastro para cada curso. Eles terão matrículas separadas.
+                      </span>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Status</label>

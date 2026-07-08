@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Lock, User, Phone, CheckCircle, Database } from 'lucide-react';
+import { Lock, User, Phone, Database } from 'lucide-react';
+import logoOficial from '../../../public/logo-nota10.svg';
 
 export default function LoginPage() {
-  const { user, loginAsAdmin, loginAsParent, isAuthenticated, isDbOnline } = useAuth();
+  const { user, loginAsAdmin, loginAsParent, selectProfile, isAuthenticated, isDbOnline } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'admin' | 'parent'>('parent');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [parentPassword, setParentPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [profiles, setProfiles] = useState<any[] | null>(null);
 
   // If already authenticated, redirect immediately
   useEffect(() => {
@@ -56,7 +58,11 @@ export default function LoginPage() {
     try {
       const res = await loginAsParent(matriculaOrPhone, parentPassword);
       if (res.success) {
-        router.push('/responsavel');
+        if (res.requireProfileSelection && res.profiles) {
+          setProfiles(res.profiles);
+        } else {
+          router.push('/responsavel');
+        }
       } else {
         setError(res.error || 'Erro ao realizar login.');
       }
@@ -67,202 +73,254 @@ export default function LoginPage() {
     }
   };
 
+  const handleSelectProfile = (profile: any) => {
+    selectProfile(profile);
+    router.push('/responsavel');
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-cinza-fundo)] flex flex-col justify-center items-center p-4">
-      {/* Top Right Control - Access to Admin / Professor Portal */}
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-        <button
-          onClick={() => {
-            setActiveTab(activeTab === 'parent' ? 'admin' : 'parent');
-            setError(null);
-          }}
-          className="flex items-center gap-2 bg-white hover:bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] px-4 py-2 rounded-full border border-[var(--color-cinza-borda)] shadow-sm text-xs font-bold transition-all cursor-pointer hover:shadow-md"
-        >
-          {activeTab === 'parent' ? (
-            <>
-              <User size={14} className="text-[var(--color-azul-autoridade)]" />
-              <span>Área do Professor / Admin</span>
-            </>
-          ) : (
-            <>
-              <Phone size={14} className="text-[var(--color-azul-autoridade)]" />
-              <span>Área de Pais e Alunos</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className="w-full max-w-md animate-fade-in-up">
-        {/* Brand Logo Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center">
-            <img
-              src="/logo-nota10.svg?v=2"
-              alt="Nota 10 Educacional"
-              className="h-28 w-auto mx-auto object-contain"
-            />
+      {profiles ? (
+        <div className="w-full max-w-2xl animate-fade-in-up text-center space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black text-[var(--color-azul-autoridade)]">
+              Quem está estudando hoje? 🎓
+            </h1>
+            <p className="text-sm text-[var(--color-cinza-texto)] max-w-md mx-auto">
+              Encontramos múltiplas matrículas vinculadas a este número. Escolha o perfil para acessar.
+            </p>
           </div>
-          <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">
-            Gestão escolar simples, precisa e eficiente.
-          </p>
-        </div>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-3xl shadow-lg border border-[var(--color-cinza-borda)] overflow-hidden">
-          {/* Header representing the Active Mode */}
-          <div className="px-6 py-5 border-b border-[var(--color-cinza-borda)] bg-gray-50/50 flex items-center justify-between">
-            <h2 className="text-base font-bold text-[var(--color-azul-autoridade)] flex items-center gap-2 m-0">
-              {activeTab === 'parent' ? (
-                <>
-                  <Phone size={18} className="text-[var(--color-azul-autoridade)]" />
-                  Acesso de Pais e Alunos
-                </>
-              ) : (
-                <>
-                  <User size={18} className="text-[var(--color-azul-autoridade)]" />
-                  Acesso de Professores / Gestão
-                </>
-              )}
-            </h2>
+          <div className="flex flex-wrap justify-center gap-6 py-6">
+            {profiles.map((profile) => {
+              const initials = profile.nome
+                .split(' ')
+                .slice(0, 2)
+                .map((n: string) => n[0])
+                .join('')
+                .toUpperCase();
+
+              const colors = [
+                'bg-gradient-to-br from-blue-500 to-indigo-600',
+                'bg-gradient-to-br from-purple-500 to-pink-600',
+                'bg-gradient-to-br from-amber-500 to-orange-600',
+                'bg-gradient-to-br from-emerald-500 to-teal-600',
+              ];
+              const colorHash = profile.id.charCodeAt(0) % colors.length;
+              const avatarBg = colors[colorHash];
+
+              return (
+                <button
+                  key={profile.id}
+                  onClick={() => handleSelectProfile(profile)}
+                  className="group flex flex-col items-center gap-3 bg-white p-6 rounded-3xl border border-[var(--color-cinza-borda)] shadow-sm hover:shadow-xl hover:scale-105 transition-all duration-300 w-44 cursor-pointer focus:outline-none focus:ring-4 focus:ring-[var(--color-amarelo-conquista)]"
+                >
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-black shadow-md ${avatarBg} group-hover:scale-110 transition-transform duration-300`}>
+                    {initials}
+                  </div>
+                  <div className="text-center min-w-0 w-full">
+                    <p className="font-extrabold text-[var(--color-azul-autoridade)] truncate text-sm">
+                      {profile.nome}
+                    </p>
+                    <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] border border-[var(--color-azul-light)]/20">
+                      {profile.turma}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div>
+            <button
+              onClick={() => setProfiles(null)}
+              className="text-xs font-bold text-[var(--color-cinza-texto)] hover:text-[var(--color-azul-autoridade)] hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
+            >
+              ← Usar outro telefone / matrícula
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Top Right Control - Access to Admin / Professor Portal */}
+          <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
               onClick={() => {
                 setActiveTab(activeTab === 'parent' ? 'admin' : 'parent');
                 setError(null);
               }}
-              className="text-xs font-bold text-[var(--color-azul-autoridade)] hover:underline flex items-center gap-1 cursor-pointer bg-none border-none p-0"
+              className="flex items-center gap-2 bg-white hover:bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] px-4 py-2 rounded-full border border-[var(--color-cinza-borda)] shadow-sm text-xs font-bold transition-all cursor-pointer hover:shadow-md"
             >
               {activeTab === 'parent' ? (
                 <>
-                  <User size={14} />
-                  Área do Professor
+                  <User size={14} className="text-[var(--color-azul-autoridade)]" />
+                  <span>Área do Professor / Admin</span>
                 </>
               ) : (
                 <>
-                  <Phone size={14} />
-                  Área do Aluno
+                  <Phone size={14} className="text-[var(--color-azul-autoridade)]" />
+                  <span>Área de Pais e Alunos</span>
                 </>
               )}
             </button>
           </div>
 
-          {/* Form Content */}
-          <div className="p-6 sm:p-8">
-            {error && (
-              <div className="mb-5 p-3 rounded-xl bg-[var(--color-vermelho-light)] border border-[var(--color-vermelho-erro)]/30 text-[var(--color-vermelho-erro)] text-xs font-bold flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-vermelho-erro)] flex-shrink-0" />
-                {error}
+          <div className="w-full max-w-md animate-fade-in-up">
+            {/* Brand Logo Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center">
+                <Image
+                  src={logoOficial}
+                  alt="Nota 10 Educacional"
+                  className="h-28 w-auto mx-auto object-contain"
+                  unoptimized
+                  priority
+                />
               </div>
-            )}
+              <p className="text-[var(--color-cinza-texto)] text-xs mt-3 font-medium">
+                Gestão escolar simples, precisa e eficiente.
+              </p>
+            </div>
 
-            {activeTab === 'admin' ? (
-              <form onSubmit={handleAdminSubmit} className="space-y-4">
-                <div className="form-group">
-                  <label className="form-label">E-mail do Administrador / Professor</label>
-                  <div className="relative">
-                    <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
-                    <input
-                      type="email"
-                      required
-                      placeholder="exemplo@nota10.edu.br"
-                      className="form-input pl-10"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
+            {/* Login Card */}
+            <div className="bg-white rounded-3xl shadow-lg border border-[var(--color-cinza-borda)] overflow-hidden">
+              {/* Header representing the Active Mode */}
+              <div className="px-6 py-5 border-b border-[var(--color-cinza-borda)] bg-gray-50/50 flex items-center justify-between">
+                <h2 className="text-base font-bold text-[var(--color-azul-autoridade)] flex items-center gap-2 m-0">
+                  {activeTab === 'parent' ? (
+                    <>
+                      <Phone size={18} className="text-[var(--color-azul-autoridade)]" />
+                      Acesso de Pais e Alunos
+                    </>
+                  ) : (
+                    <>
+                      <User size={18} className="text-[var(--color-azul-autoridade)]" />
+                      Acesso de Professores / Gestão
+                    </>
+                  )}
+                </h2>
+              </div>
+
+              {/* Form Content */}
+              <div className="p-6 sm:p-8">
+                {error && (
+                  <div className="mb-5 p-3 rounded-xl bg-[var(--color-vermelho-light)] border border-[var(--color-vermelho-erro)]/30 text-[var(--color-vermelho-erro)] text-xs font-bold flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-vermelho-erro)] flex-shrink-0" />
+                    {error}
                   </div>
-                </div>
+                )}
 
-                <div className="form-group">
-                  <label className="form-label">Senha</label>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      className="form-input pl-10"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
+                {activeTab === 'admin' ? (
+                  <form onSubmit={handleAdminSubmit} className="space-y-4">
+                    <div className="form-group">
+                      <label className="form-label">E-mail do Administrador / Professor</label>
+                      <div className="relative">
+                        <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
+                        <input
+                          type="email"
+                          required
+                          placeholder="exemplo@nota10.edu.br"
+                          className="form-input pl-10"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn btn-primary w-full py-3 text-sm mt-2"
-                >
-                  {loading ? 'Entrando...' : 'Acessar Área Administrativa'}
-                </button>
+                    <div className="form-group">
+                      <label className="form-label">Senha</label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••"
+                          className="form-input pl-10"
+                          value={adminPassword}
+                          onChange={(e) => setAdminPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-                {/* Back Link to Parent Login */}
-                <div className="text-center mt-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('parent');
-                      setError(null);
-                    }}
-                    className="text-xs font-semibold text-[var(--color-cinza-texto)] hover:text-[var(--color-azul-autoridade)] hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                  >
-                    ← Voltar para Acesso de Pais
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleParentSubmit} className="space-y-4">
-                <div className="form-group">
-                  <label className="form-label">Nº Matrícula ou Celular</label>
-                  <div className="relative">
-                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: 0123 ou (11) 99999-1234"
-                      className="form-input pl-10"
-                      value={matriculaOrPhone}
-                      onChange={(e) => setMatriculaOrPhone(e.target.value)}
-                    />
-                  </div>
-                </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="btn btn-primary w-full py-3 text-sm mt-2"
+                    >
+                      {loading ? 'Entrando...' : 'Acessar Área Administrativa'}
+                    </button>
 
-                <div className="form-group">
-                  <label className="form-label">Senha de Acesso</label>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
-                    <input
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      className="form-input pl-10"
-                      value={parentPassword}
-                      onChange={(e) => setParentPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
+                    {/* Back Link to Parent Login */}
+                    <div className="text-center mt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('parent');
+                          setError(null);
+                        }}
+                        className="text-xs font-semibold text-[var(--color-cinza-texto)] hover:text-[var(--color-azul-autoridade)] hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                      >
+                        ← Voltar para Acesso de Pais
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleParentSubmit} className="space-y-4">
+                    <div className="form-group">
+                      <label className="form-label">Nº Matrícula ou Celular</label>
+                      <div className="relative">
+                        <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ex: 0123 ou (11) 99999-1234"
+                          className="form-input pl-10"
+                          value={matriculaOrPhone}
+                          onChange={(e) => setMatriculaOrPhone(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn btn-primary w-full py-3 text-sm mt-2"
-                >
-                  {loading ? 'Verificando...' : 'Acessar Painel do Aluno'}
-                </button>
-              </form>
-            )}
+                    <div className="form-group">
+                      <label className="form-label">Senha de Acesso</label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
+                        <input
+                          type="password"
+                          required
+                          placeholder="••••••••"
+                          className="form-input pl-10"
+                          value={parentPassword}
+                          onChange={(e) => setParentPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="btn btn-primary w-full py-3 text-sm mt-2"
+                    >
+                      {loading ? 'Verificando...' : 'Acessar Painel do Aluno'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+
+            {/* Footer info */}
+            <div className="flex flex-col items-center gap-2 mt-6">
+              <p className="text-center text-[10px] text-[var(--color-cinza-texto)] m-0">
+                Nota 10 Educacional © 2026. Todos os direitos reservados.
+              </p>
+              <div className="flex items-center gap-1 text-[9px] font-semibold text-[var(--color-cinza-texto)] opacity-60">
+                <Database size={10} className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} />
+                <span>Status: {isDbOnline ? 'Banco de dados conectado' : 'Modo Demonstrativo (Local)'}</span>
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Footer info */}
-        <div className="flex flex-col items-center gap-2 mt-6">
-          <p className="text-center text-[10px] text-[var(--color-cinza-texto)] m-0">
-            Nota 10 Educacional © 2026. Todos os direitos reservados.
-          </p>
-          <div className="flex items-center gap-1 text-[9px] font-semibold text-[var(--color-cinza-texto)] opacity-60">
-            <Database size={10} className={isDbOnline ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} />
-            <span>Status: {isDbOnline ? 'Banco de dados conectado' : 'Modo Demonstrativo (Local)'}</span>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
