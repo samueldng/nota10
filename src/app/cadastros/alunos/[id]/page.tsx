@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import {
   alunos, turmas, registrosLancados,
-  acompanhamentoLabels, planoLabels, getTurmasByAcompanhamento
+  acompanhamentoLabels, planoLabels, getTurmasByAcompanhamento,
+  type Acompanhamento
 } from '@/lib/mockData';
 
 export default function PaginaAlunoPage() {
@@ -52,9 +53,19 @@ export default function PaginaAlunoPage() {
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-[var(--color-cinza-texto)]">Acompanhamento</p>
-                <p className="font-semibold text-sm">
-                  <span className="badge badge-info">{acompanhamentoLabels[aluno.acompanhamento]}</span>
-                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {Array.isArray(aluno.acompanhamento) ? (
+                    (aluno.acompanhamento as Acompanhamento[]).map((ac) => (
+                      <span key={ac} className="badge badge-info text-xs font-bold uppercase">
+                        {acompanhamentoLabels[ac] || ac}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="badge badge-info text-xs font-bold uppercase">
+                      {acompanhamentoLabels[aluno.acompanhamento as Acompanhamento] || aluno.acompanhamento}
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-cinza-texto)]">Plano do Portal</p>

@@ -52,7 +52,7 @@ export interface Aluno {
   nome: string;
   turmaId: string;
   turma: string;
-  acompanhamento: Acompanhamento;
+  acompanhamento: Acompanhamento[] | Acompanhamento;
   plano: PlanoAluno;
   status: StatusAluno;
   senhaInicial?: string;

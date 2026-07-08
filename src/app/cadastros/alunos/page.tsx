@@ -28,7 +28,7 @@ function generateNextNumero(alunos: Aluno[]): string {
 
 interface AlunoForm {
   nome: string;
-  acompanhamento: Acompanhamento;
+  acompanhamento: Acompanhamento[];
   plano: PlanoAluno;
   turmasIds: string[];
   status: 'ativo' | 'inativo';
@@ -44,7 +44,7 @@ interface AlunoForm {
 
 const EMPTY_FORM: AlunoForm = {
   nome: '',
-  acompanhamento: 'pre_cmt_5',
+  acompanhamento: [],
   plano: 'padrao',
   turmasIds: [],
   status: 'ativo',
@@ -108,9 +108,12 @@ export default function CadastroAlunosPage() {
   const openEditModal = (aluno: Aluno & { matriculas?: any[] }) => {
     setEditAlunoId(aluno.id);
     const resolvedIds = aluno.matriculas?.map((m: any) => m.turmaId) || (aluno.turmaId ? [aluno.turmaId] : []);
+    const resolvedAcomp = Array.isArray(aluno.acompanhamento)
+      ? (aluno.acompanhamento as Acompanhamento[])
+      : (aluno.acompanhamento ? [aluno.acompanhamento as Acompanhamento] : []);
     setForm({
       nome: aluno.nome,
-      acompanhamento: aluno.acompanhamento,
+      acompanhamento: resolvedAcomp,
       plano: aluno.plano || 'padrao',
       turmasIds: resolvedIds,
       status: aluno.status,
@@ -128,6 +131,11 @@ export default function CadastroAlunosPage() {
 
   const handleSave = async () => {
     if (!form.nome.trim()) return;
+
+    if (form.acompanhamento.length === 0) {
+      alert('Selecione pelo menos um acompanhamento (produto).');
+      return;
+    }
 
     if (form.turmasIds.length === 0) {
       alert('Selecione pelo menos uma turma.');
@@ -276,13 +284,32 @@ export default function CadastroAlunosPage() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge text-xs ${
-                      aluno.acompanhamento === 'pre_cmt_5' ? 'badge-info' :
-                      aluno.acompanhamento === 'projeto_4' ? 'badge-warning' :
-                      'badge-success'
-                    }`}>
-                      {acompanhamentoLabels[aluno.acompanhamento]}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.isArray(aluno.acompanhamento) ? (
+                        aluno.acompanhamento.map((ac) => (
+                          <span
+                            key={ac}
+                            className={`badge text-[10px] py-0.5 px-2 font-black uppercase ${
+                              ac === 'pre_cmt_5' ? 'badge-info' :
+                              ac === 'projeto_4' ? 'badge-warning' :
+                              'badge-success'
+                            }`}
+                          >
+                            {acompanhamentoLabels[ac as Acompanhamento] || ac}
+                          </span>
+                        ))
+                      ) : (
+                        <span
+                          className={`badge text-[10px] py-0.5 px-2 font-black uppercase ${
+                            aluno.acompanhamento === 'pre_cmt_5' ? 'badge-info' :
+                            aluno.acompanhamento === 'projeto_4' ? 'badge-warning' :
+                            'badge-success'
+                          }`}
+                        >
+                          {acompanhamentoLabels[aluno.acompanhamento as Acompanhamento] || aluno.acompanhamento}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <span className={`badge text-xs font-bold ${
@@ -355,18 +382,46 @@ export default function CadastroAlunosPage() {
                       placeholder="Nome completo do aluno"
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="form-group">
-                      <label className="form-label">Acompanhamento</label>
-                      <select
-                        className="form-select"
-                        value={form.acompanhamento}
-                        onChange={(e) => setForm({ ...form, acompanhamento: e.target.value as Acompanhamento })}
-                      >
-                        <option value="pre_cmt_5">Pré-CMT 5º Ano</option>
-                        <option value="projeto_4">Projeto 4º Ano</option>
-                        <option value="reforco">Reforço</option>
-                      </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="form-group col-span-2 sm:col-span-1">
+                      <label className="form-label font-bold text-xs mb-2 block">
+                        Acompanhamento (Produtos)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-2xl border border-[var(--color-cinza-borda)]">
+                        {(['pre_cmt_5', 'projeto_4', 'reforco'] as Acompanhamento[]).map((ac) => {
+                          const isChecked = form.acompanhamento.includes(ac);
+                          return (
+                            <label
+                              key={ac}
+                              className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-lg border transition-all cursor-pointer select-none ${
+                                isChecked
+                                  ? 'bg-[var(--color-azul-lightest)] border-[var(--color-azul-light)] text-[var(--color-azul-autoridade)] shadow-sm'
+                                  : 'bg-white border-[var(--color-cinza-borda)] text-[var(--color-cinza-texto)] hover:bg-gray-100'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setForm({
+                                      ...form,
+                                      acompanhamento: form.acompanhamento.filter((id) => id !== ac),
+                                    });
+                                  } else {
+                                    setForm({
+                                      ...form,
+                                      acompanhamento: [...form.acompanhamento, ac],
+                                    });
+                                  }
+                                }}
+                                className="rounded text-[var(--color-azul-autoridade)] focus:ring-[var(--color-azul-autoridade)] w-4 h-4"
+                              />
+                              <span>{acompanhamentoLabels[ac]}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Plano Portal</label>

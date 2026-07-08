@@ -152,9 +152,9 @@ export async function POST(request: Request) {
       endereco
     } = body;
 
-    if (!numero || !nome || !acompanhamento) {
-      return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
-    }
+    const resolvedAcompanhamento = Array.isArray(acompanhamento)
+      ? acompanhamento
+      : (acompanhamento ? [acompanhamento] : ['pre_cmt_5']);
 
     await client.query('BEGIN');
 
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       [
         numero,
         nome,
-        acompanhamento || 'pre_cmt_5',
+        resolvedAcompanhamento,
         plano || 'padrao',
         senhaInicial || '123456',
         true, // primeiro_acesso
@@ -291,9 +291,9 @@ export async function PUT(request: Request) {
       endereco
     } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Identificador do aluno ausente.' }, { status: 400 });
-    }
+    const resolvedAcompanhamento = Array.isArray(acompanhamento)
+      ? acompanhamento
+      : (acompanhamento ? [acompanhamento] : ['pre_cmt_5']);
 
     await client.query('BEGIN');
 
@@ -317,7 +317,7 @@ export async function PUT(request: Request) {
       [
         numero,
         nome,
-        acompanhamento,
+        resolvedAcompanhamento,
         plano || 'padrao',
         senhaInicial || '123456',
         primeiroAcesso ?? false,

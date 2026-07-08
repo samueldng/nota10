@@ -1,0 +1,8 @@
+-- MIGRAÇÃO PARA MULTIPLOS ACOMPANHAMENTOS (PRODUTOS) POR ALUNO
+BEGIN;
+
+ALTER TABLE alunos 
+  ALTER COLUMN acompanhamento TYPE text[] 
+  USING ARRAY[acompanhamento]::text[];
+
+COMMIT;
