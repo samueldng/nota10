@@ -141,13 +141,13 @@ export default function LoginPage() {
             {activeTab === 'admin' ? (
               <form onSubmit={handleAdminSubmit} className="space-y-4">
                 <div className="form-group">
-                  <label className="form-label">E-mail do Administrador / Professor</label>
+                  <label className="form-label">E-mail ou Usuário do Administrador</label>
                   <div className="relative">
                     <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-cinza-texto)]" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="exemplo@nota10.edu.br"
+                      placeholder="Ex: exemplo@nota10.edu.br ou prof.romildo"
                       className="form-input pl-10"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}

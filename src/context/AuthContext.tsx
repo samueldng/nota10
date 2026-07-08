@@ -108,18 +108,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch teachers from DB/mock
       const professores = await getProfessores();
-      const prof = professores.find(p => p.email.toLowerCase() === email.toLowerCase());
+      const prof = professores.find(p => 
+        p.email.toLowerCase() === email.toLowerCase() ||
+        p.nome.toLowerCase() === email.toLowerCase()
+      );
 
       if (!prof) {
-        return { success: false, error: 'E-mail não cadastrado como professor.' };
+        return { success: false, error: 'E-mail ou usuário não cadastrado como professor.' };
       }
 
-      if (password !== 'admin123' && password !== 'senha123') {
-        return { success: false, error: 'Senha incorreta (use a padrão admin123).' };
+      // Validar senha do administrador romildo
+      const isRomildo = prof.email.toLowerCase() === 'romildo@nota10.edu.br' || prof.nome.toLowerCase() === 'prof.romildo';
+      const expectedPassword = isRomildo ? 'rom1000do*' : 'admin123';
+
+      if (password !== expectedPassword && password !== 'admin123' && password !== 'senha123') {
+        return { success: false, error: 'Senha incorreta.' };
       }
 
       const sessionUser: AuthUser = {
-        name: `Prof. ${prof.nome}`,
+        name: prof.nome.startsWith('Prof.') ? prof.nome : `Prof. ${prof.nome}`,
         email: prof.email,
         role: 'admin'
       };

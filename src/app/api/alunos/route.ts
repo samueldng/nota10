@@ -129,7 +129,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(formatted);
   } catch (err: any) {
-    console.error('Error fetching students:', err);
+    console.error('[API Alunos GET Error]:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -152,22 +152,24 @@ export async function POST(request: Request) {
       endereco
     } = body;
 
-    const resolvedAcompanhamento = Array.isArray(acompanhamento)
-      ? acompanhamento
-      : (acompanhamento ? [acompanhamento] : ['pre_cmt_5']);
+    const resolvedAcompanhamento = (
+      Array.isArray(acompanhamento)
+        ? acompanhamento
+        : (acompanhamento ? [acompanhamento] : ['pre_cmt_5'])
+    ).filter(Boolean);
 
     await client.query('BEGIN');
 
-    // 1. Inserir o aluno
+    // 1. Inserir o aluno (com cast explícito para text[])
     const result = await client.query(
       `INSERT INTO alunos (
         numero, nome, acompanhamento, plano, senha_inicial, primeiro_acesso,
         responsavel1_nome, responsavel1_telefone, responsavel2_nome, responsavel2_telefone,
         endereco_rua, endereco_bairro, endereco_cidade
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      ) VALUES ($1, $2, $3::text[], $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
-        numero,
-        nome,
+        numero || null,
+        nome || '',
         resolvedAcompanhamento,
         plano || 'padrao',
         senhaInicial || '123456',
@@ -178,7 +180,7 @@ export async function POST(request: Request) {
         responsavel2?.telefone || null,
         endereco?.rua || null,
         endereco?.bairro || null,
-        endereco?.cidade || null,
+        endereco?.cidade || endereco?.city || null,
       ]
     );
     const row = result.rows[0];
@@ -211,6 +213,12 @@ export async function POST(request: Request) {
         } else {
           continue;
         }
+      }
+
+      // Validar integridade referencial da turma antes de inserir
+      const checkTurma = await client.query('SELECT id FROM turmas WHERE id = $1', [finalTurmaId]);
+      if (checkTurma.rows.length === 0) {
+        continue;
       }
 
       await client.query(
@@ -261,7 +269,7 @@ export async function POST(request: Request) {
 
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('Erro no POST /api/alunos:', err);
+    console.error('[API Alunos POST Error]:', err);
     return NextResponse.json(
       { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
       { status: 500 }
@@ -291,18 +299,35 @@ export async function PUT(request: Request) {
       endereco
     } = body;
 
-    const resolvedAcompanhamento = Array.isArray(acompanhamento)
-      ? acompanhamento
-      : (acompanhamento ? [acompanhamento] : ['pre_cmt_5']);
+    if (!id) {
+      return NextResponse.json({ error: 'Identificador do aluno ausente.' }, { status: 400 });
+    }
+
+    const resolvedAcompanhamento = (
+      Array.isArray(acompanhamento)
+        ? acompanhamento
+        : (acompanhamento ? [acompanhamento] : ['pre_cmt_5'])
+    ).filter(Boolean);
+
+    // Evitar undefined no parâmetro numero se o front não enviar na edição
+    let finalNumero = numero;
+    if (!finalNumero) {
+      const currentRes = await client.query('SELECT numero FROM alunos WHERE id = $1', [id]);
+      if (currentRes.rows.length > 0) {
+        finalNumero = currentRes.rows[0].numero;
+      } else {
+        return NextResponse.json({ error: 'Aluno não encontrado.' }, { status: 404 });
+      }
+    }
 
     await client.query('BEGIN');
 
-    // 1. Atualizar o aluno
+    // 1. Atualizar o aluno (com cast explícito para text[])
     const result = await client.query(
       `UPDATE alunos SET
         numero = $1, 
         nome = $2, 
-        acompanhamento = $3, 
+        acompanhamento = $3::text[], 
         plano = $4,
         senha_inicial = $5, 
         primeiro_acesso = $6, 
@@ -315,8 +340,8 @@ export async function PUT(request: Request) {
         endereco_cidade = $13
       WHERE id = $14 RETURNING *`,
       [
-        numero,
-        nome,
+        finalNumero,
+        nome || '',
         resolvedAcompanhamento,
         plano || 'padrao',
         senhaInicial || '123456',
@@ -327,14 +352,14 @@ export async function PUT(request: Request) {
         responsavel2?.telefone || null,
         endereco?.rua || null,
         endereco?.bairro || null,
-        endereco?.cidade || null,
+        endereco?.cidade || endereco?.city || null,
         id,
       ]
     );
 
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
-      return NextResponse.json({ error: 'Aluno não encontrado.' }, { status: 404 });
+      return NextResponse.json({ error: 'Aluno não encontrado no update.' }, { status: 404 });
     }
 
     const row = result.rows[0];
@@ -369,6 +394,12 @@ export async function PUT(request: Request) {
         } else {
           continue;
         }
+      }
+
+      // Validar integridade referencial da turma antes de inserir
+      const checkTurma = await client.query('SELECT id FROM turmas WHERE id = $1', [finalTurmaId]);
+      if (checkTurma.rows.length === 0) {
+        continue;
       }
 
       await client.query(
@@ -419,7 +450,7 @@ export async function PUT(request: Request) {
 
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('Erro no PUT /api/alunos:', err);
+    console.error('[API Alunos PUT Error]:', err);
     return NextResponse.json(
       { error: err.message || 'Falha ao atualizar o registro no banco de dados.' },
       { status: 500 }
@@ -460,7 +491,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, message: 'Aluno excluído com sucesso.' });
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('Erro no DELETE /api/alunos:', err);
+    console.error('[API Alunos DELETE Error]:', err);
     return NextResponse.json(
       { error: err.message || 'Falha ao excluir o registro no banco de dados.' },
       { status: 500 }
