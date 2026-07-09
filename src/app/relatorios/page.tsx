@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search, FileText, Edit3, Star, AlertTriangle, Lightbulb,
   UserCheck, XCircle, Clock, PlayCircle, Target, Info, TrendingUp,
