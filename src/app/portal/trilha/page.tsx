@@ -1,8 +1,8 @@
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
-import { getCronogramaSemana } from '@/lib/portalData';
 import { CheckCircle2, Circle, Loader2, Zap, Map, BookOpen, PlayCircle, FileText } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 
 const tipoIcons: Record<string, React.ReactNode> = {
   revisao: <BookOpen size={16} />,
@@ -14,14 +14,85 @@ const tipoIcons: Record<string, React.ReactNode> = {
 
 export default function TrilhaPage() {
   const { user } = useAuth();
+  const alunoId = user?.alunoId || 'a1';
   const turmaId = user?.turmaId || 'T001';
-  const cronograma = getCronogramaSemana(turmaId);
+  
+  const [cronograma, setCronograma] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    let concluidas: string[] = [];
+
+    // 1. Load progress
+    try {
+      const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
+      if (res.ok) {
+        const data = await res.json();
+        concluidas = data.atividadesConcluidas || [];
+      }
+    } catch (e) {}
+
+    // 2. Load cronograma
+    try {
+      const cronRes = await fetch(`/api/cronograma?alunoId=${alunoId}&semana=1`);
+      if (cronRes.ok) {
+        const dbTasks = await cronRes.json();
+        const mappedTasks = dbTasks.map((t: any) => ({
+          id: t.id,
+          ordem: t.ordem,
+          titulo: t.titulo,
+          tipo: t.tipo,
+          disciplina: t.disciplina,
+          bloco: t.bloco,
+          xp: t.xpTotal,
+          status: concluidas.includes(t.id) ? 'concluido' : 'pendente',
+          subTarefas: typeof t.subtarefas === 'string' ? JSON.parse(t.subtarefas).map((sub: any) => ({
+            ...sub,
+            status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+          })) : (t.subtarefas || []).map((sub: any) => ({
+            ...sub,
+            status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+          }))
+        }));
+        setCronograma({
+          semana: 'Semana 1',
+          periodo: 'Esta Semana',
+          tarefas: mappedTasks
+        });
+      }
+    } catch (e) {}
+
+    setIsLoading(false);
+  }, [alunoId]);
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('nota10_progress_updated', loadData);
+    return () => window.removeEventListener('nota10_progress_updated', loadData);
+  }, [loadData]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="animate-spin text-[var(--color-azul-autoridade)]" size={32} />
+      </div>
+    );
+  }
+
+  if (!cronograma || cronograma.tarefas.length === 0) {
+    return (
+      <div className="text-center p-8 text-[var(--color-cinza-texto)] bg-[var(--color-cinza-fundo)] rounded-xl">
+        Nenhuma trilha encontrada para esta semana.
+      </div>
+    );
+  }
 
   const totalTarefas = cronograma.tarefas.length;
-  const concluidas = cronograma.tarefas.filter(t => t.status === 'concluido').length;
-  const progressoSemana = Math.round((concluidas / totalTarefas) * 100);
-  const xpTotal = cronograma.tarefas.reduce((sum, t) => sum + t.xp, 0);
-  const xpGanho = cronograma.tarefas.filter(t => t.status === 'concluido').reduce((sum, t) => sum + t.xp, 0);
+  const concluidas = cronograma.tarefas.filter((t: any) => t.status === 'concluido').length;
+  const progressoSemana = totalTarefas === 0 ? 0 : Math.round((concluidas / totalTarefas) * 100);
+  const xpTotal = cronograma.tarefas.reduce((sum: number, t: any) => sum + t.xp, 0);
+  const xpGanho = cronograma.tarefas.filter((t: any) => t.status === 'concluido').reduce((sum: number, t: any) => sum + t.xp, 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -58,7 +129,7 @@ export default function TrilhaPage() {
 
       {/* Tarefas expandidas */}
       <div className="space-y-4">
-        {cronograma.tarefas.map((tarefa, index) => (
+        {cronograma.tarefas.map((tarefa: any, index: number) => (
           <div
             key={tarefa.id}
             className={`card animate-fade-in-up ${
@@ -111,7 +182,7 @@ export default function TrilhaPage() {
             {/* Sub-tarefas */}
             {tarefa.subTarefas && tarefa.subTarefas.length > 0 && (
               <div className="mt-4 ml-14 space-y-2 border-l-2 border-[var(--color-cinza-borda)] pl-4">
-                {tarefa.subTarefas.map((sub) => (
+                {tarefa.subTarefas.map((sub: any) => (
                   <div key={sub.id} className={`flex items-center justify-between p-3 rounded-xl ${
                     sub.status === 'concluido'
                       ? 'bg-[var(--color-verde-light)]/50'

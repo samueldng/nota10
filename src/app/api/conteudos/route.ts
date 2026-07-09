@@ -70,10 +70,21 @@ export async function GET(request: Request) {
     const alunoId = searchParams.get('alunoId');
     const tipoConteudo = searchParams.get('tipoConteudo');
 
-    // 1. Se alunoId for fornecido e for um UUID válido, retornar todos os conteúdos de todas as turmas
     if (alunoId && UUID_REGEX.test(alunoId)) {
       let sql = `
-        SELECT c.*, t.nome as turma_nome 
+        SELECT 
+          MIN(c.id::text)::uuid as id,
+          MIN(c.turma_id::text)::uuid as turma_id,
+          string_agg(DISTINCT t.nome, ', ') as turma_nome,
+          c.tipo_conteudo,
+          c.titulo,
+          MIN(c.descricao) as descricao,
+          c.url_acesso,
+          MIN(c.disciplina) as disciplina,
+          MIN(c.data_disponibilizacao) as data_disponibilizacao,
+          MIN(c.status::int)::boolean as status,
+          MIN(c.created_at) as created_at,
+          MIN(c.updated_at) as updated_at
         FROM conteudos_midia c
         JOIN turmas t ON c.turma_id = t.id
         WHERE c.status = true 
@@ -86,7 +97,7 @@ export async function GET(request: Request) {
         params.push(tipoConteudo);
       }
 
-      sql += ` ORDER BY c.data_disponibilizacao DESC NULLS LAST, c.created_at DESC`;
+      sql += ` GROUP BY c.url_acesso, c.tipo_conteudo, c.titulo ORDER BY MIN(c.data_disponibilizacao) DESC NULLS LAST, MIN(c.created_at) DESC`;
       const result = await query(sql, params);
       return NextResponse.json(result.rows.map(formatRow));
     }

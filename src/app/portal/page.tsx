@@ -4,8 +4,8 @@ import { useAuth } from '@/context/AuthContext';
 import PlanLock from '@/components/portal/PlanLock';
 import {
   getNivel, getXPParaProximoNivel,
-  getConquistas, getProgressoDisciplina, getCronogramaSemana,
-  getProximaAula, getRegistroSemanal, getIniciais, getAvatarColor,
+  getConquistas, getProgressoDisciplina,
+  getRegistroSemanal, getIniciais, getAvatarColor,
 } from '@/lib/portalData';
 import type { CronogramaSemana } from '@/lib/mockData';
 import {
@@ -31,8 +31,11 @@ export default function PortalInicioPage() {
   const [progressoDisciplina, setProgressoDisciplina] = useState<any[]>([]);
   const [cronograma, setCronograma] = useState<CronogramaSemana | null>(null);
   const [dbLoaded, setDbLoaded] = useState(false);
+  const [proximaAula, setProximaAula] = useState<{ data: string; diaSemana: string; horario: string; local: string; blocos: any[] } | null>(null);
 
   const loadData = useCallback(async () => {
+    let concluidas: string[] = [];
+    
     // 1. Try to load XP from the database first
     try {
       const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
@@ -45,6 +48,7 @@ export default function PortalInicioPage() {
           proximo: data.xpProximo || 100,
           progresso: data.progresso || 0,
         });
+        concluidas = data.atividadesConcluidas || [];
         setDbLoaded(true);
       } else {
         // Fallback to computed values from xpTotal = 0
@@ -75,30 +79,68 @@ export default function PortalInicioPage() {
             bloco: t.bloco,
             xp: t.xpTotal,
             turmaNome: t.turmaNome || '',
-            status: t.status || 'pendente',
-            subTarefas: t.subtarefas || []
+            status: concluidas.includes(t.id) ? 'concluido' : 'pendente',
+            subTarefas: typeof t.subtarefas === 'string' ? JSON.parse(t.subtarefas).map((sub: any) => ({
+              ...sub,
+              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+            })) : (t.subtarefas || []).map((sub: any) => ({
+              ...sub,
+              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+            }))
           }));
           setCronograma({
             turmaId: turmaId,
             semana: 'Semana 1',
-            periodo: 'De 01/06 a 05/06',
+            periodo: 'Esta Semana',
             tarefas: mappedTasks
           });
-          setStreak(0);
-          setConquistas(getConquistas(alunoId));
-          setProgressoDisciplina(getProgressoDisciplina(alunoId));
-          return;
         }
       }
     } catch (e) {
       console.warn('Erro ao carregar cronograma do banco:', e);
     }
 
-    // Streak, conquistas, progresso still use portalData (localStorage) for now
+    // 3. Obter Próxima Aula via /api/turmas
+    try {
+      const turmasRes = await fetch('/api/turmas');
+      if (turmasRes.ok) {
+        const turmasList = await turmasRes.json();
+        const minhaTurma = turmasList.find((t: any) => t.id === turmaId || t.nome.includes(turmaId));
+        if (minhaTurma && minhaTurma.dias && minhaTurma.dias.length > 0) {
+          const diaSemana = minhaTurma.dias[0]; 
+          
+          // Cálculo seguro de fuso horário UTC-3 (Brasília)
+          const daysMap: Record<string, number> = {
+            'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
+            'Quinta': 4, 'Sexta': 5, 'Sábado': 6
+          };
+          const targetDay = daysMap[diaSemana] !== undefined ? daysMap[diaSemana] : 1;
+          const now = new Date();
+          const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+          const brTime = new Date(utc - (3600000 * 3));
+          
+          let daysToTarget = targetDay - brTime.getDay();
+          if (daysToTarget < 0) daysToTarget += 7;
+          
+          brTime.setDate(brTime.getDate() + daysToTarget);
+          const formattedDate = brTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          
+          setProximaAula({
+            data: formattedDate,
+            diaSemana: diaSemana,
+            horario: minhaTurma.horario || '08:00 - 12:00',
+            local: 'Presencial — Sede',
+            blocos: minhaTurma.disciplinas.map((d: string) => ({ disciplina: d, bloco: 'Bloco Atual' }))
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar turmas:', e);
+    }
+
     setStreak(0);
     setConquistas(getConquistas(alunoId));
     setProgressoDisciplina(getProgressoDisciplina(alunoId));
-    setCronograma(getCronogramaSemana(turmaId));
   }, [alunoId, turmaId]);
 
   useEffect(() => {
@@ -112,7 +154,6 @@ export default function PortalInicioPage() {
 
   if (!cronograma) return null;
 
-  const proximaAula = getProximaAula(turmaId);
   const registro = getRegistroSemanal(alunoId);
 
   const iniciais = getIniciais(nomeAluno);
@@ -123,34 +164,36 @@ export default function PortalInicioPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* ── 4.1 Card "Próxima Aula" ── */}
-      <div className="card animate-fade-in-up" style={{ background: 'linear-gradient(135deg, #1A3A6B 0%, #122B52 100%)' }}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="text-center bg-white/10 rounded-2xl p-3 min-w-[72px]">
-              <p className="text-[var(--color-amarelo-conquista)] font-extrabold text-2xl leading-none">{proximaAula.data.split('/')[0]}</p>
-              <p className="text-white/80 text-xs font-bold mt-1">
-                {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(proximaAula.data.split('/')[1]) - 1]}
-              </p>
-            </div>
-            <div>
-              <p className="text-white/60 text-xs font-bold uppercase tracking-wider mb-1">Próxima Aula</p>
-              <p className="text-white font-bold text-lg leading-tight">{proximaAula.diaSemana}</p>
-              <div className="flex items-center gap-3 mt-1.5 text-white/70 text-xs">
-                <span className="flex items-center gap-1"><Clock size={12} /> {proximaAula.horario}</span>
-                <span className="flex items-center gap-1"><MapPin size={12} /> {proximaAula.local}</span>
+      {proximaAula && (
+        <div className="card animate-fade-in-up" style={{ background: 'linear-gradient(135deg, #1A3A6B 0%, #122B52 100%)' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="text-center bg-white/10 rounded-2xl p-3 min-w-[72px]">
+                <p className="text-[var(--color-amarelo-conquista)] font-extrabold text-2xl leading-none">{proximaAula.data.split('/')[0]}</p>
+                <p className="text-white/80 text-xs font-bold mt-1">
+                  {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(proximaAula.data.split('/')[1]) - 1]}
+                </p>
+              </div>
+              <div>
+                <p className="text-white/60 text-xs font-bold uppercase tracking-wider mb-1">Próxima Aula</p>
+                <p className="text-white font-bold text-lg leading-tight">{proximaAula.diaSemana}</p>
+                <div className="flex items-center gap-3 mt-1.5 text-white/70 text-xs">
+                  <span className="flex items-center gap-1"><Clock size={12} /> {proximaAula.horario}</span>
+                  <span className="flex items-center gap-1"><MapPin size={12} /> {proximaAula.local}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {proximaAula.blocos.map((b, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white text-xs font-bold border border-white/10">
-                <BookOpen size={12} className="text-[var(--color-amarelo-conquista)]" />
-                {b.bloco} — {b.disciplina}
-              </span>
-            ))}
+            <div className="flex flex-wrap gap-2">
+              {proximaAula.blocos.map((b, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white text-xs font-bold border border-white/10">
+                  <BookOpen size={12} className="text-[var(--color-amarelo-conquista)]" />
+                  {b.bloco} — {b.disciplina}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── 4.2 Painel de Gamificação ── */}
       <div className="card animate-fade-in-up delay-1">

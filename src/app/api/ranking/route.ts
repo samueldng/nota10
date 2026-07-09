@@ -8,17 +8,36 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const turmaId = searchParams.get('turmaId');
     
-    // We get students and their total XP. 
-    // If a turma filter is provided, we join with matriculas to filter it.
+    // We get students and their total XP, plus aggregated stats from registro_alunos
     let sql = `
       SELECT 
         a.id, 
         a.nome, 
         a.xp_total as "pontuacaoTotal",
-        t.nome as turma_nome
+        t.nome as turma_nome,
+        COALESCE(ra.presenca_total, 0) as presenca,
+        COALESCE(ra.videoaula_total, 0) as videoaula,
+        COALESCE(ra.palavra_total, 0) as palavra_chave,
+        COALESCE(ra.fixacao_total, 0) as fixacao,
+        COALESCE(ra.comportamento_total, 0) as comportamento,
+        COALESCE(ra.atencao_total, 0) as atencao,
+        COALESCE(ra.participacao_total, 0) as participacao
       FROM alunos a
       LEFT JOIN matriculas m ON m.aluno_id = a.id AND m.status = 'ativo'
       LEFT JOIN turmas t ON m.turma_id = t.id
+      LEFT JOIN (
+        SELECT 
+          aluno_id,
+          SUM(CASE WHEN presenca = 'presente' THEN 2 ELSE 0 END) as presenca_total,
+          SUM(CASE WHEN video = 'fez' THEN 2 ELSE 0 END) as videoaula_total,
+          SUM(CASE WHEN palavra_chave = 'fez' THEN 2 ELSE 0 END) as palavra_total,
+          SUM(CASE WHEN fixacao = 'fez' THEN 2 ELSE 0 END) as fixacao_total,
+          SUM(COALESCE(comportamento, 0)) as comportamento_total,
+          SUM(CASE WHEN atencao = 'atento' THEN 2 ELSE 0 END) as atencao_total,
+          SUM(COALESCE(participacao, 0)) as participacao_total
+        FROM registro_alunos
+        GROUP BY aluno_id
+      ) ra ON ra.aluno_id = a.id
     `;
     
     const params: any[] = [];
@@ -38,13 +57,13 @@ export async function GET(request: Request) {
       nome: row.nome,
       turma: row.turma_nome || 'Sem turma',
       pontuacaoTotal: row.pontuacaoTotal || 0,
-      presenca: 0,
-      videoaula: 0,
-      palavraChave: 0,
-      fixacao: 0,
-      comportamento: 0,
-      atencao: 0,
-      participacao: 0,
+      presenca: Number(row.presenca),
+      videoaula: Number(row.videoaula),
+      palavraChave: Number(row.palavra_chave),
+      fixacao: Number(row.fixacao),
+      comportamento: Number(row.comportamento),
+      atencao: Number(row.atencao),
+      participacao: Number(row.participacao),
       selos: [], // Mocked for now, can be computed later
       evolucao: 'manteve',
     }));
