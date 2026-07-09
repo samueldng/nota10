@@ -18,7 +18,7 @@ export async function GET() {
       SELECT 
         COUNT(*) as total_mediacoes,
         SUM(CASE WHEN presenca = 'presente' THEN 1 ELSE 0 END) as total_presencas
-      FROM registro_alunos
+      FROM registros_lancados
     `);
     
     const totalMediacoes = parseInt(presencaResult.rows[0].total_mediacoes, 10);

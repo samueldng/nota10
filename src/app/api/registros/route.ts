@@ -87,39 +87,9 @@ export async function POST(request: Request) {
 
     const row = result.rows[0];
 
-    // Se houver um array de alunos detalhados, faremos bulk insert na tabela registro_alunos
-    if (alunos && Array.isArray(alunos) && alunos.length > 0) {
-      const values = [];
-      const params = [];
-      let i = 1;
-      
-      for (const al of alunos) {
-        values.push(`($${i}, $${i+1}, $${i+2}, $${i+3}, $${i+4}, $${i+5}, $${i+6}, $${i+7}, $${i+8}, $${i+9}, $${i+10}, $${i+11})`);
-        params.push(
-          row.id,
-          al.alunoId,
-          al.presenca || 'presente',
-          al.video || null,
-          al.palavraChave || null,
-          al.fixacao || null,
-          al.praticar || null,
-          al.atencao || null,
-          al.participacao || null,
-          al.comportamento || null,
-          al.pontualidade || null,
-          al.observacao || null
-        );
-        i += 12;
-      }
-
-      await client.query(
-        `INSERT INTO registro_alunos (
-          registro_id, aluno_id, presenca, video, palavra_chave, fixacao, praticar,
-          atencao, participacao, comportamento, pontualidade, observacao
-        ) VALUES ${values.join(', ')}`,
-        params
-      );
-    }
+    // O array de alunos detalhados foi descontinuado neste fluxo 
+    // já que a tabela registro_alunos não existe mais. A estrutura
+    // agora é plana na tabela registros_lancados.
 
     await client.query('COMMIT');
     client.release();
