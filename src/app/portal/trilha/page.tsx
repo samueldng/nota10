@@ -38,30 +38,36 @@ export default function TrilhaPage() {
       const cronRes = await fetch(`/api/cronograma?alunoId=${alunoId}&semana=1`);
       if (cronRes.ok) {
         const dbTasks = await cronRes.json();
-        const mappedTasks = dbTasks.map((t: any) => ({
-          id: t.id,
-          ordem: t.ordem,
-          titulo: t.titulo,
-          tipo: t.tipo,
-          disciplina: t.disciplina,
-          bloco: t.bloco,
-          xp: t.xpTotal,
-          status: concluidas.includes(t.id) ? 'concluido' : 'pendente',
-          subTarefas: typeof t.subtarefas === 'string' ? JSON.parse(t.subtarefas).map((sub: any) => ({
-            ...sub,
-            status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
-          })) : (t.subtarefas || []).map((sub: any) => ({
-            ...sub,
-            status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
-          }))
-        }));
-        setCronograma({
-          semana: 'Semana 1',
-          periodo: 'Esta Semana',
-          tarefas: mappedTasks
-        });
+        if (Array.isArray(dbTasks) && dbTasks.length > 0) {
+          const mappedTasks = dbTasks.map((t: any) => ({
+            id: t.id,
+            ordem: t.ordem,
+            titulo: t.titulo,
+            tipo: t.tipo,
+            disciplina: t.disciplina,
+            bloco: t.bloco,
+            xp: t.xpTotal,
+            status: concluidas.includes(t.id) ? 'concluido' : 'pendente',
+            subTarefas: typeof t.subtarefas === 'string' ? JSON.parse(t.subtarefas).map((sub: any) => ({
+              ...sub,
+              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+            })) : (t.subtarefas || []).map((sub: any) => ({
+              ...sub,
+              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
+            }))
+          }));
+          setCronograma({
+            semana: 'Semana 1',
+            periodo: 'Esta Semana',
+            tarefas: mappedTasks
+          });
+        } else {
+          setCronograma({ tarefas: [] });
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      setCronograma({ tarefas: [] });
+    }
 
     setIsLoading(false);
   }, [alunoId]);
@@ -80,7 +86,7 @@ export default function TrilhaPage() {
     );
   }
 
-  if (!cronograma || cronograma.tarefas.length === 0) {
+  if (!cronograma || !Array.isArray(cronograma.tarefas) || cronograma.tarefas.length === 0) {
     return (
       <div className="text-center p-8 text-[var(--color-cinza-texto)] bg-[var(--color-cinza-fundo)] rounded-xl">
         Nenhuma trilha encontrada para esta semana.
@@ -129,7 +135,7 @@ export default function TrilhaPage() {
 
       {/* Tarefas expandidas */}
       <div className="space-y-4">
-        {cronograma.tarefas.map((tarefa: any, index: number) => (
+        {cronograma?.tarefas?.map((tarefa: any, index: number) => (
           <div
             key={tarefa.id}
             className={`card animate-fade-in-up ${
@@ -180,7 +186,7 @@ export default function TrilhaPage() {
             </div>
 
             {/* Sub-tarefas */}
-            {tarefa.subTarefas && tarefa.subTarefas.length > 0 && (
+            {tarefa?.subTarefas && tarefa.subTarefas.length > 0 && (
               <div className="mt-4 ml-14 space-y-2 border-l-2 border-[var(--color-cinza-borda)] pl-4">
                 {tarefa.subTarefas.map((sub: any) => (
                   <div key={sub.id} className={`flex items-center justify-between p-3 rounded-xl ${

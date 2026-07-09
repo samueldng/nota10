@@ -107,31 +107,36 @@ export default function PortalInicioPage() {
         const turmasList = await turmasRes.json();
         const minhaTurma = turmasList.find((t: any) => t.id === turmaId || t.nome.includes(turmaId));
         if (minhaTurma && minhaTurma.dias && minhaTurma.dias.length > 0) {
-          const diaSemana = minhaTurma.dias[0]; 
-          
-          // Cálculo seguro de fuso horário UTC-3 (Brasília)
-          const daysMap: Record<string, number> = {
-            'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
-            'Quinta': 4, 'Sexta': 5, 'Sábado': 6
-          };
-          const targetDay = daysMap[diaSemana] !== undefined ? daysMap[diaSemana] : 1;
-          const now = new Date();
-          const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-          const brTime = new Date(utc - (3600000 * 3));
-          
-          let daysToTarget = targetDay - brTime.getDay();
-          if (daysToTarget < 0) daysToTarget += 7;
-          
-          brTime.setDate(brTime.getDate() + daysToTarget);
-          const formattedDate = brTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          
-          setProximaAula({
-            data: formattedDate,
-            diaSemana: diaSemana,
-            horario: minhaTurma.horario || '08:00 - 12:00',
-            local: 'Presencial — Sede',
-            blocos: minhaTurma.disciplinas.map((d: string) => ({ disciplina: d, bloco: 'Bloco Atual' }))
-          });
+          try {
+            const diaSemana = minhaTurma.dias[0]; 
+            
+            // Cálculo seguro de fuso horário UTC-3 (Brasília)
+            const daysMap: Record<string, number> = {
+              'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
+              'Quinta': 4, 'Sexta': 5, 'Sábado': 6
+            };
+            const targetDay = daysMap[diaSemana] !== undefined ? daysMap[diaSemana] : 1;
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const brTime = new Date(utc - (3600000 * 3));
+            
+            let daysToTarget = targetDay - brTime.getDay();
+            if (daysToTarget < 0) daysToTarget += 7;
+            
+            brTime.setDate(brTime.getDate() + daysToTarget);
+            const formattedDate = brTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            
+            setProximaAula({
+              data: formattedDate,
+              diaSemana: diaSemana,
+              horario: minhaTurma.horario || '08:00 - 12:00',
+              local: 'Presencial — Sede',
+              blocos: minhaTurma.disciplinas?.map((d: string) => ({ disciplina: d, bloco: 'Bloco Atual' })) || []
+            });
+          } catch (dateErr) {
+            console.error('Erro ao calcular a data:', dateErr);
+            setProximaAula(null);
+          }
         }
       }
     } catch (e) {
@@ -169,9 +174,9 @@ export default function PortalInicioPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="text-center bg-white/10 rounded-2xl p-3 min-w-[72px]">
-                <p className="text-[var(--color-amarelo-conquista)] font-extrabold text-2xl leading-none">{proximaAula.data.split('/')[0]}</p>
+                <p className="text-[var(--color-amarelo-conquista)] font-extrabold text-2xl leading-none">{proximaAula?.data?.split('/')[0] || '--'}</p>
                 <p className="text-white/80 text-xs font-bold mt-1">
-                  {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(proximaAula.data.split('/')[1]) - 1]}
+                  {proximaAula?.data?.split('/')[1] ? ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(proximaAula.data.split('/')[1]) - 1] : ''}
                 </p>
               </div>
               <div>
@@ -184,7 +189,7 @@ export default function PortalInicioPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {proximaAula.blocos.map((b, i) => (
+              {proximaAula?.blocos?.map((b, i) => (
                 <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 text-white text-xs font-bold border border-white/10">
                   <BookOpen size={12} className="text-[var(--color-amarelo-conquista)]" />
                   {b.bloco} — {b.disciplina}
@@ -314,7 +319,7 @@ export default function PortalInicioPage() {
         <p className="text-xs text-[var(--color-cinza-texto)] mb-4">{cronograma.semana} • {cronograma.periodo}</p>
 
         <div className="space-y-3">
-          {cronograma.tarefas.map((tarefa) => (
+          {cronograma?.tarefas?.length > 0 ? cronograma.tarefas.map((tarefa) => (
             <div key={tarefa.id} className={`p-4 rounded-xl border transition-all ${
               tarefa.status === 'concluido'
                 ? 'bg-[var(--color-verde-light)] border-[var(--color-verde-sucesso)]/30'
@@ -377,7 +382,11 @@ export default function PortalInicioPage() {
                 </div>
               )}
             </div>
-          ))}
+          )) : (
+            <div className="text-center p-6 text-[var(--color-cinza-texto)] border border-dashed border-[var(--color-cinza-borda)] rounded-xl">
+              Nenhuma tarefa agendada para esta semana.
+            </div>
+          )}
         </div>
       </div>
 

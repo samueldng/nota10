@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       SELECT 
         a.id, 
         a.nome, 
-        a.xp_total as "pontuacaoTotal",
+        COALESCE(a.xp_total, 0) as "pontuacaoTotal",
         t.nome as turma_nome,
         COALESCE(ra.presenca_total, 0) as presenca,
         COALESCE(ra.videoaula_total, 0) as videoaula,
@@ -32,9 +32,9 @@ export async function GET(request: Request) {
           SUM(CASE WHEN video = 'fez' THEN 2 ELSE 0 END) as videoaula_total,
           SUM(CASE WHEN palavra_chave = 'fez' THEN 2 ELSE 0 END) as palavra_total,
           SUM(CASE WHEN fixacao = 'fez' THEN 2 ELSE 0 END) as fixacao_total,
-          SUM(COALESCE(comportamento, 0)) as comportamento_total,
+          SUM(COALESCE(comportamento::numeric, 0)) as comportamento_total,
           SUM(CASE WHEN atencao = 'atento' THEN 2 ELSE 0 END) as atencao_total,
-          SUM(COALESCE(participacao, 0)) as participacao_total
+          SUM(COALESCE(participacao::numeric, 0)) as participacao_total
         FROM registro_alunos
         GROUP BY aluno_id
       ) ra ON ra.aluno_id = a.id
