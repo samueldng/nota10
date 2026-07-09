@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import {
   FileEdit,
   FileText,
@@ -16,14 +18,10 @@ import {
   BookOpen,
   Eye,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
-import {
-  getFraseMotivacional,
-  registrosLancados,
-  acompanhamentoLabels,
-  type Acompanhamento,
-} from '@/lib/mockData';
+import { getFraseMotivacional } from '@/lib/mockData';
 
 const quickActions = [
   {
@@ -60,13 +58,6 @@ const quickActions = [
   },
 ];
 
-const stats = [
-  { label: 'Registros lançados', value: '12', icon: <ClipboardList size={20} />, color: 'var(--color-azul-autoridade)', bg: 'var(--color-azul-lightest)' },
-  { label: 'Turmas ativas', value: '6', icon: <Users size={20} />, color: 'var(--color-amarelo-conquista)', bg: 'var(--color-amarelo-light)' },
-  { label: 'Folhas geradas', value: '4', icon: <BookOpen size={20} />, color: '#8B5CF6', bg: 'var(--color-roxo-light)' },
-  { label: 'Presença média', value: '92%', icon: <TrendingUp size={20} />, color: '#22C55E', bg: 'var(--color-verde-light)' },
-];
-
 const pendencias = [
   { label: 'Registros aguardando conferência', count: 1, icon: <AlertCircle size={16} />, color: 'var(--color-amarelo-alerta)', href: '/historico' },
   { label: 'Fotos não revisadas', count: 0, icon: <Camera size={16} />, color: 'var(--color-cinza-texto)', href: '/lancar' },
@@ -78,6 +69,12 @@ const acompanhamentosHoje = [
   { acompanhamento: 'Pré-CMT 5º Ano', turma: '5A Manhã', disciplina: 'Português', bloco: 'Bloco 3', horario: '08:00', status: 'pendente' as const },
   { acompanhamento: 'Projeto 4º Ano', turma: '4A Manhã', disciplina: 'Matemática', bloco: 'Bloco 1', horario: '10:00', status: 'concluido' as const },
 ];
+
+const acompanhamentoLabels: Record<string, string> = {
+  pre_cmt_5: 'Pré-CMT 5º',
+  projeto_4: 'Projeto 4º',
+  reforco: 'Reforço',
+};
 
 function statusBadge(status: string) {
   switch (status) {
@@ -93,14 +90,76 @@ function statusBadge(status: string) {
 }
 
 export default function HomePage() {
+  const { user } = useAuth();
   const frase = getFraseMotivacional();
+  
+  const [statsData, setStatsData] = useState<any>(null);
+  const [registros, setRegistros] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [statsRes, regRes] = await Promise.all([
+          fetch('/api/dashboard/stats'),
+          fetch('/api/registros')
+        ]);
+        
+        if (statsRes.ok) setStatsData(await statsRes.json());
+        if (regRes.ok) {
+          const allRegs = await regRes.json();
+          setRegistros(allRegs.slice(0, 6)); // Últimos 6 lançamentos
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dashboard', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const renderStats = () => {
+    if (isLoading) {
+      return Array(4).fill(0).map((_, i) => (
+        <div key={i} className="stat-card animate-pulse">
+          <div className="w-12 h-12 bg-[var(--color-cinza-fundo)] rounded-xl"></div>
+          <div className="flex flex-col gap-2 flex-1">
+            <div className="h-6 bg-[var(--color-cinza-fundo)] rounded w-16"></div>
+            <div className="h-3 bg-[var(--color-cinza-fundo)] rounded w-24"></div>
+          </div>
+        </div>
+      ));
+    }
+
+    const s = [
+      { label: 'Registros lançados', value: statsData?.registrosLancados || 0, icon: <ClipboardList size={20} />, color: 'var(--color-azul-autoridade)', bg: 'var(--color-azul-lightest)' },
+      { label: 'Turmas ativas', value: statsData?.turmasAtivas || 0, icon: <Users size={20} />, color: 'var(--color-amarelo-conquista)', bg: 'var(--color-amarelo-light)' },
+      { label: 'Folhas geradas', value: '4', icon: <BookOpen size={20} />, color: '#8B5CF6', bg: 'var(--color-roxo-light)' }, // Mantém fixo por enquanto, se não tem DB
+      { label: 'Presença média', value: `${statsData?.presencaMedia || 0}%`, icon: <TrendingUp size={20} />, color: '#22C55E', bg: 'var(--color-verde-light)' },
+    ];
+
+    return s.map((stat) => (
+      <div key={stat.label} className="stat-card">
+        <div className="stat-icon" style={{ background: stat.bg, color: stat.color }}>
+          {stat.icon}
+        </div>
+        <div>
+          <p className="text-2xl font-extrabold text-[var(--color-azul-autoridade)] leading-none">
+            {stat.value}
+          </p>
+          <p className="text-xs text-[var(--color-cinza-texto)] mt-1">{stat.label}</p>
+        </div>
+      </div>
+    ));
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Greeting + Motivational Quote */}
       <div className="animate-fade-in-up">
         <h2 className="text-2xl font-bold text-[var(--color-azul-autoridade)] mb-1">
-          Olá, Professor(a) João! 👋
+          Olá, {user?.name || 'Professor(a)'}! 👋
         </h2>
         <p className="text-[var(--color-cinza-texto)] text-sm italic flex items-center gap-1.5">
           <span className="text-[var(--color-amarelo-conquista)]">✦</span>
@@ -213,24 +272,7 @@ export default function HomePage() {
             Resumo da Semana
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="stat-card">
-                <div
-                  className="stat-icon"
-                  style={{ background: stat.bg, color: stat.color }}
-                >
-                  {stat.icon}
-                </div>
-                <div>
-                  <p className="text-2xl font-extrabold text-[var(--color-azul-autoridade)] leading-none">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-[var(--color-cinza-texto)] mt-1">
-                    {stat.label}
-                  </p>
-                </div>
-              </div>
-            ))}
+            {renderStats()}
           </div>
         </div>
       </div>
@@ -248,50 +290,59 @@ export default function HomePage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Data</th>
-                <th>Acompanhamento</th>
-                <th>Turma / Aluno</th>
-                <th>Disciplina</th>
-                <th>Professor</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {registrosLancados.slice(0, 6).map((record) => (
-                <tr key={record.id}>
-                  <td className="font-medium">{record.id}</td>
-                  <td className="text-sm whitespace-nowrap">{record.data}</td>
-                  <td>
-                    <span className={`badge text-xs ${
-                      record.acompanhamento === 'pre_cmt_5' ? 'badge-info' :
-                      record.acompanhamento === 'projeto_4' ? 'badge-warning' :
-                      'badge-success'
-                    }`}>
-                      {acompanhamentoLabels[record.acompanhamento as Acompanhamento]}
-                    </span>
-                  </td>
-                  <td className="font-medium text-sm">{record.aluno === 'Turma inteira' ? record.turma : record.aluno}</td>
-                  <td className="text-sm">{record.disciplina}</td>
-                  <td className="text-xs text-[var(--color-cinza-texto)]">{record.professor}</td>
-                  <td>{statusBadge(record.status)}</td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      <Link href="/historico" className="p-1.5 rounded-lg hover:bg-[var(--color-azul-lightest)] transition-colors">
-                        <Eye size={14} className="text-[var(--color-azul-autoridade)]" />
-                      </Link>
-                    </div>
-                  </td>
+          {isLoading ? (
+            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-[var(--color-azul-autoridade)]" size={32} /></div>
+          ) : registros.length === 0 ? (
+            <div className="text-center p-6 text-[var(--color-cinza-texto)] text-sm">
+              Nenhum registro encontrado.
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Data</th>
+                  <th>Acompanhamento</th>
+                  <th>Turma / Aluno</th>
+                  <th>Disciplina</th>
+                  <th>Professor</th>
+                  <th>Status</th>
+                  <th>Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {registros.map((record) => (
+                  <tr key={record.id}>
+                    <td className="font-medium">{record.id}</td>
+                    <td className="text-sm whitespace-nowrap">{new Date(record.data).toLocaleDateString('pt-BR')}</td>
+                    <td>
+                      <span className={`badge text-xs ${
+                        record.acompanhamento === 'pre_cmt_5' ? 'badge-info' :
+                        record.acompanhamento === 'projeto_4' ? 'badge-warning' :
+                        'badge-success'
+                      }`}>
+                        {acompanhamentoLabels[record.acompanhamento] || record.acompanhamento}
+                      </span>
+                    </td>
+                    <td className="font-medium text-sm">{record.aluno === 'Turma inteira' ? record.turma : record.aluno}</td>
+                    <td className="text-sm">{record.disciplina}</td>
+                    <td className="text-xs text-[var(--color-cinza-texto)]">{record.professor}</td>
+                    <td>{statusBadge(record.status)}</td>
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <Link href="/historico" className="p-1.5 rounded-lg hover:bg-[var(--color-azul-lightest)] transition-colors">
+                          <Eye size={14} className="text-[var(--color-azul-autoridade)]" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

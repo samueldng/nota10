@@ -36,6 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { getClient } = require('@/lib/db');
+  const client = await getClient();
+
   try {
     const body = await request.json();
     const {
@@ -50,14 +53,18 @@ export async function POST(request: Request) {
       status,
       lancadoPor,
       editadoPor,
-      dataEdicao
+      dataEdicao,
+      alunos // Opcional array de alunos com notas
     } = body;
 
-    if (!data || !acompanhamento || !turma || !aluno || !disciplina || !bloco || !professor || !lancadoPor) {
+    if (!data || !acompanhamento || !turma || !aluno || !disciplina || !professor || !lancadoPor) {
+      client.release();
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
     }
 
-    const result = await query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO registros_lancados (
         data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
         lancado_por, editado_por, data_edicao
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
         turma,
         aluno,
         disciplina,
-        bloco,
+        bloco || null,
         professor,
         origem || 'manual',
         status || 'salvo',
@@ -79,6 +86,43 @@ export async function POST(request: Request) {
     );
 
     const row = result.rows[0];
+
+    // Se houver um array de alunos detalhados, faremos bulk insert na tabela registro_alunos
+    if (alunos && Array.isArray(alunos) && alunos.length > 0) {
+      const values = [];
+      const params = [];
+      let i = 1;
+      
+      for (const al of alunos) {
+        values.push(`($${i}, $${i+1}, $${i+2}, $${i+3}, $${i+4}, $${i+5}, $${i+6}, $${i+7}, $${i+8}, $${i+9}, $${i+10}, $${i+11})`);
+        params.push(
+          row.id,
+          al.alunoId,
+          al.presenca || 'presente',
+          al.video || null,
+          al.palavraChave || null,
+          al.fixacao || null,
+          al.praticar || null,
+          al.atencao || null,
+          al.participacao || null,
+          al.comportamento || null,
+          al.pontualidade || null,
+          al.observacao || null
+        );
+        i += 12;
+      }
+
+      await client.query(
+        `INSERT INTO registro_alunos (
+          registro_id, aluno_id, presenca, video, palavra_chave, fixacao, praticar,
+          atencao, participacao, comportamento, pontualidade, observacao
+        ) VALUES ${values.join(', ')}`,
+        params
+      );
+    }
+
+    await client.query('COMMIT');
+    client.release();
 
     return NextResponse.json({
       id: row.id,
@@ -96,6 +140,8 @@ export async function POST(request: Request) {
       dataEdicao: row.data_edicao || undefined,
     }, { status: 201 });
   } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
     console.error('Erro no POST /api/registros:', err);
     return NextResponse.json(
       { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
@@ -103,6 +149,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
 
 export async function PUT(request: Request) {
   try {

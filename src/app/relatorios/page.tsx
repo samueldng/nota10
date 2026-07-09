@@ -8,7 +8,7 @@ import {
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { alunos, turmas, disciplinas, acompanhamentoLabels, type Acompanhamento } from '@/lib/mockData';
+import { acompanhamentoLabels, type Acompanhamento } from '@/lib/mockData';
 
 const atencaoData = [
   { date: '01/04', aluno: 1.5, turma: 1.8 },
@@ -63,6 +63,23 @@ export default function RelatoriosPage() {
   const [acomp, setAcomp] = useState<Acompanhamento>('pre_cmt_5');
   const [turma, setTurma] = useState('');
   const [aluno, setAluno] = useState('');
+  
+  const [turmasList, setTurmasList] = useState<any[]>([]);
+  const [alunosList, setAlunosList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [turmasRes, alunosRes] = await Promise.all([
+          fetch('/api/turmas'),
+          fetch('/api/alunos')
+        ]);
+        if (turmasRes.ok) setTurmasList(await turmasRes.json());
+        if (alunosRes.ok) setAlunosList(await alunosRes.json());
+      } catch(e) {}
+    }
+    loadData();
+  }, []);
 
   const isPreCMT = acomp === 'pre_cmt_5';
 
@@ -89,14 +106,14 @@ export default function RelatoriosPage() {
             <label className="form-label">Turma</label>
             <select className="form-select" value={turma} onChange={(e) => setTurma(e.target.value)}>
               <option value="">Selecione...</option>
-              {turmas.filter(t => t.acompanhamento === acomp).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              {turmasList.filter(t => t.acompanhamento === acomp).map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Aluno</label>
             <select className="form-select" value={aluno} onChange={(e) => setAluno(e.target.value)}>
               <option value="">Selecione...</option>
-              {alunos.filter(a => !turma || a.turmaId === turma).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              {alunosList.filter(a => !turma || a.turmaId === turma).map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
           </div>
           <div className="form-group">

@@ -6,7 +6,10 @@ import {
   Search, Filter, Download, Edit3, RotateCcw, History, CheckCircle2, ChevronDown, Eye, Camera, FileEdit, BarChart3, UserCheck, Clock,
 } from 'lucide-react';
 import { acompanhamentoLabels, type Acompanhamento, type StatusRegistro, type RegistroLancado, type LogAuditoria } from '@/lib/mockData';
-import { getRegistros, getLogs } from '@/lib/api';
+import { getRegistros, getLogs, getTurmas, getProfessores } from '@/lib/api';
+
+interface TurmaInfo { id: string; nome: string; }
+interface ProfInfo { id: string; nome: string; }
 
 function statusBadge(s: StatusRegistro) {
   switch (s) {
@@ -30,14 +33,28 @@ export default function HistoricoPage() {
 
   const [registros, setRegistros] = useState<RegistroLancado[]>([]);
   const [logs, setLogs] = useState<LogAuditoria[]>([]);
+  
+  const [turmasDisponiveis, setTurmasDisponiveis] = useState<TurmaInfo[]>([]);
+  const [professoresDisponiveis, setProfessoresDisponiveis] = useState<ProfInfo[]>([]);
+  const [disciplinasDisponiveis, setDisciplinasDisponiveis] = useState<string[]>([]);
+  
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [regsData, logsData] = await Promise.all([getRegistros(), getLogs()]);
+        const [regsData, logsData, turmasData, profsData, discRes] = await Promise.all([
+          getRegistros(), 
+          getLogs(),
+          getTurmas(),
+          getProfessores(),
+          fetch('/api/disciplinas')
+        ]);
         setRegistros(regsData);
         setLogs(logsData);
+        setTurmasDisponiveis(turmasData);
+        setProfessoresDisponiveis(profsData);
+        if (discRes.ok) setDisciplinasDisponiveis(await discRes.json());
       } catch (err) {
         console.error('Erro ao carregar do Supabase:', err);
       } finally {
@@ -80,15 +97,14 @@ export default function HistoricoPage() {
           </select>
           <select className="form-select" value={filterTurma} onChange={e => setFilterTurma(e.target.value)}>
             <option value="">Todas Turmas</option>
-            <option value="5A Manhã">5A Manhã</option>
-            <option value="5B Tarde">5B Tarde</option>
-            <option value="4A Manhã">4A Manhã</option>
-            <option value="4B Tarde">4B Tarde</option>
-            <option value="Reforço Geral">Reforço Geral</option>
+            {turmasDisponiveis.map(t => <option key={t.id} value={t.nome}>{t.nome}</option>)}
           </select>
-          <select className="form-select"><option>Todos Alunos</option></select>
+          <select className="form-select" disabled><option>Todos Alunos</option></select>
           <select className="form-select"><option>Todos Professores</option></select>
-          <select className="form-select"><option>Todas Disciplinas</option><option>Português</option><option>Matemática</option></select>
+          <select className="form-select">
+            <option value="">Todas Disciplinas</option>
+            {disciplinasDisponiveis.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
           <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
             <option value="">Todos Status</option>
             <option value="salvo">Salvo</option>

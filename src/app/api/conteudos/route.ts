@@ -70,8 +70,8 @@ export async function GET(request: Request) {
     const alunoId = searchParams.get('alunoId');
     const tipoConteudo = searchParams.get('tipoConteudo');
 
-    // 1. Se alunoId for fornecido, retornar todos os conteúdos de todas as turmas que o aluno está matriculado
-    if (alunoId) {
+    // 1. Se alunoId for fornecido e for um UUID válido, retornar todos os conteúdos de todas as turmas
+    if (alunoId && UUID_REGEX.test(alunoId)) {
       let sql = `
         SELECT c.*, t.nome as turma_nome 
         FROM conteudos_midia c

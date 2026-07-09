@@ -169,10 +169,22 @@ export default function VideoaulasPage() {
     return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
   };
 
-  const disciplinas = ['Português', 'Matemática'];
+  const disciplinas = Array.from(new Set(videoaulas.map(v => v.disciplina || 'Outros'))).sort((a, b) => {
+    // Custom sort to always put 'Introdução' first
+    if (a === 'Introdução') return -1;
+    if (b === 'Introdução') return 1;
+    return a.localeCompare(b);
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 relative">
+      {disciplinas.length === 0 && (
+        <div className="text-center p-12 card border-dashed border-2 bg-[var(--color-cinza-fundo)]">
+          <PlayCircle size={48} className="mx-auto text-[var(--color-cinza-texto)] mb-4" />
+          <h3 className="text-lg font-bold text-[var(--color-azul-autoridade)]">Nenhuma videoaula disponível</h3>
+          <p className="text-sm text-[var(--color-cinza-texto)]">Nenhum conteúdo foi liberado para sua turma no momento.</p>
+        </div>
+      )}
       {disciplinas.map((disciplina) => {
         const videos = videoaulas.filter(v => v.disciplina === disciplina);
         const assistidos = videos.filter(v => atividadesConcluidas.includes(v.id)).length;
