@@ -108,20 +108,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch teachers from DB/mock
       const professores = await getProfessores();
-      const prof = professores.find(p => 
-        p.email.toLowerCase() === email.toLowerCase() ||
-        p.nome.toLowerCase() === email.toLowerCase()
-      );
+      
+      // Normaliza o input do usuário para suportar: email, nome completo, ou "prof.romildo"
+      const inputNorm = email.trim().toLowerCase();
+      const prof = professores.find(p => {
+        const emailMatch = p.email.toLowerCase() === inputNorm;
+        const nomeMatch  = p.nome.toLowerCase() === inputNorm;
+        // Suporte ao username curto: "prof.romildo" → busca pelo nome "Prof. Romildo"
+        const usernameMatch = inputNorm === 'prof.romildo' && p.email.toLowerCase() === 'romildo@nota10.edu.br';
+        return emailMatch || nomeMatch || usernameMatch;
+      });
 
       if (!prof) {
         return { success: false, error: 'E-mail ou usuário não cadastrado como professor.' };
       }
 
-      // Validar senha do administrador romildo
-      const isRomildo = prof.email.toLowerCase() === 'romildo@nota10.edu.br' || prof.nome.toLowerCase() === 'prof.romildo';
-      const expectedPassword = isRomildo ? 'rom1000do*' : 'admin123';
+      // Validação de senha: cada professor tem sua senha individual.
+      // Prof. Romildo → senha exclusiva 'rom1000do*'
+      // Demais professores → 'admin123' ou 'senha123'
+      const isRomildo = prof.email.toLowerCase() === 'romildo@nota10.edu.br';
+      const validPasswords = isRomildo
+        ? ['rom1000do*']
+        : ['admin123', 'senha123'];
 
-      if (password !== expectedPassword && password !== 'admin123' && password !== 'senha123') {
+      if (!validPasswords.includes(password)) {
         return { success: false, error: 'Senha incorreta.' };
       }
 
