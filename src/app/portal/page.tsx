@@ -31,9 +31,11 @@ export default function PortalInicioPage() {
   const [progressoDisciplina, setProgressoDisciplina] = useState<any[]>([]);
   const [cronograma, setCronograma] = useState<CronogramaSemana | null>(null);
   const [dbLoaded, setDbLoaded] = useState(false);
+  const [isLoadingPortal, setIsLoadingPortal] = useState(true);
   const [proximaAula, setProximaAula] = useState<{ data: string; diaSemana: string; horario: string; local: string; blocos: any[] } | null>(null);
 
   const loadData = useCallback(async () => {
+    console.log('🔄 [Portal] Iniciando busca de dados do portal...', { alunoId, turmaId });
     let concluidas: string[] = [];
     
     // 1. Try to load XP from the database first
@@ -51,10 +53,12 @@ export default function PortalInicioPage() {
         concluidas = data.atividadesConcluidas || [];
         setDbLoaded(true);
       } else {
-        // Fallback to computed values from xpTotal = 0
+        // API retornou erro (ex: aluno não encontrado no banco) — usa defaults
+        console.warn(`[Portal] /api/progresso retornou ${res.status} para alunoId=${alunoId}. Usando valores padrão.`);
         setXpTotal(0);
         setNivel(1);
         setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
+        setDbLoaded(true); // ✅ Permite que o painel de gamificação renderize mesmo sem dados
       }
     } catch (err) {
       // API not available — default values
@@ -62,7 +66,9 @@ export default function PortalInicioPage() {
       setXpTotal(0);
       setNivel(1);
       setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
+      setDbLoaded(true); // ✅ Libera renderização mesmo com erro de rede
     }
+
 
     // 2. Fetch cronograma from the backend API if online
     try {
@@ -146,9 +152,12 @@ export default function PortalInicioPage() {
     setStreak(0);
     setConquistas(getConquistas(alunoId));
     setProgressoDisciplina(getProgressoDisciplina(alunoId));
+    setIsLoadingPortal(false);
+    console.log('✅ [Portal] Carregamento finalizado.', { alunoId, turmaId });
   }, [alunoId, turmaId]);
 
   useEffect(() => {
+    console.log('🚀 [Portal] useEffect disparado — iniciando loadData...');
     loadData();
     // Listen for progress updates (cross-component sync)
     window.addEventListener('nota10_progress_updated', loadData);
@@ -157,7 +166,31 @@ export default function PortalInicioPage() {
     };
   }, [loadData]);
 
-  if (!cronograma) return null;
+  // 🐛 DEBUG: Log do estado antes da renderização
+  console.log('🖥️ [Portal] Estado atual do Portal:', {
+    isLoadingPortal,
+    dbLoaded,
+    cronograma,
+    proximaAula,
+    nivel,
+    xpTotal,
+    streak,
+    conquistas: conquistas?.length,
+    progressoDisciplina: progressoDisciplina?.length,
+    alunoId,
+    turmaId,
+    nomeAluno,
+  });
+
+  // Guard: Exibe spinner enquanto o carregamento inicial não termina
+  if (isLoadingPortal) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="animate-spin text-[var(--color-azul-autoridade)]" size={40} />
+        <p className="text-sm font-bold text-[var(--color-cinza-texto)]">Carregando portal do aluno...</p>
+      </div>
+    );
+  }
 
   const registro = getRegistroSemanal(alunoId);
 
@@ -316,10 +349,18 @@ export default function PortalInicioPage() {
           <CalendarDays size={18} />
           O que fazer esta semana
         </h3>
-        <p className="text-xs text-[var(--color-cinza-texto)] mb-4">{cronograma.semana} • {cronograma.periodo}</p>
+        <p className="text-xs text-[var(--color-cinza-texto)] mb-4">
+          {cronograma?.semana ?? 'Semana Atual'} • {cronograma?.periodo ?? 'Este Período'}
+        </p>
 
         <div className="space-y-3">
-          {cronograma?.tarefas?.length > 0 ? cronograma.tarefas.map((tarefa) => (
+          {!cronograma || !cronograma.tarefas || cronograma.tarefas.length === 0 ? (
+            <div className="text-center p-8 border border-dashed border-[var(--color-cinza-borda)] rounded-xl">
+              <CalendarDays size={32} className="mx-auto text-[var(--color-cinza-borda)] mb-3" />
+              <p className="font-bold text-[var(--color-cinza-texto)] text-sm">Nenhuma aula agendada para esta semana</p>
+              <p className="text-xs text-[var(--color-cinza-texto)] mt-1 opacity-70">O cronograma será exibido assim que atividades forem cadastradas para sua turma.</p>
+            </div>
+          ) : cronograma.tarefas.map((tarefa) => (
             <div key={tarefa.id} className={`p-4 rounded-xl border transition-all ${
               tarefa.status === 'concluido'
                 ? 'bg-[var(--color-verde-light)] border-[var(--color-verde-sucesso)]/30'
@@ -382,13 +423,10 @@ export default function PortalInicioPage() {
                 </div>
               )}
             </div>
-          )) : (
-            <div className="text-center p-6 text-[var(--color-cinza-texto)] border border-dashed border-[var(--color-cinza-borda)] rounded-xl">
-              Nenhuma tarefa agendada para esta semana.
-            </div>
-          )}
+          ))}
         </div>
       </div>
+
 
       {/* ── 4.4 "Registro desta semana" (plan-gated) ── */}
       <PlanLock featureKey="inicio_registro_semana">
