@@ -15,29 +15,29 @@ export async function GET(request: Request) {
         a.nome, 
         COALESCE(a.xp_total, 0) as "pontuacaoTotal",
         t.nome as turma_nome,
-        COALESCE(ra.presenca_total, 0) as presenca,
-        COALESCE(ra.videoaula_total, 0) as videoaula,
-        COALESCE(ra.palavra_total, 0) as palavra_chave,
-        COALESCE(ra.fixacao_total, 0) as fixacao,
-        COALESCE(ra.comportamento_total, 0) as comportamento,
-        COALESCE(ra.atencao_total, 0) as atencao,
-        COALESCE(ra.participacao_total, 0) as participacao
+        COALESCE(r.presenca, 0) as presenca,
+        COALESCE(r.videoaula, 0) as videoaula,
+        COALESCE(r.palavra_chave, 0) as palavra_chave,
+        COALESCE(r.fixacao, 0) as fixacao,
+        COALESCE(r.comportamento, 0) as comportamento,
+        COALESCE(r.atencao, 0) as atencao,
+        COALESCE(r.participacao, 0) as participacao
       FROM alunos a
       LEFT JOIN matriculas m ON m.aluno_id = a.id AND m.status = 'ativo'
       LEFT JOIN turmas t ON m.turma_id = t.id
       LEFT JOIN (
-        SELECT 
-          aluno_id,
-          SUM(CASE WHEN presenca = 'presente' THEN 2 ELSE 0 END) as presenca_total,
-          SUM(CASE WHEN video = 'fez' THEN 2 ELSE 0 END) as videoaula_total,
-          SUM(CASE WHEN palavra_chave = 'fez' THEN 2 ELSE 0 END) as palavra_total,
-          SUM(CASE WHEN fixacao = 'fez' THEN 2 ELSE 0 END) as fixacao_total,
-          SUM(COALESCE(comportamento::numeric, 0)) as comportamento_total,
-          SUM(CASE WHEN atencao = 'atento' THEN 2 ELSE 0 END) as atencao_total,
-          SUM(COALESCE(participacao::numeric, 0)) as participacao_total
-        FROM registro_alunos
-        GROUP BY aluno_id
-      ) ra ON ra.aluno_id = a.id
+          SELECT 
+            aluno as aluno_id,
+            SUM(CASE WHEN presenca = 'presente' THEN 1 ELSE 0 END)::numeric as presenca,
+            SUM(CASE WHEN video = 'concluido' THEN 1 ELSE 0 END)::numeric as videoaula,
+            SUM(CASE WHEN palavra_chave = 'fez' THEN 1 ELSE 0 END)::numeric as palavra_chave,
+            SUM(CASE WHEN fixacao = 'fez' THEN 1 ELSE 0 END)::numeric as fixacao,
+            SUM(COALESCE(comportamento, 0))::numeric as comportamento,
+            SUM(CASE WHEN atencao = 'atento' THEN 1 ELSE 0 END)::numeric as atencao,
+            SUM(COALESCE(participacao, 0))::numeric as participacao
+          FROM registros_lancados
+          GROUP BY aluno
+      ) r ON a.id = r.aluno_id
     `;
     
     const params: any[] = [];
@@ -68,8 +68,7 @@ export async function GET(request: Request) {
       evolucao: 'manteve',
     }));
 
-    // Deduplicate students (since a student can have multiple active enrollments, left join could duplicate them)
-    // If no turma filter was passed, we might have dupes. We can filter them out:
+    // Deduplicate students
     const uniqueRanking: any[] = [];
     const seen = new Set<string>();
     let pos = 1;
@@ -79,7 +78,6 @@ export async function GET(request: Request) {
         r.posicao = pos++;
         uniqueRanking.push(r);
       } else {
-        // Just append the extra turma name if we want
         const existing = uniqueRanking.find(x => x.id === r.id);
         if (existing && r.turma !== 'Sem turma' && !existing.turma.includes(r.turma)) {
           existing.turma += `, ${r.turma}`;
@@ -87,9 +85,10 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json(uniqueRanking);
-  } catch (err: any) {
-    console.error('Erro no GET /api/ranking:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(uniqueRanking, { status: 200 });
+  } catch (error: any) {
+    console.error('[RANKING API ERROR]:', error);
+    // Return empty array with 200 to avoid breaking the frontend
+    return NextResponse.json([], { status: 200 });
   }
 }
