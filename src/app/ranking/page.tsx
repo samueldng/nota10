@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 interface RankingAluno {
+  id?: string;
   posicao: number;
   nome: string;
   turma: string;
