@@ -51,8 +51,8 @@ export async function GET(request: Request) {
 
     // Deduplicate students (since a student can have multiple active enrollments, left join could duplicate them)
     // If no turma filter was passed, we might have dupes. We can filter them out:
-    const uniqueRanking = [];
-    const seen = new Set();
+    const uniqueRanking: any[] = [];
+    const seen = new Set<string>();
     let pos = 1;
     for (const r of ranking) {
       if (!seen.has(r.id)) {
