@@ -13,7 +13,7 @@ import {
   CheckCircle2, Circle, Loader2, BookOpen, Star,
 } from 'lucide-react';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export default function PortalInicioPage() {
   const { user } = useAuth();
@@ -33,6 +33,9 @@ export default function PortalInicioPage() {
   const [dbLoaded, setDbLoaded] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(true);
   const [proximaAula, setProximaAula] = useState<{ data: string; diaSemana: string; horario: string; local: string; blocos: any[] } | null>(null);
+
+  // Prevent concurrent POST for the same subtarefa
+  const pendingSubRef = useRef<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     console.log('🔄 [Portal] Iniciando busca de dados do portal...', { alunoId, turmaId });
@@ -155,6 +158,80 @@ export default function PortalInicioPage() {
     setIsLoadingPortal(false);
     console.log('✅ [Portal] Carregamento finalizado.', { alunoId, turmaId });
   }, [alunoId, turmaId]);
+
+  // ── Optimistic toggle subtarefa (Dashboard) ───────────────────────────────────
+  const handleToggleSubtarefa = useCallback(
+    async (subtarefaId: string, tarefaId: string, xp: number, tipo: string) => {
+      const key = `${tarefaId}::${subtarefaId}`;
+      if (pendingSubRef.current.has(key)) return;
+
+      // Only mark forward — server has anti-spam for duplicates
+      const currentStatus = (cronograma as any)?.tarefas
+        ?.find((t: any) => t.id === tarefaId)
+        ?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status;
+      if (currentStatus === 'concluido') return;
+
+      pendingSubRef.current.add(key);
+
+      // Optimistic: update local state immediately
+      setCronograma((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tarefas: prev.tarefas.map((t: any) => {
+            if (t.id !== tarefaId) return t;
+            const updatedSubs = t.subTarefas.map((s: any) =>
+              s.id === subtarefaId ? { ...s, status: 'concluido' } : s
+            );
+            const allDone = updatedSubs.every((s: any) => s.status === 'concluido');
+            return { ...t, subTarefas: updatedSubs, status: allDone ? 'concluido' : t.status };
+          }),
+        };
+      });
+      setXpTotal((prev) => prev + xp);
+
+      // Persist
+      try {
+        const res = await fetch('/api/progresso', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            alunoId,
+            atividadeId: subtarefaId,
+            tipoAcao:    tipo || 'atividade',
+            xpGanho:     xp > 0 ? xp : 1,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
+          if (typeof data.nivel   === 'number') setNivel(data.nivel);
+          window.dispatchEvent(new Event('nota10_progress_updated'));
+        }
+      } catch (e) {
+        // Revert on network error
+        setCronograma((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            tarefas: prev.tarefas.map((t: any) => {
+              if (t.id !== tarefaId) return t;
+              return {
+                ...t,
+                subTarefas: t.subTarefas.map((s: any) =>
+                  s.id === subtarefaId ? { ...s, status: 'pendente' } : s
+                ),
+              };
+            }),
+          };
+        });
+        setXpTotal((prev) => prev - xp);
+      } finally {
+        pendingSubRef.current.delete(key);
+      }
+    },
+    [alunoId, cronograma]
+  );
 
   useEffect(() => {
     console.log('🚀 [Portal] useEffect disparado — iniciando loadData...');
@@ -400,26 +477,52 @@ export default function PortalInicioPage() {
                 </span>
               </div>
 
-              {/* Sub-tarefas */}
+              {/* Sub-tarefas — interativas */}
               {tarefa.subTarefas && tarefa.subTarefas.length > 0 && (
                 <div className="mt-3 ml-11 space-y-2">
-                  {tarefa.subTarefas.map((sub) => (
-                    <div key={sub.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {sub.status === 'concluido' ? (
-                          <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)]" />
-                        ) : sub.status === 'em_andamento' ? (
-                          <Loader2 size={14} className="text-[var(--color-amarelo-alerta)]" />
-                        ) : (
-                          <Circle size={14} className="text-[var(--color-cinza-borda)]" />
-                        )}
-                        <span className={`text-xs ${sub.status === 'concluido' ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-cinza-escuro)]'}`}>
-                          {sub.titulo}
+                  {tarefa.subTarefas.map((sub) => {
+                    const isDone = sub.status === 'concluido';
+                    const isPending = pendingSubRef.current.has(`${tarefa.id}::${sub.id}`);
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => handleToggleSubtarefa(sub.id, tarefa.id, sub.xp ?? 0, tarefa.tipo)}
+                        disabled={isDone || isPending}
+                        className={`
+                          w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5
+                          transition-all duration-150 group
+                          ${isDone
+                            ? 'cursor-default'
+                            : 'cursor-pointer hover:bg-[var(--color-azul-lightest)] active:scale-[0.98]'
+                          }
+                        `}
+                        aria-label={`${isDone ? 'Concluída' : 'Marcar como concluída'}: ${sub.titulo}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {isPending ? (
+                            <Loader2 size={14} className="text-[var(--color-azul-autoridade)] animate-spin flex-shrink-0" />
+                          ) : isDone ? (
+                            <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)] flex-shrink-0" />
+                          ) : (
+                            <Circle size={14} className="text-[var(--color-cinza-borda)] group-hover:text-[var(--color-azul-autoridade)] transition-colors flex-shrink-0" />
+                          )}
+                          <span className={`text-xs transition-colors ${
+                            isDone
+                              ? 'text-[var(--color-verde-sucesso)] line-through'
+                              : 'text-[var(--color-cinza-escuro)] group-hover:text-[var(--color-azul-autoridade)]'
+                          }`}>
+                            {sub.titulo}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] flex-shrink-0 flex items-center gap-0.5 ${
+                          isDone ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-cinza-texto)] group-hover:text-[var(--color-amarelo-conquista)]'
+                        }`}>
+                          <Zap size={8} className={isDone ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-conquista)]'} />
+                          {isDone ? '' : '+'}{sub.xp} XP
                         </span>
-                      </div>
-                      <span className="text-[9px] text-[var(--color-cinza-texto)]">+{sub.xp} XP</span>
-                    </div>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
