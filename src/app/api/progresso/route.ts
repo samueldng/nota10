@@ -5,6 +5,9 @@ export const dynamic = 'force-dynamic';
 
 const XP_POR_NIVEL = 100;
 
+// UUID format guard — protects cascade queries from 22P02 errors
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function calcNivel(xp: number): number {
   return Math.floor(xp / XP_POR_NIVEL) + 1;
 }
@@ -108,6 +111,7 @@ export async function POST(request: Request) {
   };
 
   try {
+    // ── Parse body com diagnóstico em caso de JSON malformado ─────────────────
     let body: any;
     try {
       body = await request.json();
@@ -119,15 +123,15 @@ export async function POST(request: Request) {
 
     const {
       alunoId,
-      atividadeId,         // ID da subtarefa (título string ou UUID)
-      tarefaPaiId,         // UUID da tarefa pai na tabela cronograma_atividades
-      tarefaPaiXp,         // XP da tarefa pai (para creditar quando todas as subs terminarem)
-      subtarefasTotais,    // número total de subtarefas da tarefa pai
+      atividadeId,       // Identificador da subtarefa: título string ou UUID
+      tarefaPaiId,       // UUID da tarefa pai em cronograma_atividades (DEVE ser UUID)
+      tarefaPaiXp,       // XP a creditar quando a tarefa pai for concluída em cascata
+      subtarefasTotais,  // Total de subtarefas da tarefa pai
       tipoAcao,
       xpGanho,
     } = body;
 
-    // ── Diagnóstico: logar payload recebido em caso de falha de validação
+    // ── Diagnóstico: logar payload quando houver falha de validação ───────────
     const logPayload = () => console.error(
       '[POST /api/progresso] Payload recebido:',
       JSON.stringify({ alunoId, atividadeId, tarefaPaiId, tarefaPaiXp, subtarefasTotais, tipoAcao, xpGanho })
@@ -151,7 +155,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Coerce: aceita number ou string. Subtarefas com 0 XP são válidas (xp >= 0).
+    // Aceita number ou string. Subtarefas com 0 XP são válidas (xp >= 0).
     const xp = Number(xpGanho);
     if (!Number.isFinite(xp) || xp < 0) {
       logPayload();
@@ -166,7 +170,7 @@ export async function POST(request: Request) {
 
     await client.query('BEGIN');
 
-    // 1. Lock na linha do aluno (previne race conditions paralelas)
+    // ── 1. Lock na linha do aluno (previne race conditions paralelas) ─────────
     const aluno = await resolveAluno(client, String(alunoId), true);
 
     if (!aluno) {
@@ -182,16 +186,16 @@ export async function POST(request: Request) {
     const oldXP = aluno.xp_total || 0;
     const oldNivel = aluno.nivel || 1;
 
-    // ─── 2. IDEMPOTÊNCIA: INSERT ... ON CONFLICT DO NOTHING ───────────────────
+    // ── 2. IDEMPOTÊNCIA: INSERT ... ON CONFLICT DO NOTHING ────────────────────
     // Garante que o par (aluno_id, atividade_id) nunca é duplicado,
     // mesmo em requisições paralelas que passariam por um SELECT simples.
+    // NOTA: atividade_id é TEXT/VARCHAR — aceita tanto UUIDs como títulos de subtarefas.
     let insertRes: any = null;
     let alreadyCompleted = false;
 
     if (atividadeId) {
       const atividadeIdStr = String(atividadeId);
 
-      // Tenta inserir — se já existir um registro para esse par, ON CONFLICT não faz nada
       insertRes = await client.query(
         `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
          VALUES ($1, $2, $3, $4)
@@ -200,7 +204,7 @@ export async function POST(request: Request) {
         [realAlunoId, atividadeIdStr, tipoStr, xp]
       );
 
-      // Se não retornou nenhuma linha, o registro já existia → atividade já concluída
+      // Nenhuma linha retornada → já existia → atividade já concluída
       if (insertRes.rows.length === 0) {
         await client.query('ROLLBACK');
         releaseOnce();
@@ -215,7 +219,7 @@ export async function POST(request: Request) {
 
       alreadyCompleted = false;
     } else {
-      // Sem atividadeId: simplesmente insere (ex: ação genérica)
+      // Sem atividadeId: insere sem constraint (ex: ação genérica sem rastreamento)
       insertRes = await client.query(
         `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
          VALUES ($1, $2, $3, $4)
@@ -224,7 +228,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // ─── 3. Atualizar XP da subtarefa no aluno ────────────────────────────────
+    // ── 3. Atualizar XP total do aluno ────────────────────────────────────────
     let newXP = oldXP + xp;
     let newNivel = calcNivel(newXP);
 
@@ -237,71 +241,84 @@ export async function POST(request: Request) {
     let tarefaPaiConcluida = false;
     let xpTarefaPai = 0;
 
-    // ─── 4. CASCATA: Verificar se tarefa PAI foi concluída ────────────────────
-    // Só executa quando a chamada inclui metadados da tarefa pai
+    // ── 4. CASCATA: Verificar se a tarefa PAI foi concluída ───────────────────
+    // Só executa quando o front-end envia metadados da tarefa pai.
     if (tarefaPaiId && typeof subtarefasTotais === 'number' && subtarefasTotais > 0) {
-      // Buscar a tarefa pai para obter a lista completa de subtarefas
-      const tarefaPaiRes = await client.query(
-        `SELECT id, xp_total, subtarefas FROM cronograma_atividades WHERE id = $1 LIMIT 1`,
-        [String(tarefaPaiId)]
-      );
+      const tarefaPaiIdStr = String(tarefaPaiId);
 
-      if (tarefaPaiRes.rows.length > 0) {
-        const tarefaPai = tarefaPaiRes.rows[0];
-        const subtarefasArray: any[] = typeof tarefaPai.subtarefas === 'string'
-          ? JSON.parse(tarefaPai.subtarefas)
-          : (tarefaPai.subtarefas || []);
-
-        const xpPai = typeof tarefaPaiXp === 'number' && tarefaPaiXp > 0
-          ? tarefaPaiXp
-          : (tarefaPai.xp_total || 0);
-
-        // Verificar quantas subtarefas deste aluno já foram concluídas (incluindo a que acabou de ser inserida)
-        const subTitulosEIds = subtarefasArray.map((s: any) =>
-          String(s.id ?? s.titulo)
+      // GUARD: tarefaPaiId DEVE ser um UUID válido.
+      // A coluna cronograma_atividades.id é UUID — injetar uma string qualquer
+      // (ex: o título "teste de sub") causaria erro 22P02 no PostgreSQL.
+      // Mesmo com id::text = $1, a validação prévia protege contra troca acidental
+      // de parâmetros no front-end (atividadeId ↔ tarefaPaiId).
+      if (!UUID_RE.test(tarefaPaiIdStr)) {
+        console.error(
+          '[POST /api/progresso] tarefaPaiId inválido — não é UUID:',
+          JSON.stringify(tarefaPaiIdStr),
+          '| atividadeId recebido:', JSON.stringify(String(atividadeId)),
+          '| Cascata abortada para evitar erro 22P02.'
+        );
+        // Não falha a requisição — a subtarefa foi salva com sucesso; só a cascata é ignorada.
+      } else {
+        // Usa id::text = $1 para comparação segura sem depender de cast implícito UUID.
+        const tarefaPaiRes = await client.query(
+          `SELECT id, xp_total, subtarefas FROM cronograma_atividades WHERE id::text = $1 LIMIT 1`,
+          [tarefaPaiIdStr]
         );
 
-        if (subTitulosEIds.length > 0) {
-          const concluidasRes = await client.query(
-            `SELECT COUNT(*) as cnt
-             FROM aluno_progresso
-             WHERE aluno_id = $1
-               AND atividade_id = ANY($2::text[])`,
-            [realAlunoId, subTitulosEIds]
-          );
+        if (tarefaPaiRes.rows.length > 0) {
+          const tarefaPai = tarefaPaiRes.rows[0];
+          const subtarefasArray: any[] = typeof tarefaPai.subtarefas === 'string'
+            ? JSON.parse(tarefaPai.subtarefas)
+            : (tarefaPai.subtarefas || []);
 
-          const qtdConcluidas = parseInt(concluidasRes.rows[0]?.cnt ?? '0', 10);
+          const xpPai = typeof tarefaPaiXp === 'number' && tarefaPaiXp > 0
+            ? tarefaPaiXp
+            : (tarefaPai.xp_total || 0);
 
-          // Se todas as subtarefas estão concluídas E a tarefa pai ainda não foi registrada:
-          if (qtdConcluidas >= subtarefasArray.length && xpPai > 0) {
-            // Verifica se a tarefa pai já foi creditada anteriormente
-            const paiJaConcluidoRes = await client.query(
-              `SELECT id FROM aluno_progresso
-               WHERE aluno_id = $1 AND atividade_id = $2
-               LIMIT 1`,
-              [realAlunoId, String(tarefaPaiId)]
+          // Montar lista de identificadores das subtarefas (título ou UUID)
+          const subIds = subtarefasArray.map((s: any) => String(s.id ?? s.titulo));
+
+          if (subIds.length > 0) {
+            const concluidasRes = await client.query(
+              `SELECT COUNT(*) as cnt
+               FROM aluno_progresso
+               WHERE aluno_id = $1
+                 AND atividade_id = ANY($2::text[])`,
+              [realAlunoId, subIds]
             );
 
-            if (paiJaConcluidoRes.rows.length === 0) {
-              // Creditar XP da tarefa pai (usando ON CONFLICT como garantia extra)
-              const paiInsert = await client.query(
-                `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT (aluno_id, atividade_id) DO NOTHING
-                 RETURNING *`,
-                [realAlunoId, String(tarefaPaiId), 'tarefa_concluida', xpPai]
+            const qtdConcluidas = parseInt(concluidasRes.rows[0]?.cnt ?? '0', 10);
+
+            // Todas as subtarefas concluídas → creditar XP da tarefa pai
+            if (qtdConcluidas >= subtarefasArray.length && xpPai > 0) {
+              // Verificar se o XP do pai já foi creditado anteriormente
+              const paiJaRes = await client.query(
+                `SELECT id FROM aluno_progresso
+                 WHERE aluno_id = $1 AND atividade_id = $2
+                 LIMIT 1`,
+                [realAlunoId, tarefaPaiIdStr]
               );
 
-              if (paiInsert.rows.length > 0) {
-                // Somar XP da tarefa pai ao total
-                newXP += xpPai;
-                newNivel = calcNivel(newXP);
-                await client.query(
-                  `UPDATE alunos SET xp_total = $1, nivel = $2 WHERE id = $3`,
-                  [newXP, newNivel, realAlunoId]
+              if (paiJaRes.rows.length === 0) {
+                const paiInsert = await client.query(
+                  `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (aluno_id, atividade_id) DO NOTHING
+                   RETURNING *`,
+                  [realAlunoId, tarefaPaiIdStr, 'tarefa_concluida', xpPai]
                 );
-                tarefaPaiConcluida = true;
-                xpTarefaPai = xpPai;
+
+                if (paiInsert.rows.length > 0) {
+                  newXP += xpPai;
+                  newNivel = calcNivel(newXP);
+                  await client.query(
+                    `UPDATE alunos SET xp_total = $1, nivel = $2 WHERE id = $3`,
+                    [newXP, newNivel, realAlunoId]
+                  );
+                  tarefaPaiConcluida = true;
+                  xpTarefaPai = xpPai;
+                }
               }
             }
           }
