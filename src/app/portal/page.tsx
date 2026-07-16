@@ -184,22 +184,68 @@ export default function PortalInicioPage() {
     console.log('✅ [Portal] Carregamento finalizado.', { alunoId, turmaId });
   }, [alunoId, turmaId]);
 
-  // ── Optimistic toggle subtarefa (Dashboard) ───────────────────────────────────
+  // ── Helper POST ───────────────────────────────────────────────────────────────
+  const postProgresso = useCallback(async (payload: {
+    atividadeId: string; xpGanho: number; tipoAcao: string;
+  }) => {
+    const res = await fetch('/api/progresso', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alunoId, ...payload }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const b = await res.json(); msg = b?.error || msg; } catch (_) {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }, [alunoId]);
+
+  // ── Toggle tarefa avulsa (sem subtarefas) ─────────────────────────────────────
+  const handleToggleTarefa = useCallback(
+    async (tarefaId: string, xp: number, tipo: string) => {
+      const key = `tarefa::${tarefaId}`;
+      if (pendingSubRef.current.has(key)) return;
+      const tarefa = (cronograma as any)?.tarefas?.find((t: any) => t.id === tarefaId);
+      if (tarefa?.status === 'concluido') return;
+      addPendingSub(key);
+      setCronograma((prev: any) => {
+        if (!prev) return prev;
+        return { ...prev, tarefas: prev.tarefas.map((t: any) => t.id === tarefaId ? { ...t, status: 'concluido' } : t) };
+      });
+      setXpTotal((prev) => prev + xp);
+      try {
+        const data = await postProgresso({ atividadeId: tarefaId, xpGanho: xp, tipoAcao: tipo || 'atividade' });
+        if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
+        if (typeof data.nivel   === 'number') setNivel(data.nivel);
+        window.dispatchEvent(new Event('nota10_progress_updated'));
+      } catch (_) {
+        setCronograma((prev: any) => {
+          if (!prev) return prev;
+          return { ...prev, tarefas: prev.tarefas.map((t: any) => t.id === tarefaId ? { ...t, status: 'pendente' } : t) };
+        });
+        setXpTotal((prev) => prev - xp);
+      } finally { removePendingSub(key); }
+    },
+    [alunoId, cronograma, postProgresso]
+  );
+
+  // ── Toggle subtarefa — cascata gerida pelo front-end ──────────────────────────
   const handleToggleSubtarefa = useCallback(
     async (subtarefaId: string, tarefaId: string, xp: number, tipo: string) => {
       const key = `${tarefaId}::${subtarefaId}`;
-      // Leitura síncrona via ref para evitar cliques duplos em paralelo
       if (pendingSubRef.current.has(key)) return;
-
-      // Only mark forward — server has idempotência via ON CONFLICT
       const tarefa = (cronograma as any)?.tarefas?.find((t: any) => t.id === tarefaId);
-      const currentStatus = tarefa?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status;
-      if (currentStatus === 'concluido') return;
-
-      // Marcar em-flight ANTES do setState (bloqueia cliques paralelos)
+      if (tarefa?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status === 'concluido') return;
       addPendingSub(key);
 
-      // Optimistic: update local state immediately
+      const subsDepois = (tarefa?.subTarefas ?? []).map((s: any) =>
+        s.id === subtarefaId ? { ...s, status: 'concluido' } : s
+      );
+      const todasConcluidas = subsDepois.every((s: any) => s.status === 'concluido');
+      const paiJaConcluido  = tarefa?.status === 'concluido';
+      const xpPai           = tarefa?.xp ?? 0;
+
       setCronograma((prev: any) => {
         if (!prev) return prev;
         return {
@@ -209,62 +255,40 @@ export default function PortalInicioPage() {
             const updatedSubs = t.subTarefas.map((s: any) =>
               s.id === subtarefaId ? { ...s, status: 'concluido' } : s
             );
-            const allDone = updatedSubs.every((s: any) => s.status === 'concluido');
-            return { ...t, subTarefas: updatedSubs, status: allDone ? 'concluido' : t.status };
+            return { ...t, subTarefas: updatedSubs, status: updatedSubs.every((s: any) => s.status === 'concluido') ? 'concluido' : t.status };
           }),
         };
       });
-      setXpTotal((prev) => prev + xp);
+      setXpTotal((prev) => prev + xp + (todasConcluidas && !paiJaConcluido ? xpPai : 0));
 
-      // ── BUGFIX #3: Metadados da tarefa pai para lógica de cascata no back-end
-      const subtarefasTotal = tarefa?.subTarefas?.length ?? 0;
-      const tarefaPaiXp = tarefa?.xp ?? 0;
-
-      // Persist
       try {
-        const res = await fetch('/api/progresso', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            alunoId,
-            atividadeId:     subtarefaId,
-            tipoAcao:        tipo || 'atividade',
-            xpGanho:         xp > 0 ? xp : 1,
-            // Metadados para cascata:
-            tarefaPaiId:     tarefaId,
-            tarefaPaiXp:     tarefaPaiXp,
-            subtarefasTotais: subtarefasTotal,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
-          if (typeof data.nivel   === 'number') setNivel(data.nivel);
-          window.dispatchEvent(new Event('nota10_progress_updated'));
+        const data = await postProgresso({ atividadeId: subtarefaId, xpGanho: xp >= 0 ? xp : 1, tipoAcao: tipo || 'atividade' });
+        if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
+        if (typeof data.nivel   === 'number') setNivel(data.nivel);
+        // Cascata: POST 2 para o XP da tarefa pai
+        if (todasConcluidas && !paiJaConcluido && xpPai > 0) {
+          try {
+            const paiData = await postProgresso({ atividadeId: tarefaId, xpGanho: xpPai, tipoAcao: 'tarefa_concluida' });
+            if (typeof paiData.xpTotal === 'number') setXpTotal(paiData.xpTotal);
+            if (typeof paiData.nivel   === 'number') setNivel(paiData.nivel);
+          } catch (_) { /* XP do pai falhou — não é crítico */ }
         }
-      } catch (e) {
-        // Revert on network error
+        window.dispatchEvent(new Event('nota10_progress_updated'));
+      } catch (_) {
         setCronograma((prev: any) => {
           if (!prev) return prev;
           return {
             ...prev,
             tarefas: prev.tarefas.map((t: any) => {
               if (t.id !== tarefaId) return t;
-              return {
-                ...t,
-                subTarefas: t.subTarefas.map((s: any) =>
-                  s.id === subtarefaId ? { ...s, status: 'pendente' } : s
-                ),
-              };
+              return { ...t, subTarefas: t.subTarefas.map((s: any) => s.id === subtarefaId ? { ...s, status: 'pendente' } : s) };
             }),
           };
         });
-        setXpTotal((prev) => prev - xp);
-      } finally {
-        removePendingSub(key);
-      }
+        setXpTotal((prev) => prev - xp - (todasConcluidas && !paiJaConcluido ? xpPai : 0));
+      } finally { removePendingSub(key); }
     },
-    [alunoId, cronograma]
+    [alunoId, cronograma, postProgresso]
   );
 
   useEffect(() => {
@@ -471,9 +495,13 @@ export default function PortalInicioPage() {
               <p className="font-bold text-[var(--color-cinza-texto)] text-sm">Nenhuma aula agendada para esta semana</p>
               <p className="text-xs text-[var(--color-cinza-texto)] mt-1 opacity-70">O cronograma será exibido assim que atividades forem cadastradas para sua turma.</p>
             </div>
-          ) : cronograma.tarefas.map((tarefa) => (
+          ) : cronograma.tarefas.map((tarefa) => {
+            const hasSubtarefas   = tarefa.subTarefas && tarefa.subTarefas.length > 0;
+            const isDoneMain      = tarefa.status === 'concluido';
+            const isPendingMain   = pendingSubIds.has(`tarefa::${tarefa.id}`);
+            return (
             <div key={tarefa.id} className={`p-4 rounded-xl border transition-all ${
-              tarefa.status === 'concluido'
+              isDoneMain
                 ? 'bg-[var(--color-verde-light)] border-[var(--color-verde-sucesso)]/30'
                 : tarefa.status === 'em_andamento'
                 ? 'bg-[var(--color-amarelo-alerta-light)] border-[var(--color-amarelo-alerta)]/30'
@@ -481,17 +509,34 @@ export default function PortalInicioPage() {
             }`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                    tarefa.status === 'concluido'
-                      ? 'bg-[var(--color-verde-sucesso)] text-white'
-                      : tarefa.status === 'em_andamento'
-                      ? 'bg-[var(--color-amarelo-alerta)] text-white'
+                  {/* Ícone / Checkbox da tarefa */}
+                  {!hasSubtarefas ? (
+                    <button
+                      id={`tarefa-${tarefa.id}`}
+                      onClick={() => handleToggleTarefa(tarefa.id, tarefa.xp, tarefa.tipo)}
+                      disabled={isDoneMain || isPendingMain}
+                      aria-label={`${isDoneMain ? 'Concluída' : 'Marcar como concluída'}: ${tarefa.titulo}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
+                        isDoneMain
+                          ? 'bg-[var(--color-verde-sucesso)] text-white cursor-default'
+                          : isPendingMain
+                          ? 'bg-[var(--color-cinza-fundo)] text-[var(--color-azul-autoridade)] cursor-wait'
+                          : 'bg-[var(--color-cinza-fundo)] text-[var(--color-cinza-texto)] border border-[var(--color-cinza-borda)] hover:border-[var(--color-azul-autoridade)] hover:text-[var(--color-azul-autoridade)] cursor-pointer active:scale-95'
+                      }`}
+                    >
+                      {isPendingMain ? <Loader2 size={14} className="animate-spin" /> : isDoneMain ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                    </button>
+                  ) : (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                      isDoneMain ? 'bg-[var(--color-verde-sucesso)] text-white'
+                      : tarefa.status === 'em_andamento' ? 'bg-[var(--color-amarelo-alerta)] text-white'
                       : 'bg-[var(--color-cinza-fundo)] text-[var(--color-cinza-texto)] border border-[var(--color-cinza-borda)]'
-                  }`}>
-                    {tarefa.status === 'concluido' ? <CheckCircle2 size={16} /> : tarefa.status === 'em_andamento' ? <Loader2 size={16} /> : tarefa.ordem}
-                  </div>
+                    }`}>
+                      {isDoneMain ? <CheckCircle2 size={16} /> : tarefa.status === 'em_andamento' ? <Loader2 size={16} /> : tarefa.ordem}
+                    </div>
+                  )}
                   <div>
-                    <p className={`text-sm font-bold ${tarefa.status === 'concluido' ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-azul-autoridade)]'}`}>
+                    <p className={`text-sm font-bold ${isDoneMain ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-azul-autoridade)]'}`}>
                       {tarefa.titulo}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -511,12 +556,11 @@ export default function PortalInicioPage() {
                 </span>
               </div>
 
-              {/* Sub-tarefas — interativas */}
-              {tarefa.subTarefas && tarefa.subTarefas.length > 0 && (
+              {/* Sub-tarefas — interativas (só quando existem) */}
+              {hasSubtarefas && (
                 <div className="mt-3 ml-11 space-y-2">
-                  {tarefa.subTarefas.map((sub) => {
-                    const isDone = sub.status === 'concluido';
-                    // ── BUGFIX #1: lê do estado reativo (garante re-render imediato)
+                  {(tarefa.subTarefas ?? []).map((sub) => {
+                    const isDone    = sub.status === 'concluido';
                     const isPending = pendingSubIds.has(`${tarefa.id}::${sub.id}`);
                     return (
                       <button
@@ -526,10 +570,7 @@ export default function PortalInicioPage() {
                         className={`
                           w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5
                           transition-all duration-150 group
-                          ${isDone
-                            ? 'cursor-default'
-                            : 'cursor-pointer hover:bg-[var(--color-azul-lightest)] active:scale-[0.98]'
-                          }
+                          ${isDone ? 'cursor-default' : 'cursor-pointer hover:bg-[var(--color-azul-lightest)] active:scale-[0.98]'}
                         `}
                         aria-label={`${isDone ? 'Concluída' : 'Marcar como concluída'}: ${sub.titulo}`}
                       >
@@ -542,12 +583,8 @@ export default function PortalInicioPage() {
                             <Circle size={14} className="text-[var(--color-cinza-borda)] group-hover:text-[var(--color-azul-autoridade)] transition-colors flex-shrink-0" />
                           )}
                           <span className={`text-xs transition-colors ${
-                            isDone
-                              ? 'text-[var(--color-verde-sucesso)] line-through'
-                              : 'text-[var(--color-cinza-escuro)] group-hover:text-[var(--color-azul-autoridade)]'
-                          }`}>
-                            {sub.titulo}
-                          </span>
+                            isDone ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-cinza-escuro)] group-hover:text-[var(--color-azul-autoridade)]'
+                          }`}>{sub.titulo}</span>
                         </div>
                         <span className={`text-[9px] flex-shrink-0 flex items-center gap-0.5 ${
                           isDone ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-cinza-texto)] group-hover:text-[var(--color-amarelo-conquista)]'
@@ -561,7 +598,8 @@ export default function PortalInicioPage() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
