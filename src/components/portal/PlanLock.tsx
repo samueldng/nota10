@@ -28,7 +28,7 @@ export default function PlanLock({ featureKey, children, requiredPlan, customMes
   const upgrade = upgradeTexts[targetPlan === 'elite' ? 'elite' : 'acompanhamento'];
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden rounded-2xl min-h-[360px]">
       {/* Blurred Content Preview */}
       <div className="pointer-events-none select-none" style={{ filter: 'blur(6px)', opacity: 0.4 }}>
         {children}

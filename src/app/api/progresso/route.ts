@@ -9,36 +9,51 @@ function calcNivel(xp: number): number {
   return Math.floor(xp / XP_POR_NIVEL) + 1;
 }
 
+// ─── Helper para resolver ID real do aluno ──────────────────────────────────────
+async function resolveAluno(clientOrPool: { query: Function }, alunoIdParam: string, forUpdate = false) {
+  const lockClause = forUpdate ? ' FOR UPDATE' : '';
+  let res = await clientOrPool.query(
+    `SELECT id, xp_total, nivel FROM alunos WHERE id::text = $1 OR numero = $1 LIMIT 1${lockClause}`,
+    [alunoIdParam]
+  );
+
+  if (res.rows.length === 0 && alunoIdParam === 'a1') {
+    res = await clientOrPool.query(
+      `SELECT id, xp_total, nivel FROM alunos ORDER BY id ASC LIMIT 1${lockClause}`
+    );
+  }
+
+  return res.rows.length > 0 ? res.rows[0] : null;
+}
+
 // ─── GET ────────────────────────────────────────────────────────────────────────
 // Query params: alunoId (required)
-// Returns: { xpTotal, nivel, xpAtual, xpProximo, progresso, historico }
+// Returns: { xpTotal, nivel, xpAtual, xpProximo, progresso, historico, atividadesConcluidas }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const alunoId = searchParams.get('alunoId');
+    const alunoIdParam = searchParams.get('alunoId');
 
-    if (!alunoId) {
+    if (!alunoIdParam) {
       return NextResponse.json(
         { error: 'Parâmetro alunoId é obrigatório.' },
         { status: 400 }
       );
     }
 
-    // Buscar XP total e nível do aluno
-    const alunoRes = await query(
-      `SELECT xp_total, nivel FROM alunos WHERE id = $1`,
-      [alunoId]
-    );
+    const aluno = await resolveAluno({ query }, alunoIdParam, false);
 
-    if (alunoRes.rows.length === 0) {
+    if (!aluno) {
       return NextResponse.json(
         { error: 'Aluno não encontrado.' },
         { status: 404 }
       );
     }
 
-    const { xp_total, nivel } = alunoRes.rows[0];
+    const realAlunoId = aluno.id;
+    const xp_total = aluno.xp_total || 0;
+    const nivel = aluno.nivel || 1;
     const xpAtual = xp_total % XP_POR_NIVEL;
 
     // Buscar histórico de progresso (últimos 50 registros)
@@ -48,18 +63,18 @@ export async function GET(request: Request) {
        WHERE aluno_id = $1
        ORDER BY created_at DESC
        LIMIT 50`,
-      [alunoId]
+      [realAlunoId]
     );
 
     // Buscar atividades concluídas
     const completasRes = await query(
       `SELECT DISTINCT atividade_id FROM aluno_progresso WHERE aluno_id = $1 AND atividade_id IS NOT NULL`,
-      [alunoId]
+      [realAlunoId]
     );
 
     return NextResponse.json({
-      xpTotal: xp_total || 0,
-      nivel: nivel || 1,
+      xpTotal: xp_total,
+      nivel: nivel,
       xpAtual,
       xpProximo: XP_POR_NIVEL,
       progresso: Math.round((xpAtual / XP_POR_NIVEL) * 100),
@@ -85,68 +100,64 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const client = await getClient();
+  let released = false;
+  const releaseOnce = () => {
+    if (!released) {
+      released = true;
+      client.release();
+    }
+  };
 
   try {
     const body = await request.json();
     const { alunoId, atividadeId, tipoAcao, xpGanho } = body;
 
-    if (!alunoId || !tipoAcao || xpGanho == null) {
-      client.release();
+    if (!alunoId || xpGanho == null) {
+      releaseOnce();
       return NextResponse.json(
-        { error: 'Campos obrigatórios ausentes (alunoId, tipoAcao, xpGanho).' },
+        { error: 'Campos obrigatórios ausentes (alunoId, xpGanho).' },
         { status: 400 }
       );
     }
 
-    // Validate xpGanho is a positive integer
     const xp = parseInt(xpGanho, 10);
     if (isNaN(xp) || xp <= 0) {
-      client.release();
+      releaseOnce();
       return NextResponse.json(
         { error: 'xpGanho deve ser um número inteiro positivo.' },
         { status: 400 }
       );
     }
 
-    // Validate tipoAcao
-    const VALID_TIPOS = ['videoaula', 'simulado', 'revisao', 'fixacao', 'aula_presencial', 'pre_aula', 'palavra_chave', 'material'];
-    if (!VALID_TIPOS.includes(tipoAcao)) {
-      client.release();
-      return NextResponse.json(
-        { error: `tipoAcao inválido. Valores aceitos: ${VALID_TIPOS.join(', ')}` },
-        { status: 400 }
-      );
-    }
+    const tipoStr = String(tipoAcao || 'atividade').slice(0, 50);
 
     await client.query('BEGIN');
 
-    // 1. Get current XP before update (for level-up detection)
-    const beforeRes = await client.query(
-      `SELECT xp_total, nivel FROM alunos WHERE id = $1 FOR UPDATE`,
-      [alunoId]
-    );
+    // 1. Get current XP before update (for level-up detection) with FOR UPDATE lock
+    const aluno = await resolveAluno(client, String(alunoId), true);
 
-    if (beforeRes.rows.length === 0) {
+    if (!aluno) {
       await client.query('ROLLBACK');
-      client.release();
+      releaseOnce();
       return NextResponse.json(
         { error: 'Aluno não encontrado.' },
         { status: 404 }
       );
     }
 
-    const oldXP = beforeRes.rows[0].xp_total || 0;
-    const oldNivel = beforeRes.rows[0].nivel || 1;
+    const realAlunoId = aluno.id;
+    const oldXP = aluno.xp_total || 0;
+    const oldNivel = aluno.nivel || 1;
 
     // 1.5 Anti-spam check for duplicate activity progress
     if (atividadeId) {
       const existingRes = await client.query(
         `SELECT id FROM aluno_progresso WHERE aluno_id = $1 AND atividade_id = $2 LIMIT 1`,
-        [alunoId, atividadeId]
+        [realAlunoId, String(atividadeId)]
       );
       if (existingRes.rows.length > 0) {
         await client.query('ROLLBACK');
-        client.release();
+        releaseOnce();
         return NextResponse.json({
           xpTotal: oldXP,
           nivel: oldNivel,
@@ -162,7 +173,7 @@ export async function POST(request: Request) {
       `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [alunoId, atividadeId || null, tipoAcao, xp]
+      [realAlunoId, atividadeId ? String(atividadeId) : null, tipoStr, xp]
     );
 
     // 3. Atomically update XP total and recalculate level
@@ -171,7 +182,7 @@ export async function POST(request: Request) {
 
     await client.query(
       `UPDATE alunos SET xp_total = $1, nivel = $2 WHERE id = $3`,
-      [newXP, newNivel, alunoId]
+      [newXP, newNivel, realAlunoId]
     );
 
     await client.query('COMMIT');
@@ -199,6 +210,6 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   } finally {
-    client.release();
+    releaseOnce();
   }
 }

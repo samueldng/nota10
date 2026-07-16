@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS aluno_progresso (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   aluno_id UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
-  atividade_id UUID REFERENCES cronograma_atividades(id) ON DELETE SET NULL,
+  atividade_id VARCHAR(150),
   tipo_acao VARCHAR(50) NOT NULL,  -- 'videoaula', 'simulado', 'revisao', 'fixacao', 'aula_presencial', etc.
   xp_ganho INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
