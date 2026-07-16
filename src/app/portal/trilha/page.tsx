@@ -47,6 +47,7 @@ interface XpToast {
   id: string;
   xp: number;
   leveledUp: boolean;
+  tarefaPai?: boolean;
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -61,8 +62,20 @@ export default function TrilhaPage() {
   const [isLoading, setIsLoading]   = useState(true);
   const [xpToasts, setXpToasts]     = useState<XpToast[]>([]);
 
-  // Prevent concurrent toggles on the same item
-  const pendingRef = useRef<Set<string>>(new Set());
+  // ── BUGFIX #1: Estado reativo de pendência (em vez de ref puro) ───────────────
+  // useRef não dispara re-renders — ao clicar rapidamente, o botão ficava habilitado
+  // por um frame. Agora usamos um Set dentro de useState para forçar o re-render.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const pendingRef = useRef<Set<string>>(new Set()); // espelho para leitura síncrona no handler
+
+  const addPending = (key: string) => {
+    pendingRef.current.add(key);
+    setPendingIds(new Set(pendingRef.current));
+  };
+  const removePending = (key: string) => {
+    pendingRef.current.delete(key);
+    setPendingIds(new Set(pendingRef.current));
+  };
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
@@ -70,11 +83,12 @@ export default function TrilhaPage() {
     setIsLoading(true);
     let concluidas: string[] = [];
 
-    // 1. Progress
+    // 1. Progress — busca atividades já concluídas para hidratação do estado
     try {
       const res = await fetch(`/api/progresso?alunoId=${alunoId}`);
       if (res.ok) {
         const data = await res.json();
+        // atividadesConcluidas contém: UUIDs de tarefas pai + títulos de subtarefas
         concluidas = data.atividadesConcluidas || [];
         setXpTotal(data.xpTotal || 0);
         setNivel(data.nivel || 1);
@@ -87,25 +101,41 @@ export default function TrilhaPage() {
       if (cronRes.ok) {
         const dbTasks = await cronRes.json();
         if (Array.isArray(dbTasks) && dbTasks.length > 0) {
-          const mappedTasks: Tarefa[] = dbTasks.map((t: any) => ({
-            id:         t.id,
-            ordem:      t.ordem,
-            titulo:     t.titulo,
-            tipo:       t.tipo,
-            disciplina: t.disciplina,
-            bloco:      t.bloco,
-            xp:         t.xpTotal,
-            status:     concluidas.includes(t.id) ? 'concluido' : 'pendente',
-            subTarefas: (typeof t.subtarefas === 'string'
+          const mappedTasks: Tarefa[] = dbTasks.map((t: any) => {
+            const subtarefasRaw: any[] = typeof t.subtarefas === 'string'
               ? JSON.parse(t.subtarefas)
-              : (t.subtarefas || [])
-            ).map((sub: any) => ({
-              id:     sub.id ?? sub.titulo,   // subtarefas DB podem não ter UUID próprio
-              titulo: sub.titulo,
-              xp:     sub.xp ?? 0,
-              status: concluidas.includes(sub.id ?? sub.titulo) ? 'concluido' : 'pendente',
-            })),
-          }));
+              : (t.subtarefas || []);
+
+            const subTarefas = subtarefasRaw.map((sub: any) => {
+              // ── BUGFIX #2: Subtarefas do BD não têm UUID próprio.
+              // O identificador persistido no progresso é o título da subtarefa.
+              // Usamos sub.id ?? sub.titulo para mapear corretamente o status.
+              const subId = sub.id != null ? String(sub.id) : sub.titulo;
+              return {
+                id:     subId,
+                titulo: sub.titulo,
+                xp:     sub.xp ?? 0,
+                status: concluidas.includes(subId) ? 'concluido' as const : 'pendente' as const,
+              };
+            });
+
+            return {
+              id:         t.id,
+              ordem:      t.ordem,
+              titulo:     t.titulo,
+              tipo:       t.tipo,
+              disciplina: t.disciplina,
+              bloco:      t.bloco,
+              xp:         t.xpTotal,
+              // Tarefa pai concluída: ou está em concluidas (UUID) ou todas as subs terminaram
+              status: concluidas.includes(t.id)
+                ? 'concluido' as const
+                : subTarefas.length > 0 && subTarefas.every(s => s.status === 'concluido')
+                  ? 'concluido' as const
+                  : 'pendente' as const,
+              subTarefas,
+            };
+          });
           setCronograma({ semana: 'Semana 1', periodo: 'Esta Semana', tarefas: mappedTasks });
         } else {
           setCronograma({ semana: 'Semana 1', periodo: 'Esta Semana', tarefas: [] });
@@ -129,19 +159,23 @@ export default function TrilhaPage() {
   const handleToggleSubtarefa = useCallback(
     async (subtarefaId: string, tarefaId: string, xp: number, tipo: string) => {
       const key = `${tarefaId}::${subtarefaId}`;
-      if (pendingRef.current.has(key)) return; // Already in-flight
 
-      // Read current status
-      const currentStatus = cronograma?.tarefas
-        .find((t) => t.id === tarefaId)
-        ?.subTarefas.find((s) => s.id === subtarefaId)?.status;
+      // ── BUGFIX #1: Leitura síncrona via ref (evita closure stale no state)
+      if (pendingRef.current.has(key)) return;
 
-      // Only mark as concluído (not toggle back — server has anti-spam)
+      // Lê status atual da subtarefa
+      const tarefa = cronograma?.tarefas.find((t) => t.id === tarefaId);
+      const currentStatus = tarefa?.subTarefas.find((s) => s.id === subtarefaId)?.status;
+
+      // Só marca para frente — servidor tem anti-spam via ON CONFLICT
       if (currentStatus === 'concluido') return;
 
-      pendingRef.current.add(key);
+      // Marcar como em-flight ANTES do setState para bloquear cliques paralelos
+      addPending(key);
 
-      // ── Optimistic UI: update local state immediately ──────────────────────
+      // ── Optimistic UI: atualizar local imediatamente ──────────────────────────
+      let allDoneAfterUpdate = false;
+
       setCronograma((prev) => {
         if (!prev) return prev;
         return {
@@ -151,8 +185,8 @@ export default function TrilhaPage() {
             const updatedSubs = t.subTarefas.map((s) =>
               s.id === subtarefaId ? { ...s, status: 'concluido' as const } : s
             );
-            // Mark parent tarefa as concluído if all subs done
             const allDone = updatedSubs.every((s) => s.status === 'concluido');
+            if (allDone) allDoneAfterUpdate = true;
             return {
               ...t,
               subTarefas: updatedSubs,
@@ -162,45 +196,71 @@ export default function TrilhaPage() {
         };
       });
 
-      // Optimistic XP counter
+      // Optimistic XP counter (subtarefa)
       setXpTotal((prev) => prev + xp);
 
-      // Show XP toast
+      // Toast da subtarefa
       const toastId = Math.random().toString(36).slice(2);
       setXpToasts((prev) => [...prev, { id: toastId, xp, leveledUp: false }]);
       setTimeout(() => setXpToasts((prev) => prev.filter((t) => t.id !== toastId)), 2500);
 
-      // ── Persist to server ─────────────────────────────────────────────────
+      // ── BUGFIX #3: Enviar metadados da tarefa pai para lógica de cascata ──────
+      // O back-end verificará se todas as subtarefas estão concluídas e,
+      // se sim, creditará automaticamente o XP da tarefa pai.
+      const subtarefasTotal = tarefa?.subTarefas.length ?? 0;
+      const tarefaPaiXp = tarefa?.xp ?? 0;
+
+      // ── Persist to server ─────────────────────────────────────────────────────
       try {
         const res = await fetch('/api/progresso', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             alunoId,
-            atividadeId: subtarefaId,
-            tipoAcao:    tipo || 'atividade',
-            xpGanho:     xp > 0 ? xp : 1,
+            atividadeId:     subtarefaId,
+            tipoAcao:        tipo || 'atividade',
+            xpGanho:         xp > 0 ? xp : 1,
+            // Metadados para cascata:
+            tarefaPaiId:     tarefaId,
+            tarefaPaiXp:     tarefaPaiXp,
+            subtarefasTotais: subtarefasTotal,
           }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          // Update XP from server (authoritative)
+
+          // Atualizar XP e nível com valores autoritativos do servidor
           if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
           if (typeof data.nivel   === 'number') setNivel(data.nivel);
 
-          // Level-up toast update
+          // Level-up toast
           if (data.leveledUp) {
             setXpToasts((prev) =>
               prev.map((t) => t.id === toastId ? { ...t, leveledUp: true } : t)
             );
           }
 
-          // Notify other components (portal dashboard)
+          // ── BUGFIX #3: Toast extra quando a tarefa pai foi concluída em cascata
+          if (data.tarefaPaiConcluida && data.xpTarefaPai > 0) {
+            const paiToastId = Math.random().toString(36).slice(2);
+            setXpToasts((prev) => [
+              ...prev,
+              { id: paiToastId, xp: data.xpTarefaPai, leveledUp: false, tarefaPai: true },
+            ]);
+            setTimeout(
+              () => setXpToasts((prev) => prev.filter((t) => t.id !== paiToastId)),
+              3500
+            );
+          }
+
+          // Notificar outros componentes (dashboard)
           window.dispatchEvent(new Event('nota10_progress_updated'));
+        } else if (res.status === 200 || res.status === 201) {
+          // alreadyCompleted retorna 200 — não precisa reverter o optimistic
         }
       } catch (e) {
-        // Network error — revert optimistic change
+        // Erro de rede — reverter mudança otimista
         setCronograma((prev) => {
           if (!prev) return prev;
           return {
@@ -212,13 +272,15 @@ export default function TrilhaPage() {
                 subTarefas: t.subTarefas.map((s) =>
                   s.id === subtarefaId ? { ...s, status: 'pendente' as const } : s
                 ),
+                status: t.status === 'concluido' ? 'pendente' as const : t.status,
               };
             }),
           };
         });
         setXpTotal((prev) => prev - xp);
+        setXpToasts((prev) => prev.filter((t) => t.id !== toastId));
       } finally {
-        pendingRef.current.delete(key);
+        removePending(key);
       }
     },
     [alunoId, cronograma]
@@ -260,10 +322,14 @@ export default function TrilhaPage() {
         {xpToasts.map((toast) => (
           <div
             key={toast.id}
-            className="animate-fade-in-up bg-[var(--color-azul-autoridade)] text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 font-black text-sm"
+            className={`animate-fade-in-up text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 font-black text-sm ${
+              toast.tarefaPai
+                ? 'bg-[var(--color-verde-sucesso)]'
+                : 'bg-[var(--color-azul-autoridade)]'
+            }`}
           >
             <Zap size={14} className="text-[var(--color-amarelo-conquista)]" />
-            +{toast.xp} XP{toast.leveledUp ? ' 🎉 Subiu de nível!' : ''}
+            +{toast.xp} XP{toast.tarefaPai ? ' 🏆 Tarefa concluída!' : ''}{toast.leveledUp ? ' 🎉 Subiu de nível!' : ''}
           </div>
         ))}
       </div>
@@ -346,7 +412,7 @@ export default function TrilhaPage() {
 
                 <div className="flex items-center gap-1 mt-1">
                   <Zap size={10} className="text-[var(--color-amarelo-conquista)]" />
-                  <span className="text-[10px] font-bold text-[var(--color-amarelo-conquista)]">+{tarefa.xp} XP ao completar</span>
+                  <span className="text-[10px] font-bold text-[var(--color-amarelo-conquista)]">+{tarefa.xp} XP ao completar todas as subtarefas</span>
                 </div>
               </div>
             </div>
@@ -356,11 +422,13 @@ export default function TrilhaPage() {
               <div className="mt-4 ml-14 space-y-2 border-l-2 border-[var(--color-cinza-borda)] pl-4">
                 {tarefa.subTarefas.map((sub) => {
                   const isDone    = sub.status === 'concluido';
-                  const isPending = pendingRef.current.has(`${tarefa.id}::${sub.id}`);
+                  // ── BUGFIX #1: isPending lê do estado reativo (re-render garantido)
+                  const isPending = pendingIds.has(`${tarefa.id}::${sub.id}`);
 
                   return (
                     <button
                       key={sub.id}
+                      id={`subtarefa-${tarefa.id}-${sub.id}`}
                       onClick={() => handleToggleSubtarefa(sub.id, tarefa.id, sub.xp, tarefa.tipo)}
                       disabled={isDone || isPending}
                       className={`
@@ -368,6 +436,8 @@ export default function TrilhaPage() {
                         transition-all duration-200 group
                         ${isDone
                           ? 'bg-[var(--color-verde-light)]/60 cursor-default'
+                          : isPending
+                          ? 'bg-[var(--color-cinza-fundo)] cursor-wait opacity-70'
                           : 'bg-[var(--color-cinza-fundo)] hover:bg-[var(--color-azul-lightest)] hover:border-[var(--color-azul-autoridade)]/20 border border-transparent cursor-pointer active:scale-[0.98]'
                         }
                       `}

@@ -34,8 +34,18 @@ export default function PortalInicioPage() {
   const [isLoadingPortal, setIsLoadingPortal] = useState(true);
   const [proximaAula, setProximaAula] = useState<{ data: string; diaSemana: string; horario: string; local: string; blocos: any[] } | null>(null);
 
-  // Prevent concurrent POST for the same subtarefa
+  // ── BUGFIX #1: Estado reativo de pendência para bloquear duplos cliques
+  const [pendingSubIds, setPendingSubIds] = useState<Set<string>>(new Set());
   const pendingSubRef = useRef<Set<string>>(new Set());
+
+  const addPendingSub = (key: string) => {
+    pendingSubRef.current.add(key);
+    setPendingSubIds(new Set(pendingSubRef.current));
+  };
+  const removePendingSub = (key: string) => {
+    pendingSubRef.current.delete(key);
+    setPendingSubIds(new Set(pendingSubRef.current));
+  };
 
   const loadData = useCallback(async () => {
     console.log('🔄 [Portal] Iniciando busca de dados do portal...', { alunoId, turmaId });
@@ -79,24 +89,39 @@ export default function PortalInicioPage() {
       if (cronogramaRes.ok) {
         const dbTasks = await cronogramaRes.json();
         if (dbTasks && dbTasks.length > 0) {
-          const mappedTasks = dbTasks.map((t: any) => ({
-            id: t.id,
-            ordem: t.ordem,
-            titulo: t.titulo,
-            tipo: t.tipo,
-            disciplina: t.disciplina,
-            bloco: t.bloco,
-            xp: t.xpTotal,
-            turmaNome: t.turmaNome || '',
-            status: concluidas.includes(t.id) ? 'concluido' : 'pendente',
-            subTarefas: typeof t.subtarefas === 'string' ? JSON.parse(t.subtarefas).map((sub: any) => ({
-              ...sub,
-              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
-            })) : (t.subtarefas || []).map((sub: any) => ({
-              ...sub,
-              status: concluidas.includes(sub.id) ? 'concluido' : 'pendente'
-            }))
-          }));
+          const mappedTasks = dbTasks.map((t: any) => {
+            const subtarefasRaw: any[] = typeof t.subtarefas === 'string'
+              ? JSON.parse(t.subtarefas)
+              : (t.subtarefas || []);
+
+            const subTarefas = subtarefasRaw.map((sub: any) => {
+              // ── BUGFIX #2: Subtarefas do BD não têm UUID próprio.
+              // O identificador persistido em aluno_progresso é o título.
+              const subId = sub.id != null ? String(sub.id) : sub.titulo;
+              return {
+                ...sub,
+                id: subId,
+                status: concluidas.includes(subId) ? 'concluido' : 'pendente',
+              };
+            });
+
+            return {
+              id: t.id,
+              ordem: t.ordem,
+              titulo: t.titulo,
+              tipo: t.tipo,
+              disciplina: t.disciplina,
+              bloco: t.bloco,
+              xp: t.xpTotal,
+              turmaNome: t.turmaNome || '',
+              status: concluidas.includes(t.id)
+                ? 'concluido'
+                : subTarefas.length > 0 && subTarefas.every((s: any) => s.status === 'concluido')
+                  ? 'concluido'
+                  : 'pendente',
+              subTarefas,
+            };
+          });
           setCronograma({
             turmaId: turmaId,
             semana: 'Semana 1',
@@ -163,15 +188,16 @@ export default function PortalInicioPage() {
   const handleToggleSubtarefa = useCallback(
     async (subtarefaId: string, tarefaId: string, xp: number, tipo: string) => {
       const key = `${tarefaId}::${subtarefaId}`;
+      // Leitura síncrona via ref para evitar cliques duplos em paralelo
       if (pendingSubRef.current.has(key)) return;
 
-      // Only mark forward — server has anti-spam for duplicates
-      const currentStatus = (cronograma as any)?.tarefas
-        ?.find((t: any) => t.id === tarefaId)
-        ?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status;
+      // Only mark forward — server has idempotência via ON CONFLICT
+      const tarefa = (cronograma as any)?.tarefas?.find((t: any) => t.id === tarefaId);
+      const currentStatus = tarefa?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status;
       if (currentStatus === 'concluido') return;
 
-      pendingSubRef.current.add(key);
+      // Marcar em-flight ANTES do setState (bloqueia cliques paralelos)
+      addPendingSub(key);
 
       // Optimistic: update local state immediately
       setCronograma((prev: any) => {
@@ -190,6 +216,10 @@ export default function PortalInicioPage() {
       });
       setXpTotal((prev) => prev + xp);
 
+      // ── BUGFIX #3: Metadados da tarefa pai para lógica de cascata no back-end
+      const subtarefasTotal = tarefa?.subTarefas?.length ?? 0;
+      const tarefaPaiXp = tarefa?.xp ?? 0;
+
       // Persist
       try {
         const res = await fetch('/api/progresso', {
@@ -197,9 +227,13 @@ export default function PortalInicioPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             alunoId,
-            atividadeId: subtarefaId,
-            tipoAcao:    tipo || 'atividade',
-            xpGanho:     xp > 0 ? xp : 1,
+            atividadeId:     subtarefaId,
+            tipoAcao:        tipo || 'atividade',
+            xpGanho:         xp > 0 ? xp : 1,
+            // Metadados para cascata:
+            tarefaPaiId:     tarefaId,
+            tarefaPaiXp:     tarefaPaiXp,
+            subtarefasTotais: subtarefasTotal,
           }),
         });
         if (res.ok) {
@@ -227,7 +261,7 @@ export default function PortalInicioPage() {
         });
         setXpTotal((prev) => prev - xp);
       } finally {
-        pendingSubRef.current.delete(key);
+        removePendingSub(key);
       }
     },
     [alunoId, cronograma]
@@ -482,7 +516,8 @@ export default function PortalInicioPage() {
                 <div className="mt-3 ml-11 space-y-2">
                   {tarefa.subTarefas.map((sub) => {
                     const isDone = sub.status === 'concluido';
-                    const isPending = pendingSubRef.current.has(`${tarefa.id}::${sub.id}`);
+                    // ── BUGFIX #1: lê do estado reativo (garante re-render imediato)
+                    const isPending = pendingSubIds.has(`${tarefa.id}::${sub.id}`);
                     return (
                       <button
                         key={sub.id}
