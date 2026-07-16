@@ -108,7 +108,15 @@ export async function POST(request: Request) {
   };
 
   try {
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (parseErr) {
+      console.error('[POST /api/progresso] Falha ao parsear JSON do body:', parseErr);
+      releaseOnce();
+      return NextResponse.json({ error: 'Body inválido: JSON malformado.' }, { status: 400 });
+    }
+
     const {
       alunoId,
       atividadeId,         // ID da subtarefa (título string ou UUID)
@@ -119,19 +127,37 @@ export async function POST(request: Request) {
       xpGanho,
     } = body;
 
-    if (!alunoId || xpGanho == null) {
+    // ── Diagnóstico: logar payload recebido em caso de falha de validação
+    const logPayload = () => console.error(
+      '[POST /api/progresso] Payload recebido:',
+      JSON.stringify({ alunoId, atividadeId, tarefaPaiId, tarefaPaiXp, subtarefasTotais, tipoAcao, xpGanho })
+    );
+
+    if (!alunoId) {
+      logPayload();
       releaseOnce();
       return NextResponse.json(
-        { error: 'Campos obrigatórios ausentes (alunoId, xpGanho).' },
+        { error: 'Campo obrigatório ausente: alunoId.' },
         { status: 400 }
       );
     }
 
-    const xp = parseInt(xpGanho, 10);
-    if (isNaN(xp) || xp <= 0) {
+    if (xpGanho == null) {
+      logPayload();
       releaseOnce();
       return NextResponse.json(
-        { error: 'xpGanho deve ser um número inteiro positivo.' },
+        { error: 'Campo obrigatório ausente: xpGanho.' },
+        { status: 400 }
+      );
+    }
+
+    // Coerce: aceita number ou string. Subtarefas com 0 XP são válidas (xp >= 0).
+    const xp = Number(xpGanho);
+    if (!Number.isFinite(xp) || xp < 0) {
+      logPayload();
+      releaseOnce();
+      return NextResponse.json(
+        { error: 'xpGanho deve ser um número não-negativo.' },
         { status: 400 }
       );
     }

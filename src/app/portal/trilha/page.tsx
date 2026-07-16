@@ -186,7 +186,6 @@ export default function TrilhaPage() {
               s.id === subtarefaId ? { ...s, status: 'concluido' as const } : s
             );
             const allDone = updatedSubs.every((s) => s.status === 'concluido');
-            if (allDone) allDoneAfterUpdate = true;
             return {
               ...t,
               subTarefas: updatedSubs,
@@ -205,8 +204,6 @@ export default function TrilhaPage() {
       setTimeout(() => setXpToasts((prev) => prev.filter((t) => t.id !== toastId)), 2500);
 
       // ── BUGFIX #3: Enviar metadados da tarefa pai para lógica de cascata ──────
-      // O back-end verificará se todas as subtarefas estão concluídas e,
-      // se sim, creditará automaticamente o XP da tarefa pai.
       const subtarefasTotal = tarefa?.subTarefas.length ?? 0;
       const tarefaPaiXp = tarefa?.xp ?? 0;
 
@@ -219,7 +216,7 @@ export default function TrilhaPage() {
             alunoId,
             atividadeId:     subtarefaId,
             tipoAcao:        tipo || 'atividade',
-            xpGanho:         xp > 0 ? xp : 1,
+            xpGanho:         xp >= 0 ? xp : 1,
             // Metadados para cascata:
             tarefaPaiId:     tarefaId,
             tarefaPaiXp:     tarefaPaiXp,
@@ -227,40 +224,50 @@ export default function TrilhaPage() {
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json();
-
-          // Atualizar XP e nível com valores autoritativos do servidor
-          if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
-          if (typeof data.nivel   === 'number') setNivel(data.nivel);
-
-          // Level-up toast
-          if (data.leveledUp) {
-            setXpToasts((prev) =>
-              prev.map((t) => t.id === toastId ? { ...t, leveledUp: true } : t)
-            );
-          }
-
-          // ── BUGFIX #3: Toast extra quando a tarefa pai foi concluída em cascata
-          if (data.tarefaPaiConcluida && data.xpTarefaPai > 0) {
-            const paiToastId = Math.random().toString(36).slice(2);
-            setXpToasts((prev) => [
-              ...prev,
-              { id: paiToastId, xp: data.xpTarefaPai, leveledUp: false, tarefaPai: true },
-            ]);
-            setTimeout(
-              () => setXpToasts((prev) => prev.filter((t) => t.id !== paiToastId)),
-              3500
-            );
-          }
-
-          // Notificar outros componentes (dashboard)
-          window.dispatchEvent(new Event('nota10_progress_updated'));
-        } else if (res.status === 200 || res.status === 201) {
-          // alreadyCompleted retorna 200 — não precisa reverter o optimistic
+        // ── BUGFIX: fetch() NÃO lança exceção em respostas HTTP 4xx/5xx.
+        // Lançamos manualmente para garantir que o catch faça o rollback.
+        if (!res.ok) {
+          let errMsg = `HTTP ${res.status}`;
+          try { const b = await res.json(); errMsg = b?.error || errMsg; } catch (_) {}
+          console.error('[Trilha] Erro da API /api/progresso:', errMsg, '| sub:', subtarefaId);
+          throw new Error(errMsg);
         }
-      } catch (e) {
-        // Erro de rede — reverter mudança otimista
+
+        const data = await res.json();
+
+        // Valores autoritativos do servidor
+        if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
+        if (typeof data.nivel   === 'number') setNivel(data.nivel);
+
+        // Level-up toast
+        if (data.leveledUp) {
+          setXpToasts((prev) =>
+            prev.map((t) => t.id === toastId ? { ...t, leveledUp: true } : t)
+          );
+        }
+
+        // Toast extra quando a tarefa pai foi concluída em cascata
+        if (data.tarefaPaiConcluida && data.xpTarefaPai > 0) {
+          const paiToastId = Math.random().toString(36).slice(2);
+          setXpToasts((prev) => [
+            ...prev,
+            { id: paiToastId, xp: data.xpTarefaPai, leveledUp: false, tarefaPai: true },
+          ]);
+          setTimeout(
+            () => setXpToasts((prev) => prev.filter((t) => t.id !== paiToastId)),
+            3500
+          );
+        }
+
+        // alreadyCompleted: servidor já tinha o registro; XP autoritativo já corrigiu optimistic.
+        // Sem rollback visual — o sub já estava concluído no BD.
+
+        // Notificar outros componentes (dashboard)
+        window.dispatchEvent(new Event('nota10_progress_updated'));
+      } catch (e: any) {
+        // Cobre AMBOS: erro de rede (fetch throw) + HTTP !res.ok (throw manual acima).
+        // Reverte toda a mudança otimista para evitar falso positivo visual.
+        console.error('[Trilha] Revertendo UI otimista por erro:', e?.message);
         setCronograma((prev) => {
           if (!prev) return prev;
           return {
