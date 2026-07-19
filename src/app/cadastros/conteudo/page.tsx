@@ -40,7 +40,7 @@ export default function PainelConteudoAdminPage() {
     titulo: '',
     conteudo: '',
     tipo: 'informativo' as any,
-    turmaTarget: 'todas',
+    turmasAlvo: ['todas'] as string[],
   });
 
   // Load data from DB APIs
@@ -205,8 +205,10 @@ export default function PainelConteudoAdminPage() {
     if (!comunicadoForm.titulo || !comunicadoForm.conteudo) return;
 
     try {
+      const isGlobal = comunicadoForm.turmasAlvo.includes('todas') || comunicadoForm.turmasAlvo.length === 0;
       const body = {
-        turmaId: comunicadoForm.turmaTarget === 'todas' ? null : comunicadoForm.turmaTarget,
+        turmaId: isGlobal ? null : comunicadoForm.turmasAlvo[0],
+        turmasAlvo: isGlobal ? ['todas'] : comunicadoForm.turmasAlvo,
         titulo: comunicadoForm.titulo,
         tipoCriticidade: comunicadoForm.tipo,
         descricao: comunicadoForm.conteudo,
@@ -230,7 +232,7 @@ export default function PainelConteudoAdminPage() {
         titulo: '',
         conteudo: '',
         tipo: 'informativo',
-        turmaTarget: 'todas',
+        turmasAlvo: ['todas'],
       });
     } catch (err: any) {
       console.error(err);
@@ -293,13 +295,21 @@ export default function PainelConteudoAdminPage() {
           ))}
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="btn btn-primary w-full sm:w-auto flex items-center justify-center gap-2"
-        >
-          <Plus size={16} />
-          {activeTab === 'videos' ? 'Novo Vídeo' : activeTab === 'materiais' ? 'Postar Material' : 'Criar Comunicado'}
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <a
+            href="/cadastros/questoes"
+            className="btn btn-outline w-full sm:w-auto flex items-center justify-center gap-2 text-xs py-2.5 no-underline"
+          >
+            ★ Cofre das Questões
+          </a>
+          <button
+            onClick={handleOpenAddModal}
+            className="btn btn-primary w-full sm:w-auto flex items-center justify-center gap-2"
+          >
+            <Plus size={16} />
+            {activeTab === 'videos' ? 'Novo Vídeo' : activeTab === 'materiais' ? 'Postar Material' : 'Criar Comunicado'}
+          </button>
+        </div>
       </div>
 
       {/* Videoaulas Tab Panel */}
@@ -729,18 +739,52 @@ export default function PainelConteudoAdminPage() {
                       <option value="urgente">Urgente</option>
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Turma Destino</label>
-                    <select
-                      className="form-select"
-                      value={comunicadoForm.turmaTarget}
-                      onChange={(e) => setComunicadoForm({ ...comunicadoForm, turmaTarget: e.target.value })}
-                    >
-                      <option value="todas">Todas as turmas</option>
-                      {turmas.map(t => (
-                        <option key={t.id} value={t.id}>{t.nome}</option>
-                      ))}
-                    </select>
+                  <div className="form-group col-span-2">
+                    <label className="form-label block mb-1">Turmas Destino (Seleção Múltipla)</label>
+                    <div className="p-3 border rounded-xl bg-gray-50 max-h-40 overflow-y-auto space-y-2">
+                      <label className="flex items-center gap-2 text-xs font-bold text-[var(--color-azul-autoridade)] cursor-pointer pb-1 border-b">
+                        <input
+                          type="checkbox"
+                          checked={comunicadoForm.turmasAlvo.includes('todas')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setComunicadoForm({ ...comunicadoForm, turmasAlvo: ['todas'] });
+                            } else {
+                              setComunicadoForm({ ...comunicadoForm, turmasAlvo: [] });
+                            }
+                          }}
+                          className="rounded border-gray-300 text-[var(--color-azul-autoridade)] focus:ring-[var(--color-azul-autoridade)]"
+                        />
+                        <span>★ Todas as turmas (Comunicado Global)</span>
+                      </label>
+                      
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {turmas.map(t => {
+                          const isChecked = comunicadoForm.turmasAlvo.includes(t.id);
+                          return (
+                            <label key={t.id} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                              <input
+                                type="checkbox"
+                                disabled={comunicadoForm.turmasAlvo.includes('todas')}
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  let novas = [...comunicadoForm.turmasAlvo.filter(x => x !== 'todas')];
+                                  if (e.target.checked) {
+                                    novas.push(t.id);
+                                  } else {
+                                    novas = novas.filter(x => x !== t.id);
+                                  }
+                                  if (novas.length === 0) novas = ['todas'];
+                                  setComunicadoForm({ ...comunicadoForm, turmasAlvo: novas });
+                                }}
+                                className="rounded border-gray-300 text-[var(--color-azul-autoridade)] focus:ring-[var(--color-azul-autoridade)]"
+                              />
+                              <span className="truncate">{t.nome}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Loader2, Maximize, Minimize } from 'lucide-react';
+import { Play, Pause, Loader2, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import VideoComments from '@/components/portal/VideoComments';
 
@@ -43,6 +43,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastTime, setLastTime] = useState(0);
   const [ytProgress, setYtProgress] = useState(0);
+  const [volume, setVolume] = useState(100);
 
   const ytId = getYoutubeVideoId(videoUrl);
   const isYoutube = Boolean(ytId);
@@ -265,6 +266,44 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
   };
 
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setVolume(val);
+    if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
+      if (val === 0) {
+        ytPlayerRef.current.mute();
+      } else {
+        if (ytPlayerRef.current.isMuted && ytPlayerRef.current.isMuted()) {
+          ytPlayerRef.current.unMute();
+        }
+        ytPlayerRef.current.setVolume(val);
+      }
+    } else if (!isYoutube && videoRef.current) {
+      videoRef.current.volume = val / 100;
+      videoRef.current.muted = val === 0;
+    }
+  };
+
+  const toggleMute = () => {
+    if (volume === 0) {
+      setVolume(100);
+      if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.unMute === 'function') {
+        ytPlayerRef.current.unMute();
+        ytPlayerRef.current.setVolume(100);
+      } else if (!isYoutube && videoRef.current) {
+        videoRef.current.muted = false;
+        videoRef.current.volume = 1;
+      }
+    } else {
+      setVolume(0);
+      if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.mute === 'function') {
+        ytPlayerRef.current.mute();
+      } else if (!isYoutube && videoRef.current) {
+        videoRef.current.muted = true;
+      }
+    }
+  };
+
   const handleEnded = async () => {
     if (isCompleted && !onCompleteCalledRef.current) {
       onCompleteCalledRef.current = true;
@@ -275,10 +314,23 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     
     try {
       onCompleteCalledRef.current = true;
+      let dur = 100;
+      if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.getDuration === 'function') {
+        dur = ytPlayerRef.current.getDuration() || 100;
+      } else if (!isYoutube && videoRef.current) {
+        dur = videoRef.current.duration || 100;
+      }
+
       const res = await fetch('/api/player/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alunoId, conteudoId })
+        body: JSON.stringify({ 
+          alunoId, 
+          conteudoId, 
+          completed: true, 
+          currentTime: dur, 
+          duration: dur 
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -412,9 +464,31 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
                  />
                </div>
             </div>
-            <div className="text-white text-xs font-mono">
-               {isCompleted ? '✓ Concluído' : 'Avanço desabilitado'}
+            
+            <div className="flex items-center gap-2 text-white ml-2">
+              <button 
+                onClick={toggleMute}
+                className="hover:text-[var(--color-amarelo-conquista)] transition-colors p-1"
+                type="button"
+                title={volume === 0 ? "Ativar som" : "Mudo"}
+              >
+                {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              </button>
+              <input 
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="w-16 md:w-24 h-1.5 accent-[var(--color-amarelo-conquista)] cursor-pointer"
+                title={`Volume: ${volume}%`}
+              />
             </div>
+
+            {isCompleted && (
+              <span className="text-emerald-400 text-xs font-mono font-bold ml-2">✓ Concluído</span>
+            )}
+
             <button 
               onClick={toggleFullscreen}
               className="text-white hover:text-[var(--color-amarelo-conquista)] transition-colors p-1 ml-2"

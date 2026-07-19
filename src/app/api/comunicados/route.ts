@@ -15,15 +15,21 @@ const MOCK_TO_NAME_MAP: Record<string, string> = {
   'T007': '5A Manhã 2025',
 };
 
-/**
- * Resolve a single turma identifier (UUID, mock ID, or name) to a real UUID.
- * Returns null if unresolvable.
- */
+async function ensureTable(runQuery: (text: string, params?: any[]) => Promise<any>) {
+  await runQuery(`
+    CREATE TABLE IF NOT EXISTS comunicado_turmas (
+      comunicado_id UUID NOT NULL REFERENCES comunicados(id) ON DELETE CASCADE,
+      turma_id UUID NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
+      PRIMARY KEY (comunicado_id, turma_id)
+    );
+  `);
+}
+
 async function resolveSingleTurmaId(
   rawId: string,
   runQuery: (text: string, params?: any[]) => Promise<any>
 ): Promise<string | null> {
-  if (!rawId) return null;
+  if (!rawId || rawId === 'todas') return null;
 
   if (UUID_REGEX.test(rawId)) {
     const check = await runQuery(`SELECT id FROM turmas WHERE id = $1 LIMIT 1`, [rawId]);
@@ -40,13 +46,11 @@ async function resolveSingleTurmaId(
   return res.rows.length > 0 ? res.rows[0].id : null;
 }
 
-/**
- * Map a DB row (snake_case) to a camelCase JSON response object.
- */
 function formatRow(row: any) {
   return {
     id: row.id,
     turmaId: row.turma_id || null,
+    turmasAlvo: row.turmas_alvo ? row.turmas_alvo.filter(Boolean) : (row.turma_id ? [row.turma_id] : ['todas']),
     titulo: row.titulo,
     tipoCriticidade: row.tipo_criticidade,
     descricao: row.descricao,
@@ -57,15 +61,13 @@ function formatRow(row: any) {
   };
 }
 
-// ─── GET ────────────────────────────────────────────────────────────────────────
-// Query params: turmaId (optional — filters by turma + globals)
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const rawTurmaId = searchParams.get('turmaId');
 
-    // If turmaId is provided, return turma-specific + global (turma_id IS NULL)
+    await ensureTable(query);
+
     if (rawTurmaId) {
       const resolvedTurmaId = await resolveSingleTurmaId(rawTurmaId, query);
 
@@ -77,18 +79,26 @@ export async function GET(request: Request) {
       }
 
       const result = await query(
-        `SELECT * FROM comunicados
-         WHERE (turma_id = $1 OR turma_id IS NULL)
-         ORDER BY data_publicacao DESC, created_at DESC`,
+        `SELECT c.*, array_agg(ct.turma_id) as turmas_alvo
+         FROM comunicados c
+         LEFT JOIN comunicado_turmas ct ON c.id = ct.comunicado_id
+         WHERE c.turma_id = $1 
+            OR c.turma_id IS NULL AND NOT EXISTS (SELECT 1 FROM comunicado_turmas ct2 WHERE ct2.comunicado_id = c.id)
+            OR c.id IN (SELECT comunicado_id FROM comunicado_turmas WHERE turma_id = $1)
+         GROUP BY c.id
+         ORDER BY c.data_publicacao DESC, c.created_at DESC`,
         [resolvedTurmaId]
       );
 
       return NextResponse.json(result.rows.map(formatRow));
     }
 
-    // No turmaId filter: return all comunicados (admin view)
     const result = await query(
-      `SELECT * FROM comunicados ORDER BY data_publicacao DESC, created_at DESC`
+      `SELECT c.*, array_agg(ct.turma_id) as turmas_alvo
+       FROM comunicados c
+       LEFT JOIN comunicado_turmas ct ON c.id = ct.comunicado_id
+       GROUP BY c.id
+       ORDER BY c.data_publicacao DESC, c.created_at DESC`
     );
 
     return NextResponse.json(result.rows.map(formatRow));
@@ -98,8 +108,6 @@ export async function GET(request: Request) {
   }
 }
 
-// ─── POST ───────────────────────────────────────────────────────────────────────
-
 export async function POST(request: Request) {
   const client = await getClient();
 
@@ -107,6 +115,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       turmaId,
+      turmasAlvo = [],
       titulo,
       tipoCriticidade,
       descricao,
@@ -122,24 +131,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve turma ID (nullable — null means global)
-    let resolvedTurmaId: string | null = null;
-    if (turmaId) {
-      resolvedTurmaId = await resolveSingleTurmaId(
-        turmaId,
-        (text, params) => client.query(text, params)
-      );
-
-      if (!resolvedTurmaId) {
-        client.release();
-        return NextResponse.json(
-          { error: `Turma não encontrada para identificador: ${turmaId}` },
-          { status: 404 }
-        );
-      }
-    }
-
+    await ensureTable((text, params) => client.query(text, params));
     await client.query('BEGIN');
+
+    // Identificar se é global ou direcionado
+    let isGlobal = Array.isArray(turmasAlvo) && (turmasAlvo.includes('todas') || turmasAlvo.length === 0);
+    if (!isGlobal && !Array.isArray(turmasAlvo) && (turmaId === null || turmaId === 'todas')) {
+      isGlobal = true;
+    }
 
     const result = await client.query(
       `INSERT INTO comunicados
@@ -147,7 +146,7 @@ export async function POST(request: Request) {
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
-        resolvedTurmaId,
+        null, // Mantemos turma_id como null em comunicados e usamos comunicado_turmas para relacionamento multi-turma
         titulo,
         tipoCriticidade,
         descricao,
@@ -156,9 +155,33 @@ export async function POST(request: Request) {
       ]
     );
 
+    const novoId = result.rows[0].id;
+    const resolvedIds: string[] = [];
+
+    if (!isGlobal) {
+      const listaAlvo = Array.isArray(turmasAlvo) && turmasAlvo.length > 0 ? turmasAlvo : (turmaId ? [turmaId] : []);
+      for (const tId of listaAlvo) {
+        if (tId && tId !== 'todas') {
+          const resId = await resolveSingleTurmaId(tId, (text, params) => client.query(text, params));
+          if (resId) {
+            await client.query(
+              `INSERT INTO comunicado_turmas (comunicado_id, turma_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+              [novoId, resId]
+            );
+            resolvedIds.push(resId);
+          }
+        }
+      }
+    }
+
     await client.query('COMMIT');
 
-    return NextResponse.json(formatRow(result.rows[0]), { status: 201 });
+    const responseRow = {
+      ...result.rows[0],
+      turmas_alvo: isGlobal ? ['todas'] : resolvedIds
+    };
+
+    return NextResponse.json(formatRow(responseRow), { status: 201 });
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('Erro no POST /api/comunicados:', err);
@@ -171,8 +194,6 @@ export async function POST(request: Request) {
   }
 }
 
-// ─── PUT ────────────────────────────────────────────────────────────────────────
-
 export async function PUT(request: Request) {
   const client = await getClient();
 
@@ -180,7 +201,7 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const {
       id,
-      turmaId,
+      turmasAlvo,
       titulo,
       tipoCriticidade,
       descricao,
@@ -196,44 +217,20 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Resolve turma ID if being changed (undefined = keep current, null = set to global)
-    let resolvedTurmaId: string | null | undefined = undefined;
-    if (turmaId !== undefined) {
-      if (turmaId === null || turmaId === '') {
-        // Explicitly setting to global
-        resolvedTurmaId = null;
-      } else {
-        resolvedTurmaId = await resolveSingleTurmaId(
-          turmaId,
-          (text, params) => client.query(text, params)
-        );
-
-        if (!resolvedTurmaId) {
-          client.release();
-          return NextResponse.json(
-            { error: `Turma não encontrada para identificador: ${turmaId}` },
-            { status: 404 }
-          );
-        }
-      }
-    }
-
+    await ensureTable((text, params) => client.query(text, params));
     await client.query('BEGIN');
 
     const result = await client.query(
       `UPDATE comunicados SET
-        turma_id = CASE WHEN $1::boolean THEN $2::uuid ELSE turma_id END,
-        titulo = COALESCE($3, titulo),
-        tipo_criticidade = COALESCE($4, tipo_criticidade),
-        descricao = COALESCE($5, descricao),
-        data_publicacao = COALESCE($6::date, data_publicacao),
-        status = COALESCE($7, status),
+        titulo = COALESCE($1, titulo),
+        tipo_criticidade = COALESCE($2, tipo_criticidade),
+        descricao = COALESCE($3, descricao),
+        data_publicacao = COALESCE($4::date, data_publicacao),
+        status = COALESCE($5, status),
         updated_at = NOW()
-      WHERE id = $8
+      WHERE id = $6
       RETURNING *`,
       [
-        resolvedTurmaId !== undefined,   // $1: should update turma_id?
-        resolvedTurmaId ?? null,         // $2: new turma_id value
         titulo ?? null,
         tipoCriticidade ?? null,
         descricao ?? null,
@@ -246,10 +243,27 @@ export async function PUT(request: Request) {
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
       client.release();
-      return NextResponse.json(
-        { error: 'Comunicado não encontrado.' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Comunicado não encontrado.' }, { status: 404 });
+    }
+
+    // Se turmasAlvo foi fornecido no PUT, atualizar relacionamentos
+    if (Array.isArray(turmasAlvo)) {
+      await client.query(`DELETE FROM comunicado_turmas WHERE comunicado_id = $1`, [id]);
+      
+      const isGlobal = turmasAlvo.includes('todas') || turmasAlvo.length === 0;
+      if (!isGlobal) {
+        for (const tId of turmasAlvo) {
+          if (tId && tId !== 'todas') {
+            const resId = await resolveSingleTurmaId(tId, (text, params) => client.query(text, params));
+            if (resId) {
+              await client.query(
+                `INSERT INTO comunicado_turmas (comunicado_id, turma_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [id, resId]
+              );
+            }
+          }
+        }
+      }
     }
 
     await client.query('COMMIT');
@@ -266,8 +280,6 @@ export async function PUT(request: Request) {
     client.release();
   }
 }
-
-// ─── DELETE ─────────────────────────────────────────────────────────────────────
 
 export async function DELETE(request: Request) {
   const client = await getClient();
@@ -294,10 +306,7 @@ export async function DELETE(request: Request) {
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
       client.release();
-      return NextResponse.json(
-        { error: 'Comunicado não encontrado.' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Comunicado não encontrado.' }, { status: 404 });
     }
 
     await client.query('COMMIT');

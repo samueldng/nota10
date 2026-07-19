@@ -138,8 +138,13 @@ export default function TrilhaPage() {
                     let linkHref = '#';
                     let btnText = 'Acessar';
                     if (atv.tipo === 'videoaula') linkHref = '/portal/videoaulas';
-                    if (atv.tipo === 'questoes') linkHref = '/portal/simulados';
-                    if (atv.tipo === 'revisao') linkHref = '/portal/revisao'; // Future Corujinha page
+                    if (atv.tipo === 'questoes' || atv.tipo === 'simulado') linkHref = '/portal/simulados';
+                    if (atv.tipo === 'revisao') linkHref = '/portal/revisao';
+                    if (atv.tipo === 'fixacao') linkHref = '/portal/fixacao';
+                    if (atv.tipo === 'presencial') {
+                      btnText = 'Detalhes';
+                      linkHref = '/portal/agenda';
+                    }
                     
                     return (
                       <div key={atv.id} className={`flex items-center justify-between p-3 rounded-xl border ${isDone ? 'border-[var(--color-verde-sucesso)]/30 bg-[var(--color-verde-light)]/20' : isLocked ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-[var(--color-cinza-borda)] hover:border-[var(--color-azul-autoridade)]/30 transition-colors'}`}>

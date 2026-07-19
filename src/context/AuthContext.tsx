@@ -17,6 +17,7 @@ export interface AuthUser {
   turmaId?: string; // Only for parents
   turma?: string; // Only for parents
   primeiroAcesso?: boolean; // Only for parents
+  telefone?: string; // Contact phone
 }
 
 interface AuthContextType {
