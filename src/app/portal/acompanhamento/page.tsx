@@ -108,10 +108,10 @@ export default function AcompanhamentoPage() {
             </div>
             <div className="bg-white p-6 rounded-2xl border space-y-3">
               <h4 className="font-bold text-gray-800 flex items-center gap-2">
-                <FileText className="text-blue-600" /> Parecer Pedagógico Humanizado ({reportData?.mesReferencia || 'Julho 2026'})
+                <FileText className="text-blue-600" /> Parecer Pedagógico Humanizado ({reportData?.mesReferencia || 'Este Mês'})
               </h4>
               <p className="text-sm text-gray-600 italic bg-gray-50 p-4 rounded-xl leading-relaxed">
-                {reportData?.parecerPedagogico || 'O aluno demonstra excepcional engajamento e solidez conceitual. Recomendamos intensificar a resolução de questões de nível avançado...'}
+                {reportData?.parecerPedagogico || 'Parecer pedagógico personalizado disponível para assinantes do Plano Elite...'}
               </p>
             </div>
           </div>
@@ -121,10 +121,10 @@ export default function AcompanhamentoPage() {
   }
 
   const ind = reportData?.indicadores || {
-    assiduidadeAulas: 94.5,
-    mediaSimulados: 86.2,
-    frequenciaPresencial: 100.0,
-    posicaoRanking: '8º lugar de 124 alunos'
+    assiduidadeAulas: 0,
+    mediaSimulados: 0,
+    frequenciaPresencial: 0,
+    posicaoRanking: 'N/A'
   };
 
   return (
@@ -214,7 +214,7 @@ export default function AcompanhamentoPage() {
         <div className="flex items-center justify-between border-b pb-3">
           <h3 className="text-lg font-bold text-[var(--color-azul-autoridade)] flex items-center gap-2">
             <FileText size={22} className="text-[var(--color-amarelo-conquista)]" />
-            Parecer Pedagógico Humanizado ({reportData?.mesReferencia || 'Julho 2026'})
+            Parecer Pedagógico Humanizado ({reportData?.mesReferencia || 'Este Mês'})
           </h3>
           <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-[var(--color-azul-autoridade)] rounded-full border border-blue-200">
             Gerado por IA Pedagógica
@@ -223,13 +223,13 @@ export default function AcompanhamentoPage() {
 
         <div className="bg-[var(--color-cinza-fundo)] p-5 rounded-2xl border border-[var(--color-cinza-borda)] shadow-inner">
           <p className="text-sm md:text-base text-[var(--color-cinza-escuro)] font-medium leading-relaxed italic">
-            &ldquo;{reportData?.parecerPedagogico || 'O aluno demonstra excelente assiduidade e bom rendimento nos simulados práticos. Continue com o foco e determinação para a prova!'}&rdquo;
+            &ldquo;{reportData?.parecerPedagogico || 'Parecer em processamento. Conclua atividades na Trilha de Estudos para gerar seu relatório personalizado.'}&rdquo;
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between text-xs text-[var(--color-cinza-texto)] pt-2">
           <span>Aluno(a): <strong className="text-[var(--color-azul-autoridade)]">{reportData?.nomeAluno || user?.name || 'Aluno'}</strong></span>
-          <span>Data de Emissão: <strong>{reportData?.dataGeracao ? new Date(reportData.dataGeracao).toLocaleDateString('pt-BR') : '19/07/2026'}</strong></span>
+          <span>Data de Emissão: <strong>{reportData?.dataGeracao ? new Date(reportData.dataGeracao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}</strong></span>
         </div>
       </div>
 
@@ -240,12 +240,15 @@ export default function AcompanhamentoPage() {
           Aproveitamento por Módulo
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: 'Videoaulas Assistidas', value: '17/20', pct: 85, color: '#8B5CF6' },
-            { label: 'Revisões Corujinha', value: '18/20', pct: 90, color: '#22C55E' },
-            { label: 'Fixação (Apostila)', value: '16/20', pct: 80, color: '#3B82F6' },
-            { label: 'Simulados Sábado', value: '14/20', pct: 70, color: '#F59E0B' },
-          ].map((a) => (
+          {(reportData?.aproveitamentoPorModulo && reportData.aproveitamentoPorModulo.length > 0
+            ? reportData.aproveitamentoPorModulo
+            : [
+                { label: 'Videoaulas', value: '0/0', pct: 0, color: '#8B5CF6' },
+                { label: 'Revisões', value: '0/0', pct: 0, color: '#22C55E' },
+                { label: 'Fixação', value: '0/0', pct: 0, color: '#3B82F6' },
+                { label: 'Simulados', value: '0/0', pct: 0, color: '#F59E0B' },
+              ]
+          ).map((a: any) => (
             <div key={a.label} className="text-center">
               <div className="relative w-20 h-20 mx-auto mb-2">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">

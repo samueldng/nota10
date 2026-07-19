@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import PlanLock from '@/components/portal/PlanLock';
 import {
   getNivel, getXPParaProximoNivel,
-  getConquistas, getProgressoDisciplina,
+  getConquistas,
   getRegistroSemanal, getIniciais, getAvatarColor,
 } from '@/lib/portalData';
 import type { CronogramaSemana } from '@/lib/mockData';
@@ -33,6 +33,9 @@ export default function PortalInicioPage() {
   const [dbLoaded, setDbLoaded] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(true);
   const [proximaAula, setProximaAula] = useState<{ data: string; diaSemana: string; horario: string; local: string; blocos: any[] } | null>(null);
+  const [trilhaFutura, setTrilhaFutura] = useState(false);
+  const [mensagemTrilha, setMensagemTrilha] = useState<string | null>(null);
+  const [dataInicioTurma, setDataInicioTurma] = useState<string | null>(null);
 
   // ── BUGFIX #1: Estado reativo de pendência para bloquear duplos cliques
   const [pendingSubIds, setPendingSubIds] = useState<Set<string>>(new Set());
@@ -86,6 +89,21 @@ export default function PortalInicioPage() {
       const trilhaRes = await fetch(`/api/trilha?alunoId=${alunoId}`);
       if (trilhaRes.ok) {
         const dataTrilha = await trilhaRes.json();
+
+        // Tratar turma no futuro — informar ao aluno quando as aulas iniciam
+        if (dataTrilha.futuro) {
+          setTrilhaFutura(true);
+          setMensagemTrilha(dataTrilha.mensagem || 'As aulas ainda não iniciaram.');
+          setDataInicioTurma(dataTrilha.dataInicio || null);
+          trilhaCarregada = true;
+        }
+
+        // Tratar mensagem informativa (sem cronograma cadastrado, sem matrícula, etc.)
+        if (dataTrilha.mensagem && !dataTrilha.futuro && (!dataTrilha.semanas || dataTrilha.semanas.length === 0)) {
+          setMensagemTrilha(dataTrilha.mensagem);
+          trilhaCarregada = true;
+        }
+
         if (dataTrilha.semanas && dataTrilha.semanas.length > 0) {
           trilhaCarregada = true;
           const semanas: any[] = dataTrilha.semanas;
@@ -169,7 +187,7 @@ export default function PortalInicioPage() {
             }));
             setProgressoDisciplina(barras);
           } else {
-            setProgressoDisciplina(getProgressoDisciplina(alunoId));
+            setProgressoDisciplina([]);
           }
         }
       }
@@ -218,7 +236,7 @@ export default function PortalInicioPage() {
       } catch (e) {
         console.warn('Erro ao carregar turmas fallback:', e);
       }
-      setProgressoDisciplina(getProgressoDisciplina(alunoId));
+      setProgressoDisciplina([]);
     }
 
     setStreak(0);
@@ -406,6 +424,41 @@ export default function PortalInicioPage() {
                   {b.bloco} — {b.disciplina}
                 </span>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Card de Turma Futura (quando aulas ainda não iniciaram) ── */}
+      {trilhaFutura && (
+        <div className="card animate-fade-in-up border-l-4 border-l-amber-400" style={{ background: 'linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%)' }}>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center border border-amber-300">
+              <CalendarDays size={28} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="font-bold text-amber-800 text-lg">Aguarde o Início das Aulas</p>
+              <p className="text-sm text-amber-700 mt-0.5">{mensagemTrilha}</p>
+              {dataInicioTurma && (
+                <p className="text-xs font-extrabold text-amber-900 mt-2 flex items-center gap-1">
+                  <CalendarDays size={12} /> Início: {new Date(dataInicioTurma + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mensagem informativa (sem cronograma, sem matrícula) ── */}
+      {!trilhaFutura && mensagemTrilha && !cronograma?.tarefas?.length && (
+        <div className="card animate-fade-in-up border-l-4 border-l-blue-400">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-200">
+              <BookOpen size={24} className="text-blue-500" />
+            </div>
+            <div>
+              <p className="font-bold text-blue-800">Trilha de Estudos</p>
+              <p className="text-sm text-blue-600 mt-0.5">{mensagemTrilha}</p>
             </div>
           </div>
         </div>

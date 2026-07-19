@@ -33,6 +33,10 @@ export default function TrilhaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null);
 
+  const [trilhaFutura, setTrilhaFutura] = useState(false);
+  const [mensagemTrilha, setMensagemTrilha] = useState<string | null>(null);
+  const [dataInicioTurma, setDataInicioTurma] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -41,6 +45,9 @@ export default function TrilhaPage() {
         const data = await res.json();
         setSemanas(data.semanas || []);
         setTurmaNome(data.turmaNome || '');
+        setTrilhaFutura(data.futuro || false);
+        setMensagemTrilha(data.mensagem || null);
+        setDataInicioTurma(data.dataInicio || null);
         
         // Auto-expand the first unlocked week that is not 100% completed
         const firstActive = data.semanas?.find((s: Semana) => s.liberada && s.atividades.some(a => a.status !== 'concluida'));
@@ -71,10 +78,59 @@ export default function TrilhaPage() {
     );
   }
 
+  // Turma no futuro — exibir aviso com data de início
+  if (trilhaFutura || (semanas.length === 0 && mensagemTrilha)) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="card animate-fade-in-up" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)' }}>
+          <p className="text-white/60 text-xs font-bold uppercase tracking-wider mb-1">Trilha Semanal • {turmaNome}</p>
+          <h2 className="text-2xl font-black text-white">Sua Jornada de Estudos</h2>
+        </div>
+
+        <div className="card animate-fade-in-up border-l-4 border-l-amber-400" style={{ background: 'linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%)' }}>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center border border-amber-300">
+              <Lock size={28} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="font-bold text-amber-800 text-lg">
+                {trilhaFutura ? 'Aguarde o Início das Aulas' : 'Trilha em Preparação'}
+              </p>
+              <p className="text-sm text-amber-700 mt-0.5">{mensagemTrilha}</p>
+              {dataInicioTurma && (
+                <p className="text-xs font-extrabold text-amber-900 mt-2">
+                  📅 Início: {new Date(dataInicioTurma + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Se turma é futura mas já tem semanas cadastradas, mostrar preview travado */}
+        {semanas.length > 0 && (
+          <div className="space-y-4 opacity-60">
+            {semanas.map((semana, index) => (
+              <div key={semana.semana_numero} className="card p-4 flex items-center justify-between cursor-not-allowed bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <Lock size={18} className="text-gray-400" />
+                  <div>
+                    <p className="font-bold text-gray-500 text-sm">Semana {semana.semana_numero}</p>
+                    <p className="text-xs text-gray-400">{semana.datas_semana}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">🔒 Travada</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (semanas.length === 0) {
     return (
       <div className="text-center p-8 text-[var(--color-cinza-texto)] bg-[var(--color-cinza-fundo)] rounded-xl">
-        Nenhuma trilha encontrada para sua turma.
+        Nenhuma trilha encontrada para sua turma. Contacte a coordenação.
       </div>
     );
   }

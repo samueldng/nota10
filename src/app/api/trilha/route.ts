@@ -15,71 +15,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'alunoId é obrigatório' }, { status: 400 });
   }
 
-  const hoje = new Date();
-  hoje.setHours(0,0,0,0);
-
-  // Fallback estruturado que obedece estritamente à ordem pedagógica exigida e ao Time-gating de servidor
-  const mockSemanas = [
-    {
-      semana_numero: 1,
-      datas_semana: '15 Jul - 21 Jul',
-      liberada: true,
-      atividades: [
-        { id: 'mock-t1', ordem: 1, dia_semana: 'Segunda', tipo: 'presencial', disciplina: 'Geral', bloco: 'Bloco 1', titulo: 'Aula Presencial - Alinhamento & Disciplina', xp_total: 15, status: 'concluida', xp_ganho: 15 },
-        { id: 'mock-t2', ordem: 2, dia_semana: 'Terça', tipo: 'revisao', disciplina: 'Português', bloco: 'Bloco 1', titulo: 'Revisão Corujinha - Sintaxe Inicial', xp_total: 30, status: 'em_andamento', xp_ganho: 0 },
-        { id: 'mock-t3', ordem: 3, dia_semana: 'Quarta', tipo: 'videoaula', disciplina: 'Matemática', bloco: 'Bloco 1', titulo: 'Videoaula - Geometria & Teoremas', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t4', ordem: 4, dia_semana: 'Quinta', tipo: 'fixacao', disciplina: 'Português', bloco: 'Bloco 1', titulo: 'Apostila - Questões de Fixação Módulo 1', xp_total: 25, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t5', ordem: 5, dia_semana: 'Sábado', tipo: 'simulado', disciplina: 'Geral', bloco: 'Bloco 1', titulo: 'Conferência Semanal & Simulado', xp_total: 50, status: 'bloqueada', xp_ganho: 0 }
-      ]
-    },
-    {
-      semana_numero: 2,
-      datas_semana: '22 Jul - 28 Jul',
-      liberada: false, // Time-gating no servidor: travada (unlocked: false)
-      atividades: [
-        { id: 'mock-t6', ordem: 1, dia_semana: 'Segunda', tipo: 'presencial', disciplina: 'Geral', bloco: 'Bloco 2', titulo: 'Aula Presencial - Avanço de Conteúdo', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t7', ordem: 2, dia_semana: 'Terça', tipo: 'revisao', disciplina: 'Matemática', bloco: 'Bloco 2', titulo: 'Revisão Corujinha - Álgebra Básica', xp_total: 30, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t8', ordem: 3, dia_semana: 'Quarta', tipo: 'videoaula', disciplina: 'Português', bloco: 'Bloco 2', titulo: 'Videoaula - Concordância e Regência', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t9', ordem: 4, dia_semana: 'Quinta', tipo: 'fixacao', disciplina: 'Matemática', bloco: 'Bloco 2', titulo: 'Apostila - Questões de Fixação Módulo 2', xp_total: 25, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t10', ordem: 5, dia_semana: 'Sábado', tipo: 'simulado', disciplina: 'Geral', bloco: 'Bloco 2', titulo: 'Conferência Semanal & Simulado II', xp_total: 50, status: 'bloqueada', xp_ganho: 0 }
-      ]
-    },
-    {
-      semana_numero: 3,
-      datas_semana: '29 Jul - 04 Ago',
-      liberada: false,
-      atividades: [
-        { id: 'mock-t11', ordem: 1, dia_semana: 'Segunda', tipo: 'presencial', disciplina: 'Geral', bloco: 'Bloco 3', titulo: 'Aula Presencial - Aprofundamento', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t12', ordem: 2, dia_semana: 'Terça', tipo: 'revisao', disciplina: 'Português', bloco: 'Bloco 3', titulo: 'Revisão Corujinha - Pontuação & Crase', xp_total: 30, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t13', ordem: 3, dia_semana: 'Quarta', tipo: 'videoaula', disciplina: 'Matemática', bloco: 'Bloco 3', titulo: 'Videoaula - Funções & Equações', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t14', ordem: 4, dia_semana: 'Quinta', tipo: 'fixacao', disciplina: 'Português', bloco: 'Bloco 3', titulo: 'Apostila - Questões de Fixação Módulo 3', xp_total: 25, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t15', ordem: 5, dia_semana: 'Sábado', tipo: 'simulado', disciplina: 'Geral', bloco: 'Bloco 3', titulo: 'Conferência Semanal & Simulado III', xp_total: 50, status: 'bloqueada', xp_ganho: 0 }
-      ]
-    },
-    {
-      semana_numero: 4,
-      datas_semana: '05 Ago - 11 Ago',
-      liberada: false,
-      atividades: [
-        { id: 'mock-t16', ordem: 1, dia_semana: 'Segunda', tipo: 'presencial', disciplina: 'Geral', bloco: 'Bloco 4', titulo: 'Aula Presencial - Revisão Final', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t17', ordem: 2, dia_semana: 'Terça', tipo: 'revisao', disciplina: 'Geral', bloco: 'Bloco 4', titulo: 'Revisão Corujinha - Mega Maratona', xp_total: 30, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t18', ordem: 3, dia_semana: 'Quarta', tipo: 'videoaula', disciplina: 'Geral', bloco: 'Bloco 4', titulo: 'Videoaula - Estratégias de Prova', xp_total: 15, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t19', ordem: 4, dia_semana: 'Quinta', tipo: 'fixacao', disciplina: 'Geral', bloco: 'Bloco 4', titulo: 'Apostila - Questões de Fixação Final', xp_total: 25, status: 'bloqueada', xp_ganho: 0 },
-        { id: 'mock-t20', ordem: 5, dia_semana: 'Sábado', tipo: 'simulado', disciplina: 'Geral', bloco: 'Bloco 4', titulo: 'Simulado Final e Formatura', xp_total: 100, status: 'bloqueada', xp_ganho: 0 }
-      ]
-    }
-  ];
-
+  // Se alunoId não é UUID válido, retornar resposta vazia estruturada — ZERO mock data
   if (!isUuid(String(alunoId))) {
     return NextResponse.json({
-      semanas: mockSemanas,
-      turmaNome: 'Turma Pré-CMT A (Modo Teste)'
+      semanas: [],
+      turmaNome: 'Modo Demonstração',
+      futuro: false,
+      dataInicio: null,
+      mensagem: 'Faça login com uma conta válida para visualizar sua Trilha de Estudos.'
     });
   }
 
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
   try {
+    // 1. Buscar turma do aluno com data_inicio
     const alunoRes = await query(
-      `SELECT m.turma_id, t.nome as turma_nome
+      `SELECT m.turma_id, t.nome as turma_nome, t.data_inicio
        FROM matriculas m
        JOIN turmas t ON m.turma_id = t.id
        WHERE m.aluno_id = $1 LIMIT 1`,
@@ -87,16 +40,28 @@ export async function GET(request: Request) {
     );
 
     if (alunoRes.rows.length === 0) {
-      return NextResponse.json({ semanas: mockSemanas, turmaNome: 'Turma Geral' });
+      return NextResponse.json({
+        semanas: [],
+        turmaNome: 'Sem Matrícula',
+        futuro: false,
+        dataInicio: null,
+        mensagem: 'Nenhuma matrícula ativa encontrada. Contacte a secretaria.'
+      });
     }
 
     const turmaId = alunoRes.rows[0].turma_id;
+    const turmaNome = alunoRes.rows[0].turma_nome;
+    const dataInicioTurma = alunoRes.rows[0].data_inicio
+      ? new Date(alunoRes.rows[0].data_inicio)
+      : null;
 
+    // 2. Buscar TODAS as atividades do cronograma da turma (com progresso do aluno via LEFT JOIN)
     const trilhaRes = await query(
       `SELECT 
-         c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina, c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana,
-         COALESCE(p.status, 'bloqueada') as status,
-         p.xp_ganho
+         c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
+         c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
+         COALESCE(p.status, 'pendente') as progresso_status,
+         COALESCE(p.xp_ganho, 0) as xp_ganho
        FROM cronograma_atividades c
        LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id = $1
        WHERE c.turma_id = $2
@@ -104,34 +69,91 @@ export async function GET(request: Request) {
       [alunoId, turmaId]
     );
 
+    // 3. Se não há atividades cadastradas no cronograma, informar ao front — ZERO mock
     if (trilhaRes.rows.length === 0) {
-      return NextResponse.json({ semanas: mockSemanas, turmaNome: alunoRes.rows[0].turma_nome });
+      // Verificar se a turma inicia no futuro
+      if (dataInicioTurma) {
+        const dtInicio = new Date(dataInicioTurma);
+        dtInicio.setHours(0, 0, 0, 0);
+        if (hoje < dtInicio) {
+          return NextResponse.json({
+            semanas: [],
+            turmaNome,
+            futuro: true,
+            dataInicio: dtInicio.toISOString().split('T')[0],
+            mensagem: `As aulas da turma ${turmaNome} iniciam em ${dtInicio.toLocaleDateString('pt-BR')}.`
+          });
+        }
+      }
+
+      return NextResponse.json({
+        semanas: [],
+        turmaNome,
+        futuro: false,
+        dataInicio: null,
+        mensagem: 'O cronograma de atividades ainda não foi cadastrado para esta turma. Aguarde o lançamento pela coordenação.'
+      });
     }
 
-    const semanasMap = new Map();
+    // 4. Determinar se turma ainda não iniciou (todas as data_liberacao estão no futuro)
+    let turmaFutura = false;
+    if (dataInicioTurma) {
+      const dtInicio = new Date(dataInicioTurma);
+      dtInicio.setHours(0, 0, 0, 0);
+      if (hoje < dtInicio) {
+        turmaFutura = true;
+      }
+    }
+
+    // 5. Montar resposta estruturada por semana — SEM mock data
+    const semanasMap = new Map<number, {
+      semana_numero: number;
+      datas_semana: string;
+      liberada: boolean;
+      atividades: any[];
+    }>();
 
     for (const row of trilhaRes.rows) {
       if (!semanasMap.has(row.semana_numero)) {
         let liberada = false;
-        
-        if (row.data_liberacao) {
-          const dtLiberacao = new Date(row.data_liberacao);
-          dtLiberacao.setHours(0,0,0,0);
-          if (hoje >= dtLiberacao) liberada = true;
-        } else {
-          if (row.semana_numero === 1) liberada = true;
+
+        if (!turmaFutura) {
+          if (row.data_liberacao) {
+            const dtLiberacao = new Date(row.data_liberacao);
+            dtLiberacao.setHours(0, 0, 0, 0);
+            if (hoje >= dtLiberacao) liberada = true;
+          } else {
+            // Sem data_liberacao explícita: semana 1 sempre liberada se turma já iniciou
+            if (row.semana_numero === 1) liberada = true;
+          }
         }
+        // Se turmaFutura === true, todas as semanas ficam liberada = false
 
         semanasMap.set(row.semana_numero, {
           semana_numero: row.semana_numero,
           datas_semana: row.datas_semana || `Semana ${row.semana_numero}`,
-          liberada: liberada,
+          liberada,
           atividades: []
         });
       }
 
-      const semana = semanasMap.get(row.semana_numero);
-      const statusFinal = semana.liberada ? row.status : 'bloqueada';
+      const semana = semanasMap.get(row.semana_numero)!;
+
+      // Status final: se a semana não está liberada, forçar 'bloqueada'
+      let statusFinal: string;
+      if (!semana.liberada) {
+        statusFinal = 'bloqueada';
+      } else {
+        // Mapear status do progresso para status de exibição
+        const ps = row.progresso_status;
+        if (ps === 'concluida' || ps === 'concluido') {
+          statusFinal = 'concluida';
+        } else if (ps === 'em_andamento') {
+          statusFinal = 'em_andamento';
+        } else {
+          statusFinal = 'pendente'; // disponível para fazer
+        }
+      }
 
       semana.atividades.push({
         id: row.id,
@@ -147,12 +169,25 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ 
+    // 6. Calcular a menor data_liberacao para informar ao front quando a turma começa
+    let dataInicioFormatada: string | null = null;
+    if (turmaFutura && dataInicioTurma) {
+      const dt = new Date(dataInicioTurma);
+      dt.setHours(0, 0, 0, 0);
+      dataInicioFormatada = dt.toISOString().split('T')[0];
+    }
+
+    return NextResponse.json({
       semanas: Array.from(semanasMap.values()),
-      turmaNome: alunoRes.rows[0].turma_nome
+      turmaNome,
+      futuro: turmaFutura,
+      dataInicio: dataInicioFormatada,
+      mensagem: turmaFutura
+        ? `As aulas da turma ${turmaNome} iniciam em ${new Date(dataInicioTurma!).toLocaleDateString('pt-BR')}. O cronograma já está preparado!`
+        : null
     });
   } catch (error: any) {
-    console.error('Erro ao buscar trilha:', error);
+    console.error('[Trilha API] Erro ao buscar trilha:', error);
     return NextResponse.json({ error: 'Erro interno na trilha' }, { status: 500 });
   }
 }
