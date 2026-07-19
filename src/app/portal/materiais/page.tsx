@@ -8,6 +8,7 @@ export default function MateriaisPage() {
   const { user } = useAuth();
   const alunoId = user?.alunoId || 'a1';
   const turmaId = user?.turmaId;
+  const turmaNome = user?.turma || '';
   const [materiais, setMateriais] = useState<any[]>([]);
   const [atividadesConcluidas, setAtividadesConcluidas] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -170,7 +171,10 @@ export default function MateriaisPage() {
                         <>
                           <span>•</span>
                           <span className="px-1.5 py-0.5 rounded bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] text-[8px] font-black uppercase tracking-wider">
-                            {mat.turmaNome}
+                            {(() => {
+                              const turmas = mat.turmaNome.includes(',') ? mat.turmaNome.split(',').map((t: string) => t.trim()) : [mat.turmaNome];
+                              return turmas.find((t: string) => t === turmaNome) || turmas[0];
+                            })()}
                           </span>
                         </>
                       )}

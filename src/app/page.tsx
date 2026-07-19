@@ -23,6 +23,16 @@ import {
 import Link from 'next/link';
 import { getFraseMotivacional } from '@/lib/mockData';
 
+function formatDateSafe(dateValue: unknown): string {
+  if (!dateValue) return '--/--/----';
+  const parsed = new Date(String(dateValue));
+  if (isNaN(parsed.getTime())) {
+    console.warn('[Admin] Data inválida detectada:', dateValue);
+    return '--/--/----';
+  }
+  return parsed.toLocaleDateString('pt-BR');
+}
+
 const quickActions = [
   {
     label: 'Lançar Registro',
@@ -314,7 +324,7 @@ export default function HomePage() {
                 {registros.map((record) => (
                   <tr key={record.id}>
                     <td className="font-medium">{record.id}</td>
-                    <td className="text-sm whitespace-nowrap">{new Date(record.data).toLocaleDateString('pt-BR')}</td>
+                    <td className="text-sm whitespace-nowrap">{formatDateSafe(record.data)}</td>
                     <td>
                       <span className={`badge text-xs ${
                         record.acompanhamento === 'pre_cmt_5' ? 'badge-info' :

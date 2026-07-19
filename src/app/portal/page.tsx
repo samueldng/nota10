@@ -132,8 +132,8 @@ export default function PortalInicioPage() {
 
           setCronograma({
             turmaId: turmaId,
-            semana: `Semana ${semanaAtual?.semana_numero || 1}`,
-            periodo: semanaAtual?.datas_semana || 'Esta Semana',
+            semana: `Semana ${semanaAtual?.semana || 1}`,
+            periodo: semanaAtual?.periodo || 'Esta Semana',
             tarefas: mappedTasks
           });
 
@@ -142,7 +142,7 @@ export default function PortalInicioPage() {
           let proximaSemanaEncontrada: any = null;
 
           for (const s of semanas) {
-            if (s.semana_numero < (semanaAtual?.semana_numero || 1)) continue;
+            if (s.semana < (semanaAtual?.semana || 1)) continue;
             for (const a of (s.atividades || [])) {
               if (!concluidas.includes(a.id) && a.status !== 'concluida') {
                 if (a.tipo === 'presencial' || a.tipo === 'aula_presencial' || a.tipo === 'revisao') {
@@ -156,7 +156,7 @@ export default function PortalInicioPage() {
           }
 
           if (proximaEncontrada && proximaSemanaEncontrada) {
-            const dataFormatada = proximaSemanaEncontrada.datas_semana?.split(' - ')[0] || '--';
+            const dataFormatada = proximaSemanaEncontrada.periodo?.split(' - ')[0] || '--';
             setProximaAula({
               data: dataFormatada,
               diaSemana: proximaEncontrada.dia_semana || 'Segunda',

@@ -52,9 +52,9 @@ export default function TrilhaPage() {
         // Auto-expand the first unlocked week that is not 100% completed
         const firstActive = data.semanas?.find((s: Semana) => s.liberada && s.atividades.some(a => a.status !== 'concluida'));
         if (firstActive) {
-          setExpandedWeek(firstActive.semana_numero);
+          setExpandedWeek(firstActive.semana);
         } else if (data.semanas?.length > 0) {
-          setExpandedWeek(data.semanas[0].semana_numero);
+          setExpandedWeek(data.semanas[0].semana);
         }
       }
     } catch (e) {

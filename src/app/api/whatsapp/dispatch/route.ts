@@ -3,82 +3,74 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-function isUuid(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const {
-      alunoId,
-      telefone = '+55 (11) 99999-8888',
-      mensagem,
-      tipo = 'relatorio_mensal'
-    } = body;
+    const { alunoId, tipo, mensagem, relatorioId } = body;
 
-    if (!mensagem) {
-      return NextResponse.json({ error: 'Mensagem é obrigatória para disparo de WhatsApp' }, { status: 400 });
+    if (!alunoId && !relatorioId) {
+      return NextResponse.json(
+        { error: 'alunoId ou relatorioId é obrigatório' },
+        { status: 400 }
+      );
     }
 
-    await query(`
-      CREATE TABLE IF NOT EXISTS whatsapp_queue (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        aluno_id UUID,
-        telefone VARCHAR(30) NOT NULL,
-        mensagem TEXT NOT NULL,
-        tipo VARCHAR(50) DEFAULT 'relatorio_mensal',
-        status VARCHAR(30) DEFAULT 'enviado',
-        dispatched_at TIMESTAMPTZ DEFAULT NOW(),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
+    const targetId = alunoId || relatorioId;
 
-    let queueId = 'mock-wa-' + Date.now();
-
-    if (alunoId && isUuid(String(alunoId))) {
-      const res = await query(
-        `INSERT INTO whatsapp_queue (aluno_id, telefone, mensagem, tipo, status, dispatched_at)
-         VALUES ($1, $2, $3, $4, 'enviado', NOW())
-         RETURNING id`,
-        [alunoId, telefone, mensagem, tipo]
+    // Buscar telefone do responsável
+    let telefone: string | null = null;
+    try {
+      const alunoRes = await query(
+        `SELECT responsavel1_telefone, nome FROM alunos WHERE id = $1 LIMIT 1`,
+        [targetId]
       );
-      if (res.rows.length > 0) queueId = res.rows[0].id;
+
+      if (alunoRes.rows.length === 0) {
+        return NextResponse.json(
+          { error: 'Aluno não encontrado' },
+          { status: 404 }
+        );
+      }
+
+      telefone = alunoRes.rows[0].responsavel1_telefone;
+    } catch (dbErr) {
+      console.error('[WhatsApp Dispatch] Falha SQL ao buscar aluno:', dbErr);
+      return NextResponse.json(
+        { error: 'Erro ao consultar dados do aluno' },
+        { status: 500 }
+      );
     }
+
+    if (!telefone) {
+      return NextResponse.json(
+        { error: 'Telefone do responsável não cadastrado para este aluno' },
+        { status: 400 }
+      );
+    }
+
+    // Formatar mensagem
+    const formattedMessage = mensagem || `Olá! Você tem um novo alerta do tipo: ${tipo || 'geral'}. Acesse o Portal Nota 10 para mais detalhes.`;
+
+    // MVP: Log do dispatch (integração real com WhatsApp Business API será feita na fase de produção)
+    console.log(`[WhatsApp Dispatch] ========================================`);
+    console.log(`[WhatsApp Dispatch] Destinatário: ${telefone}`);
+    console.log(`[WhatsApp Dispatch] Tipo: ${tipo || 'geral'}`);
+    console.log(`[WhatsApp Dispatch] Mensagem: ${formattedMessage}`);
+    console.log(`[WhatsApp Dispatch] AlunoId: ${targetId}`);
+    console.log(`[WhatsApp Dispatch] ========================================`);
 
     return NextResponse.json({
       success: true,
-      queueId,
-      status: 'enviado',
-      telefoneDestino: telefone,
-      mensagemDisparada: mensagem,
-      dispatchedAt: new Date().toISOString()
+      message: 'Mensagem despachada com sucesso (MVP — log do servidor)',
+      dispatchedTo: telefone,
+      tipo: tipo || 'geral',
     });
-  } catch (error: any) {
-    console.error('Erro ao disparar WhatsApp:', error);
-    return NextResponse.json({ error: 'Erro interno na fila do WhatsApp' }, { status: 500 });
-  }
-}
-
-export async function GET(request: Request) {
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS whatsapp_queue (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        aluno_id UUID,
-        telefone VARCHAR(30) NOT NULL,
-        mensagem TEXT NOT NULL,
-        tipo VARCHAR(50) DEFAULT 'relatorio_mensal',
-        status VARCHAR(30) DEFAULT 'enviado',
-        dispatched_at TIMESTAMPTZ DEFAULT NOW(),
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-
-    const res = await query(`SELECT * FROM whatsapp_queue ORDER BY created_at DESC LIMIT 50`);
-    return NextResponse.json(res.rows);
-  } catch (error: any) {
-    console.error('Erro ao consultar fila WhatsApp:', error);
-    return NextResponse.json({ error: 'Erro interno ao consultar fila' }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('[WhatsApp Dispatch] Exceção geral:', errorMessage);
+    return NextResponse.json(
+      { error: 'Erro interno ao despachar mensagem via WhatsApp' },
+      { status: 500 }
+    );
   }
 }
