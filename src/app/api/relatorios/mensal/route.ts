@@ -55,7 +55,17 @@ export async function GET(request: Request) {
     }
 
     // Plano acompanhamento ou elite → liberar dados
-    // Retornar relatório mensal (dados mock estruturados por enquanto)
+    // Buscar progresso real para montar estatísticas básicas
+    const progRes = await query(
+      `SELECT 
+         COUNT(*) filter (where tipo_acao = 'videoaula') as qtd_videos,
+         COUNT(*) filter (where tipo_acao = 'questoes') as qtd_questoes
+       FROM aluno_progresso 
+       WHERE aluno_id = $1`,
+      [alunoId]
+    );
+    const prog = progRes.rows[0] || { qtd_videos: 0, qtd_questoes: 0 };
+
     return NextResponse.json({
       blocked: false,
       aluno: {
@@ -64,54 +74,28 @@ export async function GET(request: Request) {
         turma: aluno.turma_nome,
         plano,
       },
-      periodo: 'Junho 2026',
-      geradoEm: '30/06/2026',
+      periodo: new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' }),
+      geradoEm: new Date().toLocaleDateString('pt-BR'),
       resumo: {
-        presencas: 36,
-        presencaPercent: 90,
-        faltas: 4,
-        faltasPercent: 10,
-        atrasos: 2,
-        atrasosPercent: 5,
-        videoaula: 85,
-        fixacao: 82,
+        presencas: 0, // Mock till integrated with presence module
+        presencaPercent: 100,
+        faltas: 0,
+        faltasPercent: 0,
+        atrasos: 0,
+        atrasosPercent: 0,
+        videoaula: parseInt(prog.qtd_videos, 10),
+        fixacao: parseInt(prog.qtd_questoes, 10),
       },
       destaques: [
-        'Evolução contínua na atenção em sala',
-        'Alta taxa de completude de atividades',
-        'Participação acima da média da turma',
+        'Relatório real ativado.',
+        `Vídeos concluídos: ${prog.qtd_videos}`,
+        `Atividades de fixação: ${prog.qtd_questoes}`,
       ],
-      pontosAtencao: [
-        'Bloco 2 de Matemática precisa de reforço',
-        '2 faltas no mês — manter regularidade',
-      ],
+      pontosAtencao: [],
       parecer: {
-        pontosFortes: {
-          portugues: [
-            'Demonstra grande dedicação nas aulas de Português.',
-            'Apresenta excelente compreensão dos conteúdos do Bloco 2.',
-            'Participa ativamente das discussões sobre textos.',
-          ],
-          matematica: [
-            'Atenção plena em sala de aula (escala de atento constante).',
-            'Entrega as tarefas pontualmente (100% no mês).',
-            'Tem facilidade com lógica e cálculo no Bloco 3.',
-          ],
-        },
-        pontosAMelhorar: {
-          portugues: [
-            'Precisa melhorar a constância na resolução da seção "Praticar".',
-            'Demonstrou dificuldade na fixação do Bloco 1 (Interpretação Avançada).',
-          ],
-          matematica: [
-            'Ocasionalmente assiste apenas metade da videoaula antes da classe.',
-            'Evita participar oralmente quando o problema é complexo (Bloco 4).',
-          ],
-        },
-        orientacao: [
-          'Estabelecer horário fixo em casa para assistir à videoaula completa antes de resolver os blocos matemáticos.',
-          'Incentivar a leitura em voz alta para ganhar confiança na participação oral.',
-        ],
+        pontosFortes: { portugues: [], matematica: [] },
+        pontosAMelhorar: { portugues: [], matematica: [] },
+        orientacao: []
       },
     });
   } catch (err: any) {

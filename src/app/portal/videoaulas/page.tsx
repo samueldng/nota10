@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import type { Videoaula } from '@/lib/portalData';
 import { PlayCircle, CheckCircle2, Lock, Zap, Clock, X, Award, Flame, Play, Loader2 } from 'lucide-react';
+import CustomVideoPlayer from '@/components/portal/CustomVideoPlayer';
 
 export default function VideoaulasPage() {
   const { user } = useAuth();
@@ -301,26 +302,32 @@ export default function VideoaulasPage() {
             </div>
 
             {/* Video container */}
-            <div className="bg-black aspect-video flex items-center justify-center">
+            <div className="bg-[var(--color-cinza-fundo)]">
               {selectedVideo.videoSource === 'youtube' && selectedVideo.videoUrl ? (
-                <iframe
-                  className="w-full h-full"
-                  src={getYoutubeEmbedUrl(selectedVideo.videoUrl)}
-                  title={selectedVideo.titulo}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="text-center p-10 space-y-4">
-                  <PlayCircle size={48} className="text-white/60 mx-auto animate-pulse" />
-                  <div>
-                    <p className="text-sm font-bold text-white">Simulador de Vídeo Local</p>
-                    <p className="text-xs text-white/50">Reproduzindo: {selectedVideo.videoUrl || 'aula_local.mp4'}</p>
-                  </div>
-                  <div className="w-16 h-1 bg-white/20 mx-auto rounded-full overflow-hidden">
-                    <div className="h-full bg-[var(--color-amarelo-conquista)] animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }} />
-                  </div>
+                <div className="bg-black aspect-video flex items-center justify-center">
+                  <iframe
+                    className="w-full h-full"
+                    src={getYoutubeEmbedUrl(selectedVideo.videoUrl)}
+                    title={selectedVideo.titulo}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
                 </div>
+              ) : (
+                <CustomVideoPlayer 
+                  conteudoId={selectedVideo.id}
+                  videoUrl={selectedVideo.videoUrl || 'local'}
+                  xpVal={selectedVideo.xp || 15}
+                  onComplete={(xpGanho, leveledUp, novoNivel) => {
+                    setGainedXp(xpGanho);
+                    setIsLvlUp(leveledUp);
+                    setNewLevel(novoNivel);
+                    setShowCelebration(true);
+                    setToast(`+${xpGanho} XP!`);
+                    window.dispatchEvent(new Event('nota10_progress_updated'));
+                    loadData();
+                  }}
+                />
               )}
             </div>
 

@@ -109,7 +109,16 @@ export async function POST(request: Request) {
       releaseOnce();
       return NextResponse.json({ error: 'xpGanho é obrigatório.' }, { status: 400 });
     }
-    const xp = Number(xpGanho);
+    
+    let xp = Number(xpGanho);
+    const { desempenho } = body;
+    
+    // XP Dinâmico baseado em desempenho (percentual de 0 a 100)
+    if (desempenho !== undefined && typeof desempenho === 'number') {
+      const multiplicador = Math.max(0.10, desempenho / 100);
+      xp = Math.round(xp * multiplicador);
+    }
+    
     if (!Number.isFinite(xp) || xp < 0) {
       releaseOnce();
       return NextResponse.json({ error: 'xpGanho deve ser ≥ 0.' }, { status: 400 });
