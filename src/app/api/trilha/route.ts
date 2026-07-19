@@ -3,8 +3,25 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const MOCK_TO_NAME_MAP: Record<string, string> = {
+  'T001': '5A Manhã',
+  'T002': '5B Tarde',
+  'T003': '5C Manhã',
+  'T004': '4A Manhã',
+  'T005': '4B Tarde',
+  'T006': 'Reforço Geral',
+  'T007': '5A Manhã 2025',
+};
+
+const NAME_TO_MOCK_MAP: Record<string, string> = Object.entries(MOCK_TO_NAME_MAP).reduce((acc, [k, v]) => {
+  acc[v.toLowerCase().trim()] = k;
+  return acc;
+}, {} as Record<string, string>);
+
 function isUuid(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  return UUID_REGEX.test(str);
 }
 
 export async function GET(request: Request) {
@@ -16,12 +33,12 @@ export async function GET(request: Request) {
   }
 
   const alunoIdInput = String(rawAlunoId).trim();
-  console.log(`[Trilha API] Requisição recebida para alunoIdInput: "${alunoIdInput}"`);
+  console.log(`[Trilha API] Requisição GET recebida com searchParam alunoId: "${alunoIdInput}"`);
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  // 1. Identificar o aluno real (seja por UUID, ID numérico ou número de matrícula)
+  // 1. Identificar o aluno real diretamente no banco (por UUID, ID numérico ou número de matrícula)
   let alunoIdReal = alunoIdInput;
   try {
     const checkAluno = await query(
@@ -30,9 +47,9 @@ export async function GET(request: Request) {
     );
     if (checkAluno.rows.length > 0) {
       alunoIdReal = checkAluno.rows[0].id;
-      console.log(`[Trilha API] Aluno localizado no BD: ${checkAluno.rows[0].nome} (ID real: ${alunoIdReal})`);
+      console.log(`[Trilha API] Aluno localizado na tabela alunos: ${checkAluno.rows[0].nome} (id real: ${alunoIdReal}, numero: ${checkAluno.rows[0].numero})`);
     } else if (!isUuid(alunoIdInput)) {
-      console.log(`[Trilha API] Aluno "${alunoIdInput}" não é UUID e não foi encontrado no BD. Retornando Modo Demonstração.`);
+      console.log(`[Trilha API] Aluno "${alunoIdInput}" não encontrado em alunos e não é UUID. Retornando Modo Demonstração.`);
       return NextResponse.json({
         turmaNome: 'Modo Demonstração',
         futuro: false,
@@ -40,65 +57,57 @@ export async function GET(request: Request) {
       });
     }
   } catch (err: any) {
-    console.error('[Trilha API] Falha SQL ao verificar existência de aluno:', err.message);
-    // Não abafa o erro SQL com catch silencioso retornando vazio; repassa para estourar o log claro no console da VPS
+    console.error('[Trilha API] Falha SQL ao verificar existência na tabela alunos:', err.message);
     throw err;
   }
 
   let turma = null;
   let fallbackUsado = false;
 
-  // 2. OBRIGATÓRIO: Buscar a turma ativa na tabela matriculas usando um JOIN explícito e casting de texto
+  // 2. EXTRAÇÃO DIRETA (Sem confiar na sessão): Buscar na tabela matriculas com base no aluno_id
   try {
     const alunoRes = await query(
       `SELECT m.turma_id::text as turma_id, t.nome as turma_nome, t.data_inicio
        FROM matriculas m
-       JOIN turmas t ON m.turma_id::text = t.id::text
-       WHERE m.aluno_id::text = $1 AND (m.status ILIKE 'ativ%' OR m.status IS NULL OR m.status = '')
-       ORDER BY m.created_at DESC
+       LEFT JOIN turmas t ON m.turma_id::text = t.id::text OR m.turma_id::text = t.nome
+       WHERE (m.aluno_id::text = $1 OR m.aluno_id::text IN (SELECT id::text FROM alunos WHERE numero::text = $1))
+       ORDER BY 
+         CASE WHEN m.status ILIKE 'ativ%' THEN 0 ELSE 1 END,
+         m.created_at DESC
        LIMIT 1`,
       [alunoIdReal]
     );
     if (alunoRes.rows.length > 0) {
       turma = alunoRes.rows[0];
-      console.log(`[Trilha API] Turma resolvida via matriculas: ${turma.turma_nome} (${turma.turma_id})`);
+      console.log(`[Trilha API] Turma resolvida via tabela matriculas (aluno ${alunoIdReal}): ${turma.turma_nome || turma.turma_id} (${turma.turma_id})`);
     }
   } catch (dbErr: any) {
-    console.error('[Trilha API] Falha SQL ao buscar matrícula:', dbErr.message);
+    console.error('[Trilha API] Falha SQL ao buscar na tabela matriculas:', dbErr.message);
     throw dbErr;
   }
 
-  // 3. FALLBACK DE SEGURANÇA: Buscar na tabela alunos (e cruzar por id ou nome com turmas)
+  // 3. FALLBACK DE SEGURANÇA: Buscar direto por turmas se não houver matrícula formal
   if (!turma) {
     try {
-      const alunoDiretoRes = await query(
-        `SELECT id FROM alunos WHERE id::text = $1 LIMIT 1`,
+      const matQualquer = await query(
+        `SELECT m.turma_id::text as turma_id, t.nome as turma_nome, t.data_inicio
+         FROM matriculas m
+         LEFT JOIN turmas t ON m.turma_id::text = t.id::text
+         WHERE m.aluno_id::text = $1
+         LIMIT 1`,
         [alunoIdReal]
       );
-      
-      if (alunoDiretoRes.rows.length > 0) {
-        // Tenta buscar se existe qualquer matrícula (mesmo sem status ativo)
-        const matQualquer = await query(
-          `SELECT m.turma_id::text as turma_id, t.nome as turma_nome, t.data_inicio
-           FROM matriculas m
-           JOIN turmas t ON m.turma_id::text = t.id::text
-           WHERE m.aluno_id::text = $1
-           ORDER BY m.created_at DESC
-           LIMIT 1`,
-          [alunoIdReal]
-        );
-        if (matQualquer.rows.length > 0) {
-          turma = matQualquer.rows[0];
-          console.log(`[Trilha API] Turma resolvida via matrícula flexível: ${turma.turma_nome} (${turma.turma_id})`);
-        }
+      if (matQualquer.rows.length > 0) {
+        turma = matQualquer.rows[0];
+        console.log(`[Trilha API] Turma resolvida via matrícula fallback: ${turma.turma_nome} (${turma.turma_id})`);
       }
     } catch (dbErr: any) {
-      console.error('[Trilha API] Falha SQL no fallback de busca em alunos:', dbErr.message);
+      console.error('[Trilha API] Falha SQL no fallback de matrícula:', dbErr.message);
       throw dbErr;
     }
   }
 
-  // 4. FALLBACK DE SEGURANÇA MÁXIMO (Se nenhuma turma estiver vinculada ao aluno, mas existirem cronogramas no colégio)
+  // 4. FALLBACK MÁXIMO (Apenas para garantir que modo demo veja atividades caso não tenha matrícula)
   if (!turma) {
     fallbackUsado = true;
     try {
@@ -110,15 +119,14 @@ export async function GET(request: Request) {
       );
       if (fallbackRes.rows.length > 0) {
         turma = fallbackRes.rows[0];
-        console.log(`[Trilha API] Fallback máximo utilizado. Turma demonstrativa escolhida: ${turma.turma_nome} (${turma.turma_id})`);
+        console.log(`[Trilha API] Fallback máximo utilizado para aluno sem matrícula: ${turma.turma_nome} (${turma.turma_id})`);
       }
     } catch (dbErr: any) {
-      console.error('[Trilha API] Falha SQL no fallback máximo de turma:', dbErr.message);
+      console.error('[Trilha API] Falha SQL no fallback de turmas:', dbErr.message);
       throw dbErr;
     }
   }
 
-  // Se mesmo com todos os fallbacks não existir NENHUMA turma no sistema
   if (!turma) {
     console.warn('[Trilha API] Nenhuma turma foi encontrada no sistema.');
     return NextResponse.json({
@@ -130,7 +138,7 @@ export async function GET(request: Request) {
   }
 
   const turmaId = turma.turma_id;
-  const turmaNome = fallbackUsado ? turma.turma_nome + ' (Demonstração)' : turma.turma_nome;
+  const turmaNome = fallbackUsado ? (turma.turma_nome || turma.turma_id) + ' (Demonstração)' : (turma.turma_nome || turma.turma_id);
   
   let dataInicioTurma = null;
   try {
@@ -139,35 +147,74 @@ export async function GET(request: Request) {
     console.error('[Trilha API] Erro ao interpretar data_inicio da turma:', e.message);
   }
 
-  // 5. Buscar cronograma_atividades cruzando flexivelmente com turma_id (UUID ou Nome) e atividades_progresso
-  let trilhaRes;
+  // --- DIAGNÓSTICO DO BANCO DE DADOS (LOG RAW NO TERMINAL DA VPS) ---
   try {
-    const sqlCronograma = `
-      SELECT 
-        c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
-        c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
-        COALESCE(p.status, 'pendente') as progresso_status,
-        COALESCE(p.xp_ganho, 0) as xp_ganho
-      FROM cronograma_atividades c
-      LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id::text = $1::text
-      WHERE (
-        c.turma_id::text = $2::text 
-        OR c.turma_id::text ILIKE $3::text 
-        OR c.turma_id::text IN (
-          SELECT id::text FROM turmas WHERE id::text = $2::text OR nome ILIKE $3::text
-        )
+    const diagCount = await query(`SELECT COUNT(*) as total FROM cronograma_atividades`);
+    const diagSamples = await query(`SELECT id, turma_id, semana_numero, titulo FROM cronograma_atividades LIMIT 5`);
+    console.log(`\n=================== [Trilha API AUDITORIA RAW] ===================`);
+    console.log(`[Trilha API DIAG] Total de registros na tabela cronograma_atividades: ${diagCount.rows[0]?.total || 0}`);
+    console.log(`[Trilha API DIAG] Amostra de 5 registros gravados pelo painel:`, JSON.stringify(diagSamples.rows, null, 2));
+    console.log(`===================================================================\n`);
+  } catch (diagErr: any) {
+    console.error('[Trilha API DIAG] Erro ao consultar diagnóstico de cronograma_atividades:', diagErr.message);
+  }
+
+  // 5. Montar lista abrangente de candidatos para a coluna turma_id na tabela cronograma_atividades
+  const candidatosSet = new Set<string>();
+  if (turmaId) candidatosSet.add(String(turmaId).trim());
+  if (turma.turma_nome) {
+    const nomeLimpo = String(turma.turma_nome).trim();
+    candidatosSet.add(nomeLimpo);
+    const mockCodigo = NAME_TO_MOCK_MAP[nomeLimpo.toLowerCase()];
+    if (mockCodigo) candidatosSet.add(mockCodigo);
+  }
+  if (turmaId && MOCK_TO_NAME_MAP[String(turmaId)]) {
+    candidatosSet.add(MOCK_TO_NAME_MAP[String(turmaId)]);
+  }
+
+  const listaCandidatos = Array.from(candidatosSet);
+  console.log(`[Trilha API] Candidatos para turma_id ($2) na busca de cronograma:`, listaCandidatos);
+
+  // 6. Executar SELECT na tabela cronograma_atividades (e log raw com parâmetros)
+  let trilhaRes;
+  const sqlCronograma = `
+    SELECT 
+      c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
+      c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
+      COALESCE(p.status, 'pendente') as progresso_status,
+      COALESCE(p.xp_ganho, 0) as xp_ganho
+    FROM cronograma_atividades c
+    LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id::text = $1::text
+    WHERE (
+      c.turma_id::text = ANY($2::text[])
+      OR c.turma_id::text IN (
+        SELECT id::text FROM turmas WHERE id::text = ANY($2::text[]) OR nome::text = ANY($2::text[])
       )
-      ORDER BY c.semana_numero ASC, c.ordem ASC
-    `;
-    trilhaRes = await query(sqlCronograma, [alunoIdReal, turmaId, turma.turma_nome]);
-    console.log(`[Trilha API] Consulta ao cronograma retornou ${trilhaRes.rows.length} atividades para a turma "${turma.turma_nome}".`);
+      OR c.turma_id::text IN (
+        SELECT t.id::text FROM turmas t 
+        JOIN matriculas m ON m.turma_id::text = t.id::text OR m.turma_id::text = t.nome 
+        WHERE m.aluno_id::text = $1::text OR m.aluno_id::text IN (SELECT id::text FROM alunos WHERE numero::text = $1::text)
+      )
+      OR c.turma_id::text IN (
+        SELECT m.turma_id::text FROM matriculas m 
+        WHERE m.aluno_id::text = $1::text OR m.aluno_id::text IN (SELECT id::text FROM alunos WHERE numero::text = $1::text)
+      )
+    )
+    ORDER BY c.semana_numero ASC, c.ordem ASC
+  `;
+
+  console.log(`[Trilha API] STRING SQL FINAL EXECUTADA:\n${sqlCronograma}`);
+  console.log(`[Trilha API] PARÂMETROS DA QUERY ($1, $2):`, JSON.stringify([alunoIdReal, listaCandidatos], null, 2));
+
+  try {
+    trilhaRes = await query(sqlCronograma, [alunoIdReal, listaCandidatos]);
+    console.log(`[Trilha API] Consulta principal ao cronograma retornou ${trilhaRes.rows.length} atividade(s) para o aluno "${alunoIdReal}".`);
   } catch (dbErr: any) {
-    console.error('[Trilha API] Falha SQL ao buscar o cronograma da turma:', dbErr.message);
-    // Repassa o erro original para o terminal/log da VPS para expor qualquer divergência de schema/colunas
+    console.error('[Trilha API] Falha SQL na consulta de cronograma_atividades:', dbErr.message);
     throw dbErr;
   }
 
-  // 6. Determinar Time-Gating (Turma Futura)
+  // 7. Determinar Time-Gating (Turma Futura)
   let turmaFutura = false;
   let dataInicioFormatada = null;
   if (dataInicioTurma && !isNaN(dataInicioTurma.getTime())) {
@@ -180,7 +227,7 @@ export async function GET(request: Request) {
   }
 
   if (trilhaRes.rows.length === 0) {
-    console.warn(`[Trilha API] 0 atividades encontradas para a turma ${turmaNome} (${turmaId}).`);
+    console.warn(`[Trilha API WARNING] 0 atividades encontradas para a turma ${turmaNome} (candidatos: ${listaCandidatos.join(', ')}).`);
     return NextResponse.json({
       turmaNome,
       futuro: turmaFutura,
@@ -192,7 +239,7 @@ export async function GET(request: Request) {
     });
   }
 
-  // 7. Montagem Estruturada do Payload final em conformidade com o contrato JSON
+  // 8. Montagem Estruturada do Payload final em conformidade com o contrato JSON
   const semanasMap = new Map<number, {
     semana: number;
     periodo: string;
@@ -267,7 +314,7 @@ export async function GET(request: Request) {
   }
 
   const semanasArray = Array.from(semanasMap.values());
-  console.log(`[Trilha API] Payload montado com sucesso: ${semanasArray.length} semana(s) para "${turmaNome}".`);
+  console.log(`[Trilha API] Payload final montado com sucesso: ${semanasArray.length} semana(s) e ${trilhaRes.rows.length} atividade(s) para "${turmaNome}".`);
 
   return NextResponse.json({
     turmaNome,
