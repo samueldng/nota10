@@ -249,13 +249,18 @@ export default function VideoaulasPage() {
                 conteudoId={selectedVideo.id}
                 videoUrl={selectedVideo.videoUrl || 'local'}
                 xpVal={selectedVideo.xp || 15}
-                onComplete={(xpGanho, leveledUp, novoNivel) => {
+                onComplete={(xpGanho, leveledUp, novoNivel, success = true, errorMsg) => {
+                  if (!success) {
+                    // ZERO OPTIMISTIC UI: Se a API falhou, NÃO marque a atividade como concluída e exiba o toast de erro!
+                    setToast(errorMsg || 'Erro ao salvar progresso no servidor. Tente novamente em instantes.');
+                    return;
+                  }
                   const completedId = selectedVideo.id;
                   setGainedXp(xpGanho);
                   setIsLvlUp(leveledUp);
                   setNewLevel(novoNivel);
                   
-                  // Atualização Otimista Imediata (Instant Reactivity)
+                  // Atualização confirmada pelo servidor com 200 OK
                   setAtividadesConcluidas(prev => Array.from(new Set([...prev, completedId])));
                   setVideoaulas(prev => prev.map(v => v.id === completedId ? { ...v, status: 'assistido' } : v));
                   
@@ -263,6 +268,8 @@ export default function VideoaulasPage() {
                   if (xpGanho > 0) {
                     setShowCelebration(true);
                     setToast(`+${xpGanho} XP!`);
+                  } else {
+                    setToast('Vídeo concluído!');
                   }
                   window.dispatchEvent(new Event('nota10_progress_updated'));
                   loadData();

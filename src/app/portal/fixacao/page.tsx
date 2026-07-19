@@ -120,11 +120,12 @@ export default function FixacaoApostilaPage() {
           const data = await res.json();
           setFinalResult(data);
         } else {
-          setFinalResult({ success: true, acertos, erros, xpGanho: acertos * 15, percentual: Math.round((acertos / total) * 100) });
+          const data = await res.json().catch(() => ({}));
+          setFinalResult({ success: false, error: data.error || 'Erro ao registrar progresso no servidor.', acertos, erros, xpGanho: 0, percentual: Math.round((acertos / total) * 100) });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao finalizar fixação:', err);
-        setFinalResult({ success: true, acertos, erros, xpGanho: acertos * 15, percentual: Math.round((acertos / total) * 100) });
+        setFinalResult({ success: false, error: 'Erro de conexão ao salvar progresso no servidor.', acertos, erros, xpGanho: 0, percentual: Math.round((acertos / total) * 100) });
       } finally {
         setSubmitting(false);
       }

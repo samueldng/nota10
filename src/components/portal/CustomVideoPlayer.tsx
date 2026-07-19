@@ -16,7 +16,7 @@ interface CustomVideoPlayerProps {
   conteudoId: string;
   videoUrl: string;
   xpVal: number;
-  onComplete: (xpGanho: number, leveledUp: boolean, newLevel: number) => void;
+  onComplete: (xpGanho: number, leveledUp: boolean, newLevel: number, success?: boolean, errorMsg?: string) => void;
 }
 
 const getYoutubeVideoId = (url: string) => {
@@ -307,7 +307,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
   const handleEnded = async () => {
     if (isCompleted && !onCompleteCalledRef.current) {
       onCompleteCalledRef.current = true;
-      onComplete(0, false, 0);
+      onComplete(0, false, 0, true);
       return;
     }
     if (onCompleteCalledRef.current) return;
@@ -334,18 +334,22 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
       });
       if (res.ok) {
         const data = await res.json();
-        setIsCompleted(true);
         if (data.success) {
-          onComplete(data.xpGanho || 0, data.leveledUp || false, data.novoNivel || 0);
+          setIsCompleted(true);
+          onComplete(data.xpGanho || 0, data.leveledUp || false, data.novoNivel || 0, true);
         } else {
-          onComplete(0, false, 0);
+          onCompleteCalledRef.current = false;
+          onComplete(0, false, 0, false, data.error || 'Não foi possível registrar a conclusão do vídeo.');
         }
       } else {
-        onComplete(0, false, 0);
+        const data = await res.json().catch(() => ({}));
+        onCompleteCalledRef.current = false;
+        onComplete(0, false, 0, false, data.error || `Erro no servidor (${res.status}) ao salvar conclusão.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Erro ao completar vídeo', e);
-      onComplete(0, false, 0);
+      onCompleteCalledRef.current = false;
+      onComplete(0, false, 0, false, 'Erro de conexão ou rede ao salvar o progresso do vídeo.');
     }
   };
 

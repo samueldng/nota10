@@ -127,11 +127,16 @@ export default function RevisaoCorujinhaPage() {
             setMascotMsg(`Você concluiu com ${data.percentual}%. Que tal revisar a apostila e tentar novamente para ganhar mais XP?`);
           }
         } else {
-          setFinalResult({ success: true, acertos, erros, xpGanho: acertos * 10, percentual: Math.round((acertos / total) * 100) });
+          const data = await res.json().catch(() => ({}));
+          setFinalResult({ success: false, error: data.error || 'Erro ao registrar progresso no servidor.', acertos, erros, xpGanho: 0, percentual: Math.round((acertos / total) * 100) });
+          setMascotState('padrao');
+          setMascotMsg('Atenção: Não conseguimos gravar seu progresso no servidor. Verifique sua conexão.');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao finalizar quiz:', err);
-        setFinalResult({ success: true, acertos, erros, xpGanho: acertos * 10, percentual: Math.round((acertos / total) * 100) });
+        setFinalResult({ success: false, error: 'Erro de conexão ao salvar progresso no servidor.', acertos, erros, xpGanho: 0, percentual: Math.round((acertos / total) * 100) });
+        setMascotState('padrao');
+        setMascotMsg('Atenção: Não conseguimos gravar seu progresso no servidor. Verifique sua conexão.');
       } finally {
         setSubmitting(false);
       }
