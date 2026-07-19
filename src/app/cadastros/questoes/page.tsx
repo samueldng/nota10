@@ -181,13 +181,13 @@ export default function CadastrosQuestoesPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[var(--color-azul-marinho)] text-white p-6 rounded-2xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-[var(--color-cinza-borda)] p-6 rounded-2xl shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-[var(--color-azul-autoridade)]">
             <HelpCircle className="text-[var(--color-amarelo-conquista)]" size={28} />
             Cofre das Questões (Banco de Fixação e Revisão)
           </h1>
-          <p className="text-sm text-white/80 mt-1">
+          <p className="text-sm text-slate-600 mt-1 font-medium">
             Gerencie as questões para a Apostila (Fixação) e o Quiz gamificado da Corujinha (Revisão).
           </p>
         </div>

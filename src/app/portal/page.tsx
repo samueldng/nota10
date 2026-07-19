@@ -66,120 +66,163 @@ export default function PortalInicioPage() {
         concluidas = data.atividadesConcluidas || [];
         setDbLoaded(true);
       } else {
-        // API retornou erro (ex: aluno não encontrado no banco) — usa defaults
         console.warn(`[Portal] /api/progresso retornou ${res.status} para alunoId=${alunoId}. Usando valores padrão.`);
         setXpTotal(0);
         setNivel(1);
         setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
-        setDbLoaded(true); // ✅ Permite que o painel de gamificação renderize mesmo sem dados
+        setDbLoaded(true);
       }
     } catch (err) {
-      // API not available — default values
       console.warn('Progresso API não disponível, usando valores padrão:', err);
       setXpTotal(0);
       setNivel(1);
       setXpProgress({ atual: 0, proximo: 100, progresso: 0 });
-      setDbLoaded(true); // ✅ Libera renderização mesmo com erro de rede
+      setDbLoaded(true);
     }
 
-
-    // 2. Fetch cronograma from the backend API if online
+    // 2. Fetch Trilha/Cronograma Oficial via /api/trilha
+    let trilhaCarregada = false;
     try {
-      const cronogramaRes = await fetch(`/api/cronograma?alunoId=${alunoId}&semana=1`);
-      if (cronogramaRes.ok) {
-        const dbTasks = await cronogramaRes.json();
-        if (dbTasks && dbTasks.length > 0) {
-          const mappedTasks = dbTasks.map((t: any) => {
-            const subtarefasRaw: any[] = typeof t.subtarefas === 'string'
-              ? JSON.parse(t.subtarefas)
-              : (t.subtarefas || []);
+      const trilhaRes = await fetch(`/api/trilha?alunoId=${alunoId}`);
+      if (trilhaRes.ok) {
+        const dataTrilha = await trilhaRes.json();
+        if (dataTrilha.semanas && dataTrilha.semanas.length > 0) {
+          trilhaCarregada = true;
+          const semanas: any[] = dataTrilha.semanas;
+          const semanasLiberadas = semanas.filter((s: any) => s.liberada);
+          const semanaAtual = semanasLiberadas.length > 0 ? semanasLiberadas[semanasLiberadas.length - 1] : semanas[0];
 
-            const subTarefas = subtarefasRaw.map((sub: any) => {
-              // ── BUGFIX #2: Subtarefas do BD não têm UUID próprio.
-              // O identificador persistido em aluno_progresso é o título.
-              const subId = sub.id != null ? String(sub.id) : sub.titulo;
-              return {
-                ...sub,
-                id: subId,
-                status: concluidas.includes(subId) ? 'concluido' : 'pendente',
-              };
-            });
+          // ── "O que fazer esta semana" (Apenas atividades bloqueadas ou em andamento / pendentes) ──
+          const atividadesPendentes = semanaAtual?.atividades?.filter((a: any) => 
+            !concluidas.includes(a.id) && 
+            a.status !== 'concluida' && 
+            (a.status === 'bloqueada' || a.status === 'em_andamento' || a.status === 'disponivel' || a.status === 'pendente')
+          ) || [];
 
-            return {
-              id: t.id,
-              ordem: t.ordem,
-              titulo: t.titulo,
-              tipo: t.tipo,
-              disciplina: t.disciplina,
-              bloco: t.bloco,
-              xp: t.xpTotal,
-              turmaNome: t.turmaNome || '',
-              status: concluidas.includes(t.id)
-                ? 'concluido'
-                : subTarefas.length > 0 && subTarefas.every((s: any) => s.status === 'concluido')
-                  ? 'concluido'
-                  : 'pendente',
-              subTarefas,
-            };
-          });
+          const mappedTasks = atividadesPendentes.map((t: any) => ({
+            id: t.id,
+            ordem: t.ordem || 1,
+            titulo: t.titulo,
+            tipo: t.tipo,
+            disciplina: t.disciplina || 'Geral',
+            bloco: t.bloco || 'Bloco 1',
+            xp: t.xp_total || 15,
+            turmaNome: dataTrilha.turmaNome || '',
+            status: 'pendente',
+            subTarefas: []
+          }));
+
           setCronograma({
             turmaId: turmaId,
-            semana: 'Semana 1',
-            periodo: 'Esta Semana',
+            semana: `Semana ${semanaAtual?.semana_numero || 1}`,
+            periodo: semanaAtual?.datas_semana || 'Esta Semana',
             tarefas: mappedTasks
           });
-        }
-      }
-    } catch (e) {
-      console.warn('Erro ao carregar cronograma do banco:', e);
-    }
 
-    // 3. Obter Próxima Aula via /api/turmas
-    try {
-      const turmasRes = await fetch('/api/turmas');
-      if (turmasRes.ok) {
-        const turmasList = await turmasRes.json();
-        const minhaTurma = turmasList.find((t: any) => t.id === turmaId || t.nome.includes(turmaId));
-        if (minhaTurma && minhaTurma.dias && minhaTurma.dias.length > 0) {
-          try {
-            const diaSemana = minhaTurma.dias[0]; 
-            
-            // Cálculo seguro de fuso horário UTC-3 (Brasília)
-            const daysMap: Record<string, number> = {
-              'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
-              'Quinta': 4, 'Sexta': 5, 'Sábado': 6
-            };
-            const targetDay = daysMap[diaSemana] !== undefined ? daysMap[diaSemana] : 1;
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const brTime = new Date(utc - (3600000 * 3));
-            
-            let daysToTarget = targetDay - brTime.getDay();
-            if (daysToTarget < 0) daysToTarget += 7;
-            
-            brTime.setDate(brTime.getDate() + daysToTarget);
-            const formattedDate = brTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            
+          // ── "Próxima Aula" (Próximo compromisso físico ou revisão / digital) ──
+          let proximaEncontrada: any = null;
+          let proximaSemanaEncontrada: any = null;
+
+          for (const s of semanas) {
+            if (s.semana_numero < (semanaAtual?.semana_numero || 1)) continue;
+            for (const a of (s.atividades || [])) {
+              if (!concluidas.includes(a.id) && a.status !== 'concluida') {
+                if (a.tipo === 'presencial' || a.tipo === 'aula_presencial' || a.tipo === 'revisao') {
+                  proximaEncontrada = a;
+                  proximaSemanaEncontrada = s;
+                  break;
+                }
+              }
+            }
+            if (proximaEncontrada) break;
+          }
+
+          if (proximaEncontrada && proximaSemanaEncontrada) {
+            const dataFormatada = proximaSemanaEncontrada.datas_semana?.split(' - ')[0] || '--';
             setProximaAula({
-              data: formattedDate,
-              diaSemana: diaSemana,
-              horario: minhaTurma.horario || '08:00 - 12:00',
-              local: 'Presencial — Sede',
-              blocos: minhaTurma.disciplinas?.map((d: string) => ({ disciplina: d, bloco: 'Bloco Atual' })) || []
+              data: dataFormatada,
+              diaSemana: proximaEncontrada.dia_semana || 'Segunda',
+              horario: proximaEncontrada.tipo?.includes('presencial') ? '08:00 - 12:00' : 'Disponível no Portal',
+              local: proximaEncontrada.tipo?.includes('presencial') ? 'Presencial — Sede' : 'Portal Nota10 (Online)',
+              blocos: [{ disciplina: proximaEncontrada.disciplina || 'Geral', bloco: proximaEncontrada.bloco || 'Bloco Atual' }]
             });
-          } catch (dateErr) {
-            console.error('Erro ao calcular a data:', dateErr);
-            setProximaAula(null);
+          }
+
+          // ── Barras de Disciplina (Contagem real de blocos concluídos vs total na tabela) ──
+          const todasAtividades = semanas.flatMap((s: any) => s.atividades || []);
+          if (todasAtividades.length > 0) {
+            const discMap = new Map<string, { total: number; completos: number }>();
+            for (const ativ of todasAtividades) {
+              const disc = ativ.disciplina || 'Geral';
+              if (!discMap.has(disc)) discMap.set(disc, { total: 0, completos: 0 });
+              const obj = discMap.get(disc)!;
+              obj.total += 1;
+              if (concluidas.includes(ativ.id) || ativ.status === 'concluida') {
+                obj.completos += 1;
+              }
+            }
+            const barras = Array.from(discMap.entries()).map(([disciplina, vals]) => ({
+              disciplina,
+              blocosTotal: vals.total || 4,
+              blocosCompletos: vals.completos,
+              blocoAtual: Math.min(vals.total || 4, vals.completos + 1)
+            }));
+            setProgressoDisciplina(barras);
+          } else {
+            setProgressoDisciplina(getProgressoDisciplina(alunoId));
           }
         }
       }
     } catch (e) {
-      console.warn('Erro ao carregar turmas:', e);
+      console.warn('Erro ao carregar trilha para dashboard:', e);
+    }
+
+    // 3. Fallback: Obter Próxima Aula via /api/turmas apenas se trilha não retornou proximaAula
+    if (!trilhaCarregada) {
+      try {
+        const turmasRes = await fetch('/api/turmas');
+        if (turmasRes.ok) {
+          const turmasList = await turmasRes.json();
+          const minhaTurma = turmasList.find((t: any) => t.id === turmaId || t.nome.includes(turmaId));
+          if (minhaTurma && minhaTurma.dias && minhaTurma.dias.length > 0) {
+            try {
+              const diaSemana = minhaTurma.dias[0]; 
+              const daysMap: Record<string, number> = {
+                'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3,
+                'Quinta': 4, 'Sexta': 5, 'Sábado': 6
+              };
+              const targetDay = daysMap[diaSemana] !== undefined ? daysMap[diaSemana] : 1;
+              const now = new Date();
+              const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+              const brTime = new Date(utc - (3600000 * 3));
+              
+              let daysToTarget = targetDay - brTime.getDay();
+              if (daysToTarget < 0) daysToTarget += 7;
+              
+              brTime.setDate(brTime.getDate() + daysToTarget);
+              const formattedDate = brTime.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              
+              setProximaAula({
+                data: formattedDate,
+                diaSemana: diaSemana,
+                horario: minhaTurma.horario || '08:00 - 12:00',
+                local: 'Presencial — Sede',
+                blocos: minhaTurma.disciplinas?.map((d: string) => ({ disciplina: d, bloco: 'Bloco Atual' })) || []
+              });
+            } catch (dateErr) {
+              console.error('Erro ao calcular a data:', dateErr);
+              setProximaAula(null);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar turmas fallback:', e);
+      }
+      setProgressoDisciplina(getProgressoDisciplina(alunoId));
     }
 
     setStreak(0);
     setConquistas(getConquistas(alunoId));
-    setProgressoDisciplina(getProgressoDisciplina(alunoId));
     setIsLoadingPortal(false);
     console.log('✅ [Portal] Carregamento finalizado.', { alunoId, turmaId });
   }, [alunoId, turmaId]);

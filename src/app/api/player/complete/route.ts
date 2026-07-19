@@ -13,11 +13,23 @@ export async function POST(request: Request) {
     const { alunoId, conteudoId, completed, currentTime, duration } = body;
 
     if (!alunoId || !conteudoId) {
+      console.warn('[API player/complete] Parâmetros faltando:', { alunoId, conteudoId });
       return NextResponse.json({ error: 'alunoId e conteudoId são obrigatórios' }, { status: 400 });
     }
 
+    console.log('[API player/complete] Payload recebido:', {
+      alunoId,
+      conteudoId,
+      completed,
+      currentTime,
+      duration,
+      isAlunoUuid: isUuid(String(alunoId)),
+      isConteudoUuid: isUuid(String(conteudoId))
+    });
+
     // Se não for UUID válido (ex: 'a1' em ambiente de teste local/mock), retorne sucesso mockado graciosamente
     if (!isUuid(String(alunoId)) || !isUuid(String(conteudoId))) {
+      console.log('[API player/complete] ID não é UUID. Retornando resposta mockada graciosamente.');
       return NextResponse.json({
         success: true,
         mock: true,
@@ -50,15 +62,22 @@ export async function POST(request: Request) {
         );
       `);
 
+      // Garantir índice de idempotência no aluno_progresso
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_progresso_aluno_atividade_unique
+          ON aluno_progresso (aluno_id, atividade_id)
+          WHERE atividade_id IS NOT NULL;
+      `);
+
       // Verificar existência do aluno no banco para evitar violação de FK
       const alunoCheck = await client.query(`SELECT id, xp_total, nivel FROM alunos WHERE id = $1 FOR UPDATE`, [alunoId]);
       if (alunoCheck.rows.length === 0) {
+        console.error('[API player/complete] Aluno não encontrado:', alunoId);
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Aluno não encontrado no banco' }, { status: 404 });
       }
 
       // 1. Verificar ou fazer upsert no player_state
-      // Se o front informou completed: true (evento onEnded do vídeo ou YouTube 0), força a conclusão atômica
       if (completed === true) {
         await client.query(
           `INSERT INTO player_state (aluno_id, conteudo_id, current_time_seconds, duration_seconds, percent_watched, status, completed_at)
@@ -79,6 +98,7 @@ export async function POST(request: Request) {
         );
 
         if (stateRes.rows.length === 0) {
+          console.error('[API player/complete] Estado do vídeo não encontrado para upsert:', { alunoId, conteudoId });
           await client.query('ROLLBACK');
           return NextResponse.json({ error: 'Estado de vídeo não encontrado' }, { status: 404 });
         }
@@ -136,6 +156,9 @@ export async function POST(request: Request) {
         } else {
           novoNivel = nivelAtual;
         }
+        console.log('[API player/complete] XP concedido com sucesso:', { alunoId, xpAdded, novoXpTotal, novoNivel });
+      } else {
+        console.log('[API player/complete] XP já concedido anteriormente (idempotência):', { alunoId, conteudoId });
       }
 
       // 3. Atualizar a trilha (se a atividade estiver vinculada)

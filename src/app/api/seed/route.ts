@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { professores, turmas, alunos, registrosLancados, folhasGeradas, logAuditoria } from '@/lib/mockData';
+import { seedCronogramaOficial } from '@/lib/seedCronograma';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,8 +155,12 @@ export async function GET() {
       );
     }
 
+    // 8. Inserir Cronograma Oficial (7 semanas)
+    console.log('Semeando Cronograma Oficial das 7 semanas...');
+    await seedCronogramaOficial();
+
     console.log('Seed concluído com sucesso no PostgreSQL!');
-    return NextResponse.json({ success: true, message: 'Seed concluído com sucesso no PostgreSQL!' });
+    return NextResponse.json({ success: true, message: 'Seed e Cronograma Oficial de 7 semanas concluídos com sucesso!' });
 
   } catch (err: any) {
     console.error('Erro durante o seed:', err);

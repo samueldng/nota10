@@ -130,7 +130,7 @@ export default function VideoaulasPage() {
       )}
       {disciplinas.map((disciplina) => {
         const videos = videoaulas.filter(v => v.disciplina === disciplina);
-        const assistidos = videos.filter(v => atividadesConcluidas.includes(v.id)).length;
+        const assistidos = videos.filter(v => atividadesConcluidas.includes(v.id) || v.status === 'assistido').length;
         const total = videos.length;
         const progresso = total > 0 ? Math.round((assistidos / total) * 100) : 0;
 
@@ -156,7 +156,7 @@ export default function VideoaulasPage() {
             {/* Video Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {videos.map((video) => {
-                const completed = atividadesConcluidas.includes(video.id);
+                const completed = atividadesConcluidas.includes(video.id) || video.status === 'assistido';
                 return (
                   <div
                     key={video.id}
@@ -250,10 +250,16 @@ export default function VideoaulasPage() {
                 videoUrl={selectedVideo.videoUrl || 'local'}
                 xpVal={selectedVideo.xp || 15}
                 onComplete={(xpGanho, leveledUp, novoNivel) => {
+                  const completedId = selectedVideo.id;
                   setGainedXp(xpGanho);
                   setIsLvlUp(leveledUp);
                   setNewLevel(novoNivel);
-                  setSelectedVideo(null); // Fecha o modal silenciosamente ao concluir
+                  
+                  // Atualização Otimista Imediata (Instant Reactivity)
+                  setAtividadesConcluidas(prev => Array.from(new Set([...prev, completedId])));
+                  setVideoaulas(prev => prev.map(v => v.id === completedId ? { ...v, status: 'assistido' } : v));
+                  
+                  setSelectedVideo(null);
                   if (xpGanho > 0) {
                     setShowCelebration(true);
                     setToast(`+${xpGanho} XP!`);
