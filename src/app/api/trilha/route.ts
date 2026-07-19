@@ -15,14 +15,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'alunoId é obrigatório' }, { status: 400 });
   }
 
-  // Se alunoId não é UUID válido, retornar resposta vazia estruturada — ZERO mock data
+  // Se alunoId não é UUID válido, retornar resposta vazia estruturada
   if (!isUuid(String(alunoId))) {
     return NextResponse.json({
-      semanas: [],
       turmaNome: 'Modo Demonstração',
       futuro: false,
-      dataInicio: null,
-      mensagem: 'Faça login com uma conta válida para visualizar sua Trilha de Estudos.'
+      semanas: []
     });
   }
 
@@ -30,156 +28,146 @@ export async function GET(request: Request) {
   hoje.setHours(0, 0, 0, 0);
 
   try {
-    // 1. Tentar encontrar a turma exata do aluno com flexibilidade e fallback
     let turma = null;
-    let isFallback = false;
+    let fallbackUsado = false;
 
-    // A. Tentativa 1: Via tabela matriculas
-    const alunoRes = await query(
-      `SELECT m.turma_id, t.nome as turma_nome, t.data_inicio
-       FROM matriculas m
-       JOIN turmas t ON m.turma_id = t.id
-       WHERE m.aluno_id = $1 AND m.status = 'ativo' LIMIT 1`,
-      [alunoId]
-    );
-
-    if (alunoRes.rows.length > 0) {
-      turma = alunoRes.rows[0];
-    } else {
-      // B. Tentativa 2: Buscar direto na tabela de alunos
-      const alunoDiretoRes = await query(
-        `SELECT turma_id, turma_nome FROM alunos WHERE id = $1 LIMIT 1`,
+    // 1. OBRIGATÓRIO: Buscar a turma ativa na tabela matriculas usando um JOIN explícito
+    try {
+      const alunoRes = await query(
+        `SELECT m.turma_id, t.nome as turma_nome, t.data_inicio
+         FROM matriculas m
+         JOIN turmas t ON m.turma_id = t.id
+         WHERE m.aluno_id = $1 AND m.status = 'ativo' LIMIT 1`,
         [alunoId]
       );
-      
-      if (alunoDiretoRes.rows.length > 0) {
-        const ad = alunoDiretoRes.rows[0];
-        let qTurma = null;
+      if (alunoRes.rows.length > 0) {
+        turma = alunoRes.rows[0];
+      }
+    } catch (dbErr) {
+      console.error('[Trilha API] Falha SQL ao buscar matrícula:', dbErr);
+    }
+
+    // 2. FALLBACK DE SEGURANÇA: Buscar direto na tabela de alunos
+    if (!turma) {
+      try {
+        const alunoDiretoRes = await query(
+          `SELECT turma_id, turma_nome FROM alunos WHERE id = $1 LIMIT 1`,
+          [alunoId]
+        );
         
-        // Se turma_id é UUID válido
-        if (ad.turma_id && isUuid(String(ad.turma_id))) {
-          qTurma = await query(
-            `SELECT id as turma_id, nome as turma_nome, data_inicio FROM turmas WHERE id = $1 LIMIT 1`, 
-            [ad.turma_id]
-          );
-        }
-        
-        // Se UUID falhou e tem turma_nome
-        if ((!qTurma || qTurma.rows.length === 0) && ad.turma_nome) {
-          qTurma = await query(
-            `SELECT id as turma_id, nome as turma_nome, data_inicio FROM turmas WHERE nome ILIKE $1 LIMIT 1`, 
-            [ad.turma_nome]
-          );
-        }
-        
-        // Fallback extra: pegar primeiro nome da string (ex: "5A")
-        if ((!qTurma || qTurma.rows.length === 0) && ad.turma_nome) {
-          const primeiroNome = ad.turma_nome.split(' ')[0];
-          if (primeiroNome.length > 0) {
+        if (alunoDiretoRes.rows.length > 0) {
+          const ad = alunoDiretoRes.rows[0];
+          let qTurma = null;
+          
+          if (ad.turma_id && isUuid(String(ad.turma_id))) {
             qTurma = await query(
-              `SELECT id as turma_id, nome as turma_nome, data_inicio FROM turmas WHERE nome ILIKE $1 LIMIT 1`, 
-              [`%${primeiroNome}%`]
+              `SELECT id as turma_id, nome as turma_nome, data_inicio FROM turmas WHERE id = $1 LIMIT 1`, 
+              [ad.turma_id]
             );
           }
+          
+          if ((!qTurma || qTurma.rows.length === 0) && ad.turma_nome) {
+            qTurma = await query(
+              `SELECT id as turma_id, nome as turma_nome, data_inicio FROM turmas WHERE nome ILIKE $1 LIMIT 1`, 
+              [ad.turma_nome]
+            );
+          }
+          
+          if (qTurma && qTurma.rows.length > 0) {
+            turma = qTurma.rows[0];
+          }
         }
-        
-        if (qTurma && qTurma.rows.length > 0) {
-          turma = qTurma.rows[0];
-        }
+      } catch (dbErr) {
+        console.error('[Trilha API] Falha SQL ao buscar turma diretamente do aluno:', dbErr);
       }
     }
 
-    // C. Fallback Definitivo: Se ainda assim o aluno não tem turma vinculada corretamente,
-    // vincular automaticamente à primeira turma disponível que possui cronograma ativo.
-    // Assim a API NUNCA retorna vazio indevidamente.
+    // 3. FALLBACK DE SEGURANÇA MÁXIMO (Nunca retornar 404 vazio se houver cronogramas)
     if (!turma) {
-      isFallback = true;
-      const fallbackRes = await query(
-        `SELECT t.id as turma_id, t.nome as turma_nome, t.data_inicio
-         FROM turmas t
-         WHERE EXISTS (SELECT 1 FROM cronograma_atividades c WHERE c.turma_id = t.id)
-         ORDER BY t.alunos_count DESC, t.nome ASC LIMIT 1`
-      );
-      if (fallbackRes.rows.length > 0) {
-         turma = fallbackRes.rows[0];
+      fallbackUsado = true;
+      try {
+        const fallbackRes = await query(
+          `SELECT t.id as turma_id, t.nome as turma_nome, t.data_inicio
+           FROM turmas t
+           WHERE EXISTS (SELECT 1 FROM cronograma_atividades c WHERE c.turma_id = t.id)
+           ORDER BY t.alunos_count DESC, t.nome ASC LIMIT 1`
+        );
+        if (fallbackRes.rows.length > 0) {
+           turma = fallbackRes.rows[0];
+        }
+      } catch (dbErr) {
+        console.error('[Trilha API] Falha SQL no fallback máximo de turma:', dbErr);
       }
     }
 
-    // Se mesmo assim não houver NENHUMA turma com cronograma no sistema
+    // Se mesmo com todos os fallbacks não existir NENHUMA turma no sistema
     if (!turma) {
       return NextResponse.json({
-        semanas: [],
         turmaNome: 'Sem Turma',
         futuro: false,
-        dataInicio: null,
+        semanas: [],
         mensagem: 'Nenhuma turma no sistema possui trilhas cadastradas ainda.'
       });
     }
 
     const turmaId = turma.turma_id;
-    const turmaNome = isFallback ? turma.turma_nome + ' (Demonstração)' : turma.turma_nome;
+    const turmaNome = fallbackUsado ? turma.turma_nome + ' (Demonstração)' : turma.turma_nome;
     
     let dataInicioTurma = null;
     try {
       dataInicioTurma = turma.data_inicio ? new Date(turma.data_inicio) : null;
     } catch (e) {
-      // safe cast in case column doesn't exist
+      console.error('[Trilha API] Coluna data_inicio não existe ou é inválida:', e);
     }
 
-    // 2. Buscar TODAS as atividades do cronograma da turma (com progresso do aluno via LEFT JOIN)
-    const trilhaRes = await query(
-      `SELECT 
-         c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
-         c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
-         COALESCE(p.status, 'pendente') as progresso_status,
-         COALESCE(p.xp_ganho, 0) as xp_ganho
-       FROM cronograma_atividades c
-       LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id = $1
-       WHERE c.turma_id = $2
-       ORDER BY c.semana_numero ASC, c.ordem ASC`,
-      [alunoId, turmaId]
-    );
-
-    // 3. Se não há atividades cadastradas no cronograma, informar ao front — ZERO mock
-    if (trilhaRes.rows.length === 0) {
-      // Verificar se a turma inicia no futuro
-      if (dataInicioTurma) {
-        const dtInicio = new Date(dataInicioTurma);
-        dtInicio.setHours(0, 0, 0, 0);
-        if (hoje < dtInicio) {
-          return NextResponse.json({
-            semanas: [],
-            turmaNome,
-            futuro: true,
-            dataInicio: dtInicio.toISOString().split('T')[0],
-            mensagem: `As aulas da turma ${turmaNome} iniciam em ${dtInicio.toLocaleDateString('pt-BR')}.`
-          });
-        }
-      }
-
-      return NextResponse.json({
-        semanas: [],
-        turmaNome,
-        futuro: false,
-        dataInicio: null,
-        mensagem: 'O cronograma de atividades ainda não foi cadastrado para esta turma. Aguarde o lançamento pela coordenação.'
-      });
+    // 4. Buscar cronograma_atividades cruzando com atividades_progresso
+    let trilhaRes;
+    try {
+      trilhaRes = await query(
+        `SELECT 
+           c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
+           c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
+           COALESCE(p.status, 'pendente') as progresso_status,
+           COALESCE(p.xp_ganho, 0) as xp_ganho
+         FROM cronograma_atividades c
+         LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id = $1
+         WHERE c.turma_id = $2
+         ORDER BY c.semana_numero ASC, c.ordem ASC`,
+        [alunoId, turmaId]
+      );
+    } catch (dbErr) {
+      console.error('[Trilha API] Falha SQL ao buscar o cronograma da turma:', dbErr);
+      return NextResponse.json({ error: 'Erro interno ao consultar o cronograma.' }, { status: 500 });
     }
 
-    // 4. Determinar se turma ainda não iniciou (todas as data_liberacao estão no futuro)
+    // 5. Determinar Time-Gating (Turma Futura)
     let turmaFutura = false;
+    let dataInicioFormatada = null;
     if (dataInicioTurma) {
       const dtInicio = new Date(dataInicioTurma);
       dtInicio.setHours(0, 0, 0, 0);
       if (hoje < dtInicio) {
         turmaFutura = true;
+        dataInicioFormatada = dtInicio.toISOString().split('T')[0];
       }
     }
 
-    // 5. Montar resposta estruturada por semana — SEM mock data
+    if (trilhaRes.rows.length === 0) {
+      return NextResponse.json({
+        turmaNome,
+        futuro: turmaFutura,
+        semanas: [],
+        dataInicio: dataInicioFormatada,
+        mensagem: turmaFutura 
+          ? `As aulas da turma ${turmaNome} iniciam em ${dataInicioTurma?.toLocaleDateString('pt-BR')}.`
+          : 'O cronograma de atividades ainda não foi cadastrado para esta turma.'
+      });
+    }
+
+    // 6. Montagem Estruturada do Payload
     const semanasMap = new Map<number, {
-      semana_numero: number;
-      datas_semana: string;
+      semana: number;
+      periodo: string;
       liberada: boolean;
       atividades: any[];
     }>();
@@ -198,35 +186,32 @@ export async function GET(request: Request) {
             if (row.semana_numero === 1) liberada = true;
           }
         }
-        // Se turmaFutura === true, todas as semanas ficam liberada = false
 
         semanasMap.set(row.semana_numero, {
-          semana_numero: row.semana_numero,
-          datas_semana: row.datas_semana || `Semana ${row.semana_numero}`,
+          semana: row.semana_numero,
+          periodo: row.datas_semana || `Semana ${row.semana_numero}`,
           liberada,
           atividades: []
         });
       }
 
-      const semana = semanasMap.get(row.semana_numero)!;
+      const semanaAtiva = semanasMap.get(row.semana_numero)!;
 
-      // Status final: se a semana não está liberada, forçar 'bloqueada'
       let statusFinal: string;
-      if (!semana.liberada) {
+      if (!semanaAtiva.liberada) {
         statusFinal = 'bloqueada';
       } else {
-        // Mapear status do progresso para status de exibição
         const ps = row.progresso_status;
         if (ps === 'concluida' || ps === 'concluido') {
           statusFinal = 'concluida';
         } else if (ps === 'em_andamento') {
           statusFinal = 'em_andamento';
         } else {
-          statusFinal = 'pendente'; // disponível para fazer
+          statusFinal = 'pendente';
         }
       }
 
-      semana.atividades.push({
+      semanaAtiva.atividades.push({
         id: row.id,
         ordem: row.ordem,
         dia_semana: row.dia_semana,
@@ -240,25 +225,18 @@ export async function GET(request: Request) {
       });
     }
 
-    // 6. Calcular a menor data_liberacao para informar ao front quando a turma começa
-    let dataInicioFormatada: string | null = null;
-    if (turmaFutura && dataInicioTurma) {
-      const dt = new Date(dataInicioTurma);
-      dt.setHours(0, 0, 0, 0);
-      dataInicioFormatada = dt.toISOString().split('T')[0];
-    }
-
     return NextResponse.json({
-      semanas: Array.from(semanasMap.values()),
       turmaNome,
       futuro: turmaFutura,
       dataInicio: dataInicioFormatada,
+      semanas: Array.from(semanasMap.values()),
       mensagem: turmaFutura
         ? `As aulas da turma ${turmaNome} iniciam em ${new Date(dataInicioTurma!).toLocaleDateString('pt-BR')}. O cronograma já está preparado!`
         : null
     });
+
   } catch (error: any) {
-    console.error('[Trilha API] Erro ao buscar trilha:', error);
-    return NextResponse.json({ error: 'Erro interno na trilha' }, { status: 500 });
+    console.error('[Trilha API] Exceção geral capturada:', error);
+    return NextResponse.json({ error: 'Falha crítica na rota de trilha' }, { status: 500 });
   }
 }

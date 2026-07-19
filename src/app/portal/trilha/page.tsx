@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle2, Circle, Loader2, Zap, Map, BookOpen, PlayCircle, FileText, Lock } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, Zap, Map, BookOpen, PlayCircle, FileText, Lock, CalendarDays, ChevronDown, ChevronRight, Play, Download, Target, AlertCircle, Clock } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 
@@ -18,8 +18,8 @@ interface Tarefa {
 }
 
 interface Semana {
-  semana_numero: number;
-  datas_semana: string;
+  semana: number;
+  periodo: string;
   liberada: boolean;
   atividades: Tarefa[];
 }
@@ -110,12 +110,12 @@ export default function TrilhaPage() {
         {semanas.length > 0 && (
           <div className="space-y-4 opacity-60">
             {semanas.map((semana, index) => (
-              <div key={semana.semana_numero} className="card p-4 flex items-center justify-between cursor-not-allowed bg-gray-50">
+              <div key={semana.semana} className="card p-4 flex items-center justify-between cursor-not-allowed bg-gray-50">
                 <div className="flex items-center gap-3">
                   <Lock size={18} className="text-gray-400" />
                   <div>
-                    <p className="font-bold text-gray-500 text-sm">Semana {semana.semana_numero}</p>
-                    <p className="text-xs text-gray-400">{semana.datas_semana}</p>
+                    <p className="font-bold text-gray-500 text-sm">Semana {semana.semana}</p>
+                    <p className="text-xs text-gray-400">{semana.periodo}</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">🔒 Travada</span>
@@ -144,36 +144,40 @@ export default function TrilhaPage() {
 
       <div className="space-y-4">
         {semanas.map((semana, index) => {
-          const isExpanded = expandedWeek === semana.semana_numero;
+          const isExpanded = expandedWeek === semana.semana;
           const totalAtividades = semana.atividades.length;
           const concluidas = semana.atividades.filter(a => a.status === 'concluida').length;
           const isWeekDone = totalAtividades > 0 && concluidas === totalAtividades;
           
           return (
-            <div key={semana.semana_numero} className={`card p-0 overflow-hidden animate-fade-in-up`} style={{ animationDelay: `${index * 0.1}s` }}>
-              <div 
-                className={`p-4 flex items-center justify-between cursor-pointer transition-colors ${semana.liberada ? 'hover:bg-gray-50' : 'bg-gray-50 opacity-70'}`}
-                onClick={() => semana.liberada && setExpandedWeek(isExpanded ? null : semana.semana_numero)}
+            <div 
+              key={semana.semana} 
+              className={`card overflow-hidden border-2 transition-all duration-300 ${
+                isExpanded ? 'border-primary shadow-lg ring-4 ring-primary/10' : 'border-transparent hover:border-gray-200'
+              }`}
+            >
+              <button 
+                onClick={() => semana.liberada && setExpandedWeek(isExpanded ? null : semana.semana)}
+                className={`w-full p-4 md:p-5 flex items-center justify-between transition-colors ${
+                  !semana.liberada ? 'cursor-not-allowed opacity-75' : 'hover:bg-gray-50'
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  {!semana.liberada ? (
-                    <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center text-gray-500">
-                      <Lock size={20} />
-                    </div>
-                  ) : isWeekDone ? (
-                    <div className="w-10 h-10 rounded-xl bg-[var(--color-verde-sucesso)] flex items-center justify-center text-white">
-                      <CheckCircle2 size={20} />
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl bg-[var(--color-azul-autoridade)] flex items-center justify-center text-white font-black">
-                      {semana.semana_numero}
-                    </div>
-                  )}
-                  <div>
-                    <h3 className={`font-bold text-lg ${!semana.liberada ? 'text-gray-500' : 'text-[var(--color-azul-autoridade)]'}`}>
-                      Semana {semana.semana_numero} {!semana.liberada && '🔒'}
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner transition-transform ${
+                    isExpanded ? 'scale-110' : ''
+                  } ${
+                    !semana.liberada ? 'bg-gray-100 text-gray-400' : 
+                    'bg-primary/10 text-primary'
+                  }`}>
+                    {!semana.liberada ? <Lock size={24} /> : isWeekDone ? <CheckCircle2 size={24} /> : <span className="font-bold text-xl">{semana.semana}</span>}
+                  </div>
+                  <div className="text-left">
+                    <h3 className={`font-black text-lg ${!semana.liberada ? 'text-gray-500' : 'text-[var(--color-cinza-texto)]'}`}>
+                      Semana {semana.semana}
                     </h3>
-                    <p className="text-xs text-[var(--color-cinza-texto)]">{semana.datas_semana}</p>
+                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
+                      <Clock size={14} className="opacity-70" /> {semana.periodo}
+                    </p>
                   </div>
                 </div>
                 
@@ -183,7 +187,7 @@ export default function TrilhaPage() {
                     <p className="text-[10px] text-[var(--color-cinza-texto)]">concluídas</p>
                   </div>
                 )}
-              </div>
+              </button>
 
               {isExpanded && semana.liberada && (
                 <div className="p-4 border-t border-gray-100 bg-white space-y-3">
