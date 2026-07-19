@@ -13,7 +13,7 @@ interface Tarefa {
   bloco?: string | null;
   titulo: string;
   xp_total: number;
-  status: 'concluido' | 'em_andamento' | 'pendente' | 'bloqueada';
+  status: 'concluido' | 'concluida' | 'em_andamento' | 'pendente' | 'bloqueada';
   xp_ganho: number;
 }
 

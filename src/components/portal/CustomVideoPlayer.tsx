@@ -4,6 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Loader2, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
 interface CustomVideoPlayerProps {
   conteudoId: string;
   videoUrl: string;
@@ -11,18 +18,35 @@ interface CustomVideoPlayerProps {
   onComplete: (xpGanho: number, leveledUp: boolean, newLevel: number) => void;
 }
 
+const getYoutubeVideoId = (url: string) => {
+  if (!url || url === 'local') return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
 export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onComplete }: CustomVideoPlayerProps) {
   const { user } = useAuth();
   const alunoId = user?.alunoId || 'a1';
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const ytContainerRef = useRef<HTMLDivElement>(null);
+  const ytPlayerRef = useRef<any>(null);
+  const lastTimeRef = useRef<number>(0);
+  const onCompleteCalledRef = useRef<boolean>(false);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [lastTime, setLastTime] = useState(0);
+  const [ytProgress, setYtProgress] = useState(0);
 
-  // 1. Initial State Fetch
+  const ytId = getYoutubeVideoId(videoUrl);
+  const isYoutube = Boolean(ytId);
+
+  // 1. Initial State Fetch and Heartbeat
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -31,8 +55,16 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
         const res = await fetch(`/api/player?alunoId=${alunoId}&conteudoId=${conteudoId}`);
         if (res.ok) {
           const data = await res.json();
-          if (videoRef.current && data.current_time_seconds) {
-            videoRef.current.currentTime = parseFloat(data.current_time_seconds);
+          const initialTime = parseFloat(data.current_time_seconds || 0);
+          if (!isNaN(initialTime) && initialTime > 0) {
+            lastTimeRef.current = initialTime;
+            setLastTime(initialTime);
+            if (videoRef.current) {
+              videoRef.current.currentTime = initialTime;
+            }
+            if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+              ytPlayerRef.current.seekTo(initialTime, true);
+            }
           }
           if (data.status === 'completed') {
             setIsCompleted(true);
@@ -50,21 +82,150 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
 
     // 2. Heartbeat (every 5 seconds)
     interval = setInterval(() => {
-      if (videoRef.current && !videoRef.current.paused) {
-        const ct = videoRef.current.currentTime;
-        const dur = videoRef.current.duration;
-        if (!isNaN(ct) && !isNaN(dur)) {
-          fetch('/api/player', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ alunoId, conteudoId, currentTime: ct, duration: dur })
-          }).catch(e => console.error('Heartbeat falhou:', e));
+      let ct = 0;
+      let dur = 0;
+      let active = false;
+
+      if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+        const state = ytPlayerRef.current.getPlayerState ? ytPlayerRef.current.getPlayerState() : -1;
+        // YT.PlayerState.PLAYING = 1
+        if (state === 1) {
+          ct = ytPlayerRef.current.getCurrentTime();
+          dur = ytPlayerRef.current.getDuration() || 0;
+          active = true;
         }
+      } else if (!isYoutube && videoRef.current && !videoRef.current.paused) {
+        ct = videoRef.current.currentTime;
+        dur = videoRef.current.duration || 0;
+        active = true;
+      }
+
+      if (active && !isNaN(ct) && !isNaN(dur) && dur > 0) {
+        fetch('/api/player', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alunoId, conteudoId, currentTime: ct, duration: dur })
+        }).catch(e => console.error('Heartbeat falhou:', e));
       }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [alunoId, conteudoId]);
+  }, [alunoId, conteudoId, isYoutube]);
+
+  // YouTube IFrame API Initialization
+  useEffect(() => {
+    if (!isYoutube || !ytId) return;
+
+    let isMounted = true;
+    let checkInterval: NodeJS.Timeout | null = null;
+
+    const initPlayer = () => {
+      if (!isMounted || !ytContainerRef.current || !window.YT || !window.YT.Player) return;
+
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (e) {}
+      }
+
+      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+        videoId: ytId,
+        playerVars: {
+          controls: 0,
+          disablekb: 1,
+          rel: 0,
+          modestbranding: 1,
+          autoplay: 1,
+          playsinline: 1,
+          fs: 1,
+        },
+        events: {
+          onReady: (event: any) => {
+            if (!isMounted) return;
+            ytPlayerRef.current = event.target;
+            if (lastTimeRef.current > 0) {
+              event.target.seekTo(lastTimeRef.current, true);
+            }
+            event.target.playVideo();
+          },
+          onStateChange: (event: any) => {
+            if (!isMounted) return;
+            // YT.PlayerState.ENDED = 0, PLAYING = 1, PAUSED = 2
+            if (event.data === 0) {
+              handleEnded();
+            } else if (event.data === 1) {
+              setIsPlaying(true);
+            } else if (event.data === 2) {
+              setIsPlaying(false);
+            }
+          }
+        }
+      });
+    };
+
+    if (!window.YT || !window.YT.Player) {
+      if (!document.getElementById('youtube-iframe-api-script')) {
+        const tag = document.createElement('script');
+        tag.id = 'youtube-iframe-api-script';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        if (firstScriptTag && firstScriptTag.parentNode) {
+          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        } else {
+          document.head.appendChild(tag);
+        }
+      }
+
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevReady) prevReady();
+        initPlayer();
+      };
+
+      checkInterval = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          if (checkInterval) clearInterval(checkInterval);
+          initPlayer();
+        }
+      }, 100);
+    } else {
+      initPlayer();
+    }
+
+    return () => {
+      isMounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (e) {}
+      }
+      ytPlayerRef.current = null;
+    };
+  }, [isYoutube, ytId]);
+
+  // Anti-skip logic for YouTube (polling progress every 500ms)
+  useEffect(() => {
+    if (!isYoutube) return;
+    const interval = setInterval(() => {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+        const current = ytPlayerRef.current.getCurrentTime();
+        const duration = ytPlayerRef.current.getDuration() || 1;
+        const state = ytPlayerRef.current.getPlayerState ? ytPlayerRef.current.getPlayerState() : -1;
+
+        if (state === 1 && !isNaN(current)) {
+          if (!isCompleted && current > lastTimeRef.current + 5 && lastTimeRef.current > 0) {
+            ytPlayerRef.current.seekTo(lastTimeRef.current, true);
+          } else {
+            lastTimeRef.current = current;
+            setLastTime(current);
+            setYtProgress((current / duration) * 100);
+          }
+        }
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [isYoutube, isCompleted]);
 
   async function loadComments() {
     try {
@@ -78,25 +239,29 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
   }
 
-  // 3. Prevent Skip
-  const [lastTime, setLastTime] = useState(0);
-  
+  // Anti-skip logic for HTML5 video
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const current = videoRef.current.currentTime;
     
-    // Anti-skip logic
-    if (!isCompleted && current > lastTime + 5) {
-      // Se avançou subitamente, volta
-      videoRef.current.currentTime = lastTime;
+    if (!isCompleted && current > lastTimeRef.current + 5 && lastTimeRef.current > 0) {
+      videoRef.current.currentTime = lastTimeRef.current;
     } else {
+      lastTimeRef.current = current;
       setLastTime(current);
     }
   };
 
   const handleEnded = async () => {
-    if (isCompleted) return;
+    if (isCompleted && !onCompleteCalledRef.current) {
+      onCompleteCalledRef.current = true;
+      onComplete(0, false, 0);
+      return;
+    }
+    if (onCompleteCalledRef.current) return;
+    
     try {
+      onCompleteCalledRef.current = true;
       const res = await fetch('/api/player/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,23 +270,40 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
       if (res.ok) {
         const data = await res.json();
         setIsCompleted(true);
-        if (data.success && data.xpGanho > 0) {
-          onComplete(data.xpGanho, data.leveledUp, data.novoNivel);
+        if (data.success) {
+          onComplete(data.xpGanho || 0, data.leveledUp || false, data.novoNivel || 0);
+        } else {
+          onComplete(0, false, 0);
         }
+      } else {
+        onComplete(0, false, 0);
       }
     } catch (e) {
       console.error('Erro ao completar vídeo', e);
+      onComplete(0, false, 0);
     }
   };
 
   const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsPlaying(true);
+    if (isYoutube) {
+      if (!ytPlayerRef.current || typeof ytPlayerRef.current.getPlayerState !== 'function') return;
+      const state = ytPlayerRef.current.getPlayerState();
+      if (state === 1) {
+        ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
     } else {
-      videoRef.current.pause();
-      setIsPlaying(false);
+      if (!videoRef.current) return;
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      } else {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
     }
   };
 
@@ -143,6 +325,12 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
   };
 
+  const progressPercentage = isYoutube
+    ? ytProgress
+    : videoRef.current && videoRef.current.duration
+      ? (lastTime / videoRef.current.duration) * 100
+      : 0;
+
   return (
     <div className="w-full flex flex-col gap-4">
       <div className="relative bg-black aspect-video rounded-xl overflow-hidden group">
@@ -152,36 +340,44 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
           </div>
         )}
         
-        {/* Usamos controlsList="nodownload noplaybackrate" e ocultamos controles nativos 
-            para ter total controle sobre avançar/voltar. */}
-        <video 
-          ref={videoRef}
-          src={videoUrl === 'local' ? '/aula_local.mp4' : videoUrl} 
-          className="w-full h-full object-contain"
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleEnded}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          controls={false}
-          disablePictureInPicture
-        />
+        {isYoutube ? (
+          <div className="w-full h-full relative flex items-center justify-center bg-black">
+            <div ref={ytContainerRef} className="w-full h-full pointer-events-auto" />
+          </div>
+        ) : (
+          <video 
+            ref={videoRef}
+            src={videoUrl === 'local' ? '/aula_local.mp4' : videoUrl} 
+            className="w-full h-full object-contain"
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={handleEnded}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            controls={false}
+            disablePictureInPicture
+          />
+        )}
         
         {/* Custom Controls Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-auto">
           <div className="flex items-center gap-4">
-            <button onClick={togglePlay} className="text-white hover:text-[var(--color-amarelo-conquista)] transition-colors">
+            <button 
+              onClick={togglePlay} 
+              className="text-white hover:text-[var(--color-amarelo-conquista)] transition-colors p-1"
+              type="button"
+            >
               {isPlaying ? <Pause size={28} /> : <Play size={28} />}
             </button>
             <div className="flex-1">
                <div className="w-full h-1.5 bg-white/30 rounded-full overflow-hidden relative">
                  <div 
-                   className="absolute top-0 left-0 h-full bg-[var(--color-amarelo-conquista)] transition-all"
-                   style={{ width: \`\${videoRef.current ? (lastTime / (videoRef.current.duration || 1)) * 100 : 0}%\` }}
+                   className="absolute top-0 left-0 h-full bg-[var(--color-amarelo-conquista)] transition-all duration-300"
+                   style={{ width: `${Math.min(progressPercentage, 100)}%` }}
                  />
                </div>
             </div>
             <div className="text-white text-xs font-mono">
-               Avanço desabilitado
+               {isCompleted ? '✓ Concluído' : 'Avanço desabilitado'}
             </div>
           </div>
         </div>

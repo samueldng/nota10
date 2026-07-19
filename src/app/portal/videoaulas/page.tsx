@@ -15,7 +15,6 @@ export default function VideoaulasPage() {
   
   // DB-driven completion state
   const [atividadesConcluidas, setAtividadesConcluidas] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   // Celebration modal state
@@ -111,63 +110,6 @@ export default function VideoaulasPage() {
   const handleOpenVideo = (video: Videoaula) => {
     if (video.status === 'bloqueado') return;
     setSelectedVideo(video);
-  };
-
-  const handleSimulateWatch = async () => {
-    if (!selectedVideo || isSubmitting) return;
-    
-    const wasCompleted = atividadesConcluidas.includes(selectedVideo.id);
-    if (wasCompleted) {
-      setSelectedVideo(null);
-      return;
-    }
-    
-    setIsSubmitting(true);
-    try {
-      const response = await fetch('/api/progresso', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alunoId,
-          tipoAcao: 'videoaula',
-          xpGanho: selectedVideo.xp || 15,
-          atividadeId: selectedVideo.id
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        setGainedXp(selectedVideo.xp || 15);
-        setIsLvlUp(data.leveledUp);
-        setNewLevel(data.nivel);
-        setShowCelebration(true);
-        setToast(`+${selectedVideo.xp || 15} XP!`);
-
-        // Notify other parts of the dashboard to reload
-        window.dispatchEvent(new Event('nota10_progress_updated'));
-      } else {
-        const errData = await response.json();
-        alert('Erro ao registrar progresso: ' + (errData.error || 'Erro desconhecido'));
-      }
-    } catch (err) {
-      console.error('Erro ao salvar progresso:', err);
-    } finally {
-      setIsSubmitting(false);
-      setSelectedVideo(null);
-      loadData();
-    }
-  };
-
-  // Extrair ID do youtube se houver
-  const getYoutubeEmbedUrl = (url: string) => {
-    let videoId = '';
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      videoId = match[2];
-    }
-    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
   };
 
   const disciplinas = Array.from(new Set(videoaulas.map(v => v.disciplina || 'Outros'))).sort((a, b) => {
@@ -303,62 +245,45 @@ export default function VideoaulasPage() {
 
             {/* Video container */}
             <div className="bg-[var(--color-cinza-fundo)]">
-              {selectedVideo.videoSource === 'youtube' && selectedVideo.videoUrl ? (
-                <div className="bg-black aspect-video flex items-center justify-center">
-                  <iframe
-                    className="w-full h-full"
-                    src={getYoutubeEmbedUrl(selectedVideo.videoUrl)}
-                    title={selectedVideo.titulo}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <CustomVideoPlayer 
-                  conteudoId={selectedVideo.id}
-                  videoUrl={selectedVideo.videoUrl || 'local'}
-                  xpVal={selectedVideo.xp || 15}
-                  onComplete={(xpGanho, leveledUp, novoNivel) => {
-                    setGainedXp(xpGanho);
-                    setIsLvlUp(leveledUp);
-                    setNewLevel(novoNivel);
+              <CustomVideoPlayer 
+                conteudoId={selectedVideo.id}
+                videoUrl={selectedVideo.videoUrl || 'local'}
+                xpVal={selectedVideo.xp || 15}
+                onComplete={(xpGanho, leveledUp, novoNivel) => {
+                  setGainedXp(xpGanho);
+                  setIsLvlUp(leveledUp);
+                  setNewLevel(novoNivel);
+                  setSelectedVideo(null); // Fecha o modal silenciosamente ao concluir
+                  if (xpGanho > 0) {
                     setShowCelebration(true);
                     setToast(`+${xpGanho} XP!`);
-                    window.dispatchEvent(new Event('nota10_progress_updated'));
-                    loadData();
-                  }}
-                />
-              )}
+                  }
+                  window.dispatchEvent(new Event('nota10_progress_updated'));
+                  loadData();
+                }}
+              />
             </div>
 
-            {/* Actions / XP award */}
+            {/* Actions / XP status */}
             <div className="p-4 bg-gray-50 flex items-center justify-between border-t border-[var(--color-cinza-borda)]">
               <div className="flex items-center gap-1">
                 <Zap size={14} className="text-[var(--color-amarelo-conquista)]" fill="currentColor" />
-                <span className="text-xs font-bold text-[var(--color-cinza-escuro)]">Assista até o fim para ganhar +{selectedVideo.xp} XP</span>
+                <span className="text-xs font-bold text-[var(--color-cinza-escuro)]">
+                  Assista até o fim para ganhar +{selectedVideo.xp || 15} XP
+                </span>
               </div>
-              <button 
-                onClick={handleSimulateWatch} 
-                disabled={atividadesConcluidas.includes(selectedVideo.id) || isSubmitting}
-                className="btn btn-primary text-xs py-2 px-4 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Salvando...</span>
-                  </>
-                ) : atividadesConcluidas.includes(selectedVideo.id) ? (
-                  <>
-                    <CheckCircle2 size={14} />
-                    <span>Concluído</span>
-                  </>
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                {atividadesConcluidas.includes(selectedVideo.id) ? (
+                  <span className="flex items-center gap-1 text-[var(--color-verde-sucesso)] font-black">
+                    <CheckCircle2 size={16} /> Concluído
+                  </span>
                 ) : (
-                  <>
-                    <CheckCircle2 size={14} />
-                    <span>Concluir e Ganhar XP</span>
-                  </>
+                  <span className="text-[var(--color-cinza-texto)] flex items-center gap-1.5">
+                    <Clock size={14} className="text-[var(--color-azul-autoridade)]" />
+                    <span>Conclusão automática ao término do vídeo</span>
+                  </span>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </div>
