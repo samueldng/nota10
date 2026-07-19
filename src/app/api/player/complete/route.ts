@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, getClient } from '@/lib/db';
+import { ensureProgressTables } from '@/lib/ensureTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,33 +42,13 @@ export async function POST(request: Request) {
       });
     }
 
+    // Garantir que todas as tabelas e índices existem no banco ANTES de iniciar a transação
+    await ensureProgressTables();
+
     const client = await getClient();
 
     try {
       await client.query('BEGIN');
-
-      // Garantir que tabelas essenciais existem
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS player_state (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          aluno_id UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
-          conteudo_id UUID NOT NULL REFERENCES conteudos_midia(id) ON DELETE CASCADE,
-          current_time_seconds NUMERIC(10,2) NOT NULL DEFAULT 0,
-          duration_seconds NUMERIC(10,2),
-          percent_watched NUMERIC(5,2) NOT NULL DEFAULT 0,
-          status VARCHAR(20) NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started','in_progress','completed')),
-          completed_at TIMESTAMPTZ,
-          updated_at TIMESTAMPTZ DEFAULT NOW(),
-          UNIQUE (aluno_id, conteudo_id)
-        );
-      `);
-
-      // Garantir índice de idempotência no aluno_progresso
-      await client.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_progresso_aluno_atividade_unique
-          ON aluno_progresso (aluno_id, atividade_id)
-          WHERE atividade_id IS NOT NULL;
-      `);
 
       // Verificar existência do aluno no banco para evitar violação de FK
       const alunoCheck = await client.query(`SELECT id, xp_total, nivel FROM alunos WHERE id = $1 FOR UPDATE`, [alunoId]);
@@ -77,7 +58,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Aluno não encontrado no banco' }, { status: 404 });
       }
 
-      // 1. Verificar ou fazer upsert no player_state
+      // 1. Verificar ou fazer upsert no player_state (com casting flexível para blindagem absoluta)
       if (completed === true) {
         await client.query(
           `INSERT INTO player_state (aluno_id, conteudo_id, current_time_seconds, duration_seconds, percent_watched, status, completed_at)
@@ -93,7 +74,7 @@ export async function POST(request: Request) {
       } else {
         const stateRes = await client.query(
           `SELECT status, percent_watched FROM player_state 
-           WHERE aluno_id = $1 AND conteudo_id = $2 FOR UPDATE`,
+           WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text FOR UPDATE`,
           [alunoId, conteudoId]
         );
 
@@ -115,7 +96,7 @@ export async function POST(request: Request) {
         await client.query(
           `UPDATE player_state 
            SET status = 'completed', completed_at = COALESCE(completed_at, NOW()), updated_at = NOW() 
-           WHERE aluno_id = $1 AND conteudo_id = $2`,
+           WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
           [alunoId, conteudoId]
         );
       }
@@ -166,7 +147,7 @@ export async function POST(request: Request) {
         await client.query(
           `UPDATE atividades_progresso
            SET status = 'concluida', completed_at = NOW(), updated_at = NOW()
-           WHERE aluno_id = $1 AND atividade_id = $2`,
+           WHERE aluno_id::text = $1::text AND atividade_id::text = $2::text`,
           [alunoId, conteudoId]
         );
 
@@ -191,7 +172,7 @@ export async function POST(request: Request) {
             const proxId = proxRes.rows[0].id;
             await client.query(
               `UPDATE atividades_progresso SET status = 'em_andamento'
-               WHERE aluno_id = $1 AND atividade_id = $2 AND status = 'bloqueada'`,
+               WHERE aluno_id::text = $1::text AND atividade_id::text = $2::text AND status = 'bloqueada'`,
               [alunoId, proxId]
             );
           }
@@ -219,7 +200,7 @@ export async function POST(request: Request) {
       client.release();
     }
   } catch (error: any) {
-    console.error('Erro crítico ao completar vídeo:', error);
-    return NextResponse.json({ error: 'Erro interno no processamento de conclusão' }, { status: 500 });
+    console.error('Erro na conclusão do player:', error);
+    return NextResponse.json({ error: 'Erro interno na conclusão do player' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ensureProgressTables } from '@/lib/ensureTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
        return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
     }
 
+    await ensureProgressTables();
+
     let queryStr = '';
     let params: any[] = [];
 
@@ -26,7 +29,7 @@ export async function POST(request: Request) {
         ON CONFLICT (aluno_id, atividade_id)
         DO UPDATE SET status = $3, xp_ganho = $4, completed_at = NOW(), updated_at = NOW()
       `;
-      params = [alunoId, atividadeId, status, xpGanho];
+      params = [String(alunoId).trim(), String(atividadeId).trim(), status, xpGanho];
     } else if (status === 'em_andamento') {
       queryStr = `
         INSERT INTO atividades_progresso (aluno_id, atividade_id, status, started_at, updated_at)
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
         ON CONFLICT (aluno_id, atividade_id)
         DO UPDATE SET status = $3, updated_at = NOW()
       `;
-      params = [alunoId, atividadeId, status];
+      params = [String(alunoId).trim(), String(atividadeId).trim(), status];
     } else {
       // bloqueada
       queryStr = `
@@ -43,7 +46,7 @@ export async function POST(request: Request) {
         ON CONFLICT (aluno_id, atividade_id)
         DO UPDATE SET status = $3, updated_at = NOW()
       `;
-      params = [alunoId, atividadeId, status];
+      params = [String(alunoId).trim(), String(atividadeId).trim(), status];
     }
 
     await query(queryStr, params);
@@ -51,6 +54,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Erro ao atualizar progresso da trilha:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno no progresso da trilha' }, { status: 500 });
   }
 }

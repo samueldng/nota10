@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ensureProgressTables } from '@/lib/ensureTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,9 @@ export async function GET(request: Request) {
 
   const alunoIdInput = String(rawAlunoId).trim();
   console.log(`[Trilha API] Requisição GET recebida com searchParam alunoId: "${alunoIdInput}"`);
+
+  // GARANTIA MÁXIMA DE MIGRATION NO BANCO: Criar player_state e atividades_progresso se não existirem antes de qualquer query
+  await ensureProgressTables();
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -181,10 +185,21 @@ export async function GET(request: Request) {
     SELECT 
       c.id, c.semana_numero, c.datas_semana, c.ordem, c.tipo, c.disciplina,
       c.bloco, c.titulo, c.xp_total, c.data_liberacao, c.dia_semana, c.subtarefas,
-      COALESCE(p.status, 'pendente') as progresso_status,
-      COALESCE(p.xp_ganho, 0) as xp_ganho
+      COALESCE(
+        p.status,
+        CASE WHEN ps.status = 'completed' THEN 'concluida'
+             WHEN ps.status = 'in_progress' THEN 'em_andamento'
+             ELSE NULL END,
+        'pendente'
+      ) as progresso_status,
+      COALESCE(
+        p.xp_ganho,
+        CASE WHEN ps.status = 'completed' THEN c.xp_total ELSE 0 END,
+        0
+      ) as xp_ganho
     FROM cronograma_atividades c
     LEFT JOIN atividades_progresso p ON c.id::text = p.atividade_id AND p.aluno_id::text = $1::text
+    LEFT JOIN player_state ps ON c.id::text = ps.conteudo_id AND ps.aluno_id::text = $1::text
     WHERE (
       c.turma_id::text = ANY($2::text[])
       OR c.turma_id::text IN (

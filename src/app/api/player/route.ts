@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { query, getClient } from '@/lib/db';
+import { query } from '@/lib/db';
+import { ensureProgressTables } from '@/lib/ensureTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +15,12 @@ export async function GET(request: Request) {
   }
 
   try {
+    await ensureProgressTables();
+
     const res = await query(
       `SELECT current_time_seconds, status, percent_watched
        FROM player_state
-       WHERE aluno_id = $1 AND conteudo_id = $2`,
+       WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
       [alunoId, conteudoId]
     );
 
@@ -28,7 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.json(res.rows[0]);
   } catch (error: any) {
     console.error('Erro ao buscar player state:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno no GET do player' }, { status: 500 });
   }
 }
 
@@ -42,11 +45,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 });
     }
 
+    await ensureProgressTables();
+
     const percentWatched = duration > 0 ? (currentTime / duration) * 100 : 0;
     
     // Recupera o estado atual para validação anti-skip
     const stateRes = await query(
-      `SELECT current_time_seconds FROM player_state WHERE aluno_id = $1 AND conteudo_id = $2`,
+      `SELECT current_time_seconds FROM player_state WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
       [alunoId, conteudoId]
     );
     
@@ -62,7 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Avanço de tempo inválido detectado (anti-skip)' }, { status: 400 });
     }
 
-    // Upsert the state
+    // Upsert the state (usando casting explícito ::text na chave para flexibilidade absoluta de UUID vs String)
     await query(
       `INSERT INTO player_state (aluno_id, conteudo_id, current_time_seconds, duration_seconds, percent_watched, status)
        VALUES ($1, $2, $3, $4, $5, 'in_progress')
@@ -76,12 +81,12 @@ export async function POST(request: Request) {
            ELSE 'in_progress' 
          END,
          updated_at = NOW()`,
-      [alunoId, conteudoId, currentTime, duration, percentWatched]
+      [String(alunoId).trim(), String(conteudoId).trim(), currentTime, duration, percentWatched]
     );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Erro no heartbeat do player:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno no heartbeat do player' }, { status: 500 });
   }
 }
