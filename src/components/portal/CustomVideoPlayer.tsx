@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Loader2, MessageSquare } from 'lucide-react';
+import { Play, Pause, Loader2, Maximize, Minimize } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import VideoComments from '@/components/portal/VideoComments';
 
 declare global {
   interface Window {
@@ -29,6 +30,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
   const { user } = useAuth();
   const alunoId = user?.alunoId || 'a1';
   
+  const playerContainerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<any>(null);
@@ -38,8 +40,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [comments, setComments] = useState<any[]>([]);
-  const [newComment, setNewComment] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [lastTime, setLastTime] = useState(0);
   const [ytProgress, setYtProgress] = useState(0);
 
@@ -78,7 +79,6 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
     
     loadState();
-    loadComments();
 
     // 2. Heartbeat (every 5 seconds)
     interval = setInterval(() => {
@@ -227,17 +227,30 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     return () => clearInterval(interval);
   }, [isYoutube, isCompleted]);
 
-  async function loadComments() {
-    try {
-      const res = await fetch(`/api/player/comentarios?conteudoId=${conteudoId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setComments(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
+  // Fullscreen event listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFull = Boolean(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isFull);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
 
   // Anti-skip logic for HTML5 video
   const handleTimeUpdate = () => {
@@ -307,21 +320,38 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
   };
 
-  const submitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    try {
-      const res = await fetch('/api/player/comentarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alunoId, conteudoId, texto: newComment })
-      });
-      if (res.ok) {
-        setNewComment('');
-        loadComments();
+  const toggleFullscreen = () => {
+    if (!playerContainerRef.current) return;
+
+    const isFull = Boolean(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+
+    if (!isFull) {
+      const el = playerContainerRef.current as any;
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch((err: any) => console.error(err));
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else if (el.mozRequestFullScreen) {
+        el.mozRequestFullScreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
       }
-    } catch (e) {
-      console.error(e);
+    } else {
+      const doc = document as any;
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch((err: any) => console.error(err));
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      } else if (doc.mozCancelFullScreen) {
+        doc.mozCancelFullScreen();
+      } else if (doc.msExitFullscreen) {
+        doc.msExitFullscreen();
+      }
     }
   };
 
@@ -333,7 +363,12 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
 
   return (
     <div className="w-full flex flex-col gap-4">
-      <div className="relative bg-black aspect-video rounded-xl overflow-hidden group">
+      <div 
+        ref={playerContainerRef}
+        className={`relative bg-black rounded-xl overflow-hidden group ${
+          isFullscreen ? 'w-full h-full flex flex-col justify-center items-center' : 'aspect-video'
+        }`}
+      >
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80">
             <Loader2 className="animate-spin text-white w-8 h-8" />
@@ -365,6 +400,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
               onClick={togglePlay} 
               className="text-white hover:text-[var(--color-amarelo-conquista)] transition-colors p-1"
               type="button"
+              title={isPlaying ? "Pausar" : "Reproduzir"}
             >
               {isPlaying ? <Pause size={28} /> : <Play size={28} />}
             </button>
@@ -379,43 +415,20 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
             <div className="text-white text-xs font-mono">
                {isCompleted ? '✓ Concluído' : 'Avanço desabilitado'}
             </div>
+            <button 
+              onClick={toggleFullscreen}
+              className="text-white hover:text-[var(--color-amarelo-conquista)] transition-colors p-1 ml-2"
+              type="button"
+              title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+            >
+              {isFullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
+            </button>
           </div>
         </div>
       </div>
 
       {/* Comentários Section */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-[var(--color-cinza-borda)]">
-        <h4 className="text-lg font-bold text-[var(--color-azul-autoridade)] flex items-center gap-2 mb-4">
-          <MessageSquare size={20} />
-          Dúvidas e Comentários
-        </h4>
-        
-        <form onSubmit={submitComment} className="flex gap-2 mb-6">
-          <input 
-            type="text" 
-            placeholder="Deixe seu comentário ou dúvida..." 
-            className="flex-1 input"
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary" disabled={!newComment.trim()}>Enviar</button>
-        </form>
-
-        <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-          {comments.map(c => (
-            <div key={c.id} className="bg-[var(--color-cinza-fundo)] p-3 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-[var(--color-azul-autoridade)]">{c.aluno_nome}</span>
-                <span className="text-[10px] text-[var(--color-cinza-texto)]">{new Date(c.created_at).toLocaleDateString('pt-BR')}</span>
-              </div>
-              <p className="text-sm text-[var(--color-cinza-escuro)]">{c.texto}</p>
-            </div>
-          ))}
-          {comments.length === 0 && (
-            <p className="text-center text-sm text-[var(--color-cinza-texto)] py-4">Nenhum comentário ainda. Seja o primeiro!</p>
-          )}
-        </div>
-      </div>
+      <VideoComments conteudoId={conteudoId} />
     </div>
   );
 }
