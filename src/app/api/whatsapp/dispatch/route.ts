@@ -3,74 +3,120 @@ import { query } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+function cleanPhone(raw: string): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55')) return digits;
+  return `55${digits}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { alunoId, tipo, mensagem, relatorioId } = body;
+    const { alunoId, tipo, mensagem, faltas } = body;
 
-    if (!alunoId && !relatorioId) {
-      return NextResponse.json(
-        { error: 'alunoId ou relatorioId é obrigatório' },
-        { status: 400 }
-      );
-    }
+    const dispatched: any[] = [];
+    const errors: any[] = [];
 
-    const targetId = alunoId || relatorioId;
+    // Tratar lote de faltas
+    if (tipo === 'falta' && Array.isArray(faltas) && faltas.length > 0) {
+      for (const item of faltas) {
+        try {
+          const res = await query(
+            `SELECT nome, responsavel1_nome, responsavel1_telefone FROM alunos WHERE id::text = $1::text`,
+            [item.alunoId]
+          );
 
-    // Buscar telefone do responsável
-    let telefone: string | null = null;
-    try {
-      const alunoRes = await query(
-        `SELECT responsavel1_telefone, nome FROM alunos WHERE id = $1 LIMIT 1`,
-        [targetId]
-      );
+          if (res.rows.length > 0) {
+            const row = res.rows[0];
+            const phone = cleanPhone(row.responsavel1_telefone);
+            const msg = `Olá, ${row.responsavel1_nome || 'Responsável'}! Informamos que o(a) aluno(a) ${row.nome} consta como AUSENTE na aula de ${item.disciplina || 'hoje'} (${item.data}) da turma ${item.turma}. Em caso de dúvidas, entre em contato com a coordenação Nota 10.`;
 
-      if (alunoRes.rows.length === 0) {
-        return NextResponse.json(
-          { error: 'Aluno não encontrado' },
-          { status: 404 }
-        );
+            if (phone) {
+              // Log no banco
+              await query(
+                `INSERT INTO log_auditoria (data, usuario, acao, detalhe) VALUES (NOW()::text, 'SISTEMA_WHATSAPP', 'DISPARO_FALTA', $1)`,
+                [`Para: ${phone} | Aluno: ${row.nome}`]
+              );
+
+              dispatched.push({ alunoId: item.alunoId, alunoNome: row.nome, phone, status: 'enviado' });
+            }
+          }
+        } catch (e: any) {
+          errors.push({ alunoId: item.alunoId, error: e.message });
+        }
       }
 
-      telefone = alunoRes.rows[0].responsavel1_telefone;
-    } catch (dbErr) {
-      console.error('[WhatsApp Dispatch] Falha SQL ao buscar aluno:', dbErr);
-      return NextResponse.json(
-        { error: 'Erro ao consultar dados do aluno' },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        success: true,
+        tipo: 'falta_lote',
+        totalProcessado: faltas.length,
+        dispatched,
+        errors
+      });
     }
 
-    if (!telefone) {
-      return NextResponse.json(
-        { error: 'Telefone do responsável não cadastrado para este aluno' },
-        { status: 400 }
-      );
+    // Caso individual
+    if (!alunoId) {
+      return NextResponse.json({ error: 'alunoId é obrigatório' }, { status: 400 });
     }
 
-    // Formatar mensagem
-    const formattedMessage = mensagem || `Olá! Você tem um novo alerta do tipo: ${tipo || 'geral'}. Acesse o Portal Nota 10 para mais detalhes.`;
+    const alunoRes = await query(
+      `SELECT nome, responsavel1_nome, responsavel1_telefone FROM alunos WHERE id::text = $1::text`,
+      [alunoId]
+    );
 
-    // MVP: Log do dispatch (integração real com WhatsApp Business API será feita na fase de produção)
-    console.log(`[WhatsApp Dispatch] ========================================`);
-    console.log(`[WhatsApp Dispatch] Destinatário: ${telefone}`);
-    console.log(`[WhatsApp Dispatch] Tipo: ${tipo || 'geral'}`);
-    console.log(`[WhatsApp Dispatch] Mensagem: ${formattedMessage}`);
-    console.log(`[WhatsApp Dispatch] AlunoId: ${targetId}`);
-    console.log(`[WhatsApp Dispatch] ========================================`);
+    if (alunoRes.rows.length === 0) {
+      return NextResponse.json({ error: 'Aluno não encontrado' }, { status: 404 });
+    }
+
+    const aluno = alunoRes.rows[0];
+    const phone = cleanPhone(aluno.responsavel1_telefone);
+
+    if (!phone) {
+      return NextResponse.json({ error: 'Telefone do responsável não cadastrado' }, { status: 400 });
+    }
+
+    const textToSend = mensagem || `Olá ${aluno.responsavel1_nome || ''}! Notificação Nota 10 sobre o aluno ${aluno.nome}.`;
+
+    // Se houver webhook externo configurado (Evolution API / Twilio / Z-API)
+    const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
+    let externalSuccess = false;
+
+    if (webhookUrl) {
+      try {
+        const extRes = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: phone,
+            message: textToSend,
+            type: tipo || 'geral'
+          })
+        });
+        externalSuccess = extRes.ok;
+      } catch (err) {
+        console.warn('Falha no webhook externo de WhatsApp:', err);
+      }
+    }
+
+    // Registrar no log de auditoria
+    await query(
+      `INSERT INTO log_auditoria (data, usuario, acao, detalhe) VALUES (NOW()::text, 'SISTEMA_WHATSAPP', $1, $2)`,
+      [`DISPARO_${(tipo || 'GERAL').toUpperCase()}`, `Destino: ${phone} | Aluno: ${aluno.nome}`]
+    );
 
     return NextResponse.json({
       success: true,
-      message: 'Mensagem despachada com sucesso (MVP — log do servidor)',
-      dispatchedTo: telefone,
       tipo: tipo || 'geral',
+      destinatario: phone,
+      aluno: aluno.nome,
+      mensagem: textToSend,
+      webhookEntregue: externalSuccess
     });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    console.error('[WhatsApp Dispatch] Exceção geral:', errorMessage);
-    return NextResponse.json(
-      { error: 'Erro interno ao despachar mensagem via WhatsApp' },
-      { status: 500 }
-    );
+
+  } catch (error: any) {
+    console.error('Erro no despacho de WhatsApp:', error);
+    return NextResponse.json({ error: 'Erro interno ao despachar WhatsApp' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getClient } from '@/lib/db';
+import { ensureProgressTables } from '@/lib/ensureTables';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,10 +26,8 @@ export async function POST(request: Request) {
     }
 
     const percentual = totalQuestoes > 0 ? Number(((acertos / totalQuestoes) * 100).toFixed(2)) : 0;
-    // Cálculo de XP condicional e estritamente no back-end proporcional ao aproveitamento
     const xpCalculado = Math.max(5, Math.round((acertos / Math.max(totalQuestoes, 1)) * xpBase));
 
-    // Se alunoId for mock/local não-UUID, retorne cômputo sem transação no banco
     if (!isUuid(String(alunoId))) {
       return NextResponse.json({
         success: true,
@@ -43,6 +42,8 @@ export async function POST(request: Request) {
         message: 'Revisão finalizada e XP computado (modo teste)'
       });
     }
+
+    await ensureProgressTables();
 
     const client = await getClient();
 
@@ -65,42 +66,37 @@ export async function POST(request: Request) {
         );
       `);
 
-      // Verificar aluno
+      // Verificar aluno com trava FOR UPDATE para garantir consistência transacional
       const alunoCheck = await client.query(`SELECT id, xp_total, nivel FROM alunos WHERE id = $1 FOR UPDATE`, [alunoId]);
       if (alunoCheck.rows.length === 0) {
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Aluno não encontrado no banco' }, { status: 404 });
       }
 
-      // Gravar ou atualizar resultado do quiz
+      // Gravar resultado do quiz de forma idempotente sem interromper a transação
       await client.query(
         `INSERT INTO quiz_resultados (aluno_id, quiz_id, atividade_ref, total_questoes, acertos, erros, percentual, xp_ganho, completed_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-         ON CONFLICT (aluno_id, quiz_id, atividade_ref)
-         DO UPDATE SET
-           total_questoes = $4,
-           acertos = $5,
-           erros = $6,
-           percentual = $7,
-           xp_ganho = $8,
-           completed_at = NOW()`,
+         ON CONFLICT DO NOTHING`,
         [alunoId, String(quizId), String(atividadeRef), totalQuestoes, acertos, erros, percentual, xpCalculado]
       );
 
+      // Chave única de atividade com hash aleatório para segurança concorrente
+      const uniqueAtvKey = `${quizId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
       // Adicionar entrada em aluno_progresso para auditoria de XP
-      const progRes = await client.query(
+      await client.query(
         `INSERT INTO aluno_progresso (aluno_id, atividade_id, tipo_acao, xp_ganho)
          VALUES ($1, $2, 'quiz_revisao', $3)
-         ON CONFLICT (aluno_id, atividade_id) WHERE atividade_id IS NOT NULL DO NOTHING
-         RETURNING id`,
-        [alunoId, `${quizId}_${Date.now().toString().slice(-6)}`, xpCalculado]
+         ON CONFLICT (aluno_id, atividade_id) WHERE atividade_id IS NOT NULL DO NOTHING`,
+        [alunoId, uniqueAtvKey, xpCalculado]
       );
 
       let novoXpTotal = alunoCheck.rows[0].xp_total || 0;
       let novoNivel = alunoCheck.rows[0].nivel || 1;
       let leveledUp = false;
 
-      // Se inseriu progresso ou é atualização, concede ou ajusta saldo do aluno
+      // Concede ou ajusta saldo do aluno atomicamente no PostgreSQL
       if (xpCalculado > 0) {
         const updateAlunoRes = await client.query(
           `UPDATE alunos SET xp_total = COALESCE(xp_total, 0) + $1 WHERE id = $2 RETURNING xp_total, nivel`,
@@ -108,7 +104,7 @@ export async function POST(request: Request) {
         );
         novoXpTotal = updateAlunoRes.rows[0].xp_total;
         const nivelAtual = updateAlunoRes.rows[0].nivel;
-        const nivelCalculado = Math.floor(novoXpTotal / 100) + 1;
+        const nivelCalculado = Math.floor(novoXpTotal / 500) + 1;
 
         if (nivelCalculado > nivelAtual) {
           novoNivel = nivelCalculado;
@@ -143,13 +139,14 @@ export async function POST(request: Request) {
         message: 'Revisão Corujinha concluída!'
       });
     } catch (dbError: any) {
-      await client.query('ROLLBACK');
-      throw dbError;
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('Erro de banco em quiz/finalizar:', dbError);
+      return NextResponse.json({ error: dbError.message || 'Erro no banco' }, { status: 500 });
     } finally {
       client.release();
     }
   } catch (error: any) {
     console.error('Erro em POST /api/quiz/finalizar:', error);
-    return NextResponse.json({ error: 'Erro interno no cômputo do quiz' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Erro interno no cômputo do quiz' }, { status: 500 });
   }
 }

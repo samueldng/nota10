@@ -90,12 +90,24 @@ export async function ensureProgressTables(): Promise<void> {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         quiz_id VARCHAR(100) NOT NULL,
         aluno_id VARCHAR(100) NOT NULL,
+        atividade_ref VARCHAR(150),
         score INT NOT NULL DEFAULT 0,
         total_questions INT NOT NULL DEFAULT 0,
+        acertos INT DEFAULT 0,
+        erros INT DEFAULT 0,
+        percentual NUMERIC(5,2) DEFAULT 0,
+        xp_ganho INT DEFAULT 0,
         respostas JSONB DEFAULT '[]'::jsonb,
-        completed_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE (quiz_id, aluno_id)
+        completed_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      ALTER TABLE quiz_resultados 
+        ADD COLUMN IF NOT EXISTS atividade_ref VARCHAR(150),
+        ADD COLUMN IF NOT EXISTS total_questoes INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS acertos INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS erros INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS percentual NUMERIC(5,2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS xp_ganho INT DEFAULT 0;
     `);
 
     await query(`
@@ -112,8 +124,42 @@ export async function ensureProgressTables(): Promise<void> {
       );
     `);
 
+    // 6. Colunas adicionais de gamificação e plano na tabela alunos
+    await query(`
+      ALTER TABLE alunos 
+        ADD COLUMN IF NOT EXISTS xp_total INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS nivel INT DEFAULT 1,
+        ADD COLUMN IF NOT EXISTS plano VARCHAR(50) DEFAULT 'padrao',
+        ADD COLUMN IF NOT EXISTS senha_inicial TEXT,
+        ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT true;
+    `);
+
+    // 7. Colunas adicionais de detalhamento de folha em registros_lancados
+    await query(`
+      ALTER TABLE registros_lancados
+        ADD COLUMN IF NOT EXISTS aluno_id VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS presenca VARCHAR(10),
+        ADD COLUMN IF NOT EXISTS video INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS palavra_chave INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS fixacao INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS atencao INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS participacao INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS comportamento INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS busca_responsavel INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS observacoes TEXT;
+    `);
+
+    // 8. Tabela de vínculo Turma-Professores (N:N)
+    await query(`
+      CREATE TABLE IF NOT EXISTS turma_professores (
+        turma_id UUID NOT NULL,
+        professor_id UUID NOT NULL,
+        PRIMARY KEY (turma_id, professor_id)
+      );
+    `);
+
     tablesChecked = true;
-    console.log('[ensureProgressTables] Todas as tabelas de progresso, player_state e aluno_progresso verificadas/criadas com sucesso.');
+    console.log('[ensureProgressTables] Todas as tabelas de progresso, player_state e esquemas estendidos verificadas com sucesso.');
   } catch (err: any) {
     console.error('[ensureProgressTables] Erro ao verificar/criar tabelas de progresso:', err.message);
   }
