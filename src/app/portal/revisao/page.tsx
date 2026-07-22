@@ -160,25 +160,29 @@ export default function RevisaoCorujinhaPage() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
       {/* Header e Filtro Rápido */}
-      <div className="bg-gradient-to-r from-[var(--color-azul-marinho)] via-blue-900 to-[var(--color-azul-autoridade)] rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-marinho)] mb-2 uppercase">
+      <div className="relative rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a2d52 50%, #0f2340 100%)' }}>
+        {/* Decoração sutil de fundo */}
+        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 20% 80%, #f5a623 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 50%)' }} />
+        
+        <div className="relative z-10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-marinho)] mb-2 uppercase shadow-md">
             <Sparkles size={14} /> Revisão Gamificada Duolingo Style
           </span>
-          <h1 className="text-2xl md:text-3xl font-black">
+          <h1 className="text-2xl md:text-3xl font-black text-white" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
             Revisão com a Corujinha
           </h1>
-          <p className="text-sm text-white/80 mt-1">
+          <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.85)', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
             Responda às questões selecionadas pelo nosso mascote e ganhe XP de acordo com seu desempenho!
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3 py-2 rounded-xl border border-white/20 shrink-0">
+        <div className="relative z-10 flex items-center gap-2 bg-white/15 backdrop-blur-md px-3 py-2.5 rounded-xl border border-white/25 shrink-0 shadow-lg">
           <BookOpen size={18} className="text-[var(--color-amarelo-conquista)]" />
           <select
             value={filtroDisciplina}
             onChange={(e) => setFiltroDisciplina(e.target.value)}
             className="bg-transparent text-white text-sm font-bold focus:outline-none cursor-pointer"
+            style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}
           >
             <option value="todas" className="text-gray-900">Todas as Disciplinas</option>
             <option value="Português" className="text-gray-900">Português</option>
