@@ -139,9 +139,9 @@ function CorujinhaAvatar({ status = 'padrao', message, size = 'md' }: CorujinhaA
   return (
     <div className="flex flex-col items-center justify-center text-center space-y-2 relative">
       {/* Vídeo Container */}
-      <div className={`relative ${cfg.cls} rounded-full overflow-hidden transition-shadow duration-500 ${style.anim}`} style={{ background: 'transparent' }}>
+      <div className={`relative ${cfg.cls} overflow-hidden transition-shadow duration-500 ${style.anim}`} style={{ background: 'transparent' }}>
         {!videosReady && (
-          <img src={POSTER_SVG} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
+          <img src={POSTER_SVG} alt="" className="absolute inset-0 w-full h-full object-cover z-0" style={{ mixBlendMode: 'multiply' }} />
         )}
         {Object.entries(VIDEO_MAP).map(([key, src]) => (
           <video
@@ -155,7 +155,7 @@ function CorujinhaAvatar({ status = 'padrao', message, size = 'md' }: CorujinhaA
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-400 ease-in-out ${
               activeKey === key ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
-            style={{ background: 'transparent' }}
+            style={{ mixBlendMode: 'multiply', background: 'transparent' }}
           />
         ))}
       </div>

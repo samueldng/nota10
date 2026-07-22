@@ -158,7 +158,7 @@ export default function RevisaoCorujinhaPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-3 py-3 md:px-6 md:py-4 space-y-3">
+    <div className="max-w-6xl mx-auto px-3 py-3 md:px-6 md:py-4 space-y-3">
       {/* Header Compacto */}
       <div className="relative rounded-xl px-4 py-3 md:px-6 md:py-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a1628 0%, #1a2d52 50%, #0f2340 100%)' }}>
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 20% 80%, #f5a623 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 50%)' }} />
@@ -188,14 +188,14 @@ export default function RevisaoCorujinhaPage() {
 
       {!isFinished && questoes.length > 0 ? (
         /* === LAYOUT PRINCIPAL: Corujinha à esquerda + Quiz à direita (Desktop) === */
-        <div className="flex flex-col lg:flex-row gap-3 items-center lg:items-start">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-center lg:items-start">
           {/* Corujinha (lateral em desktop, topo compacto em mobile) */}
-          <div className="w-full lg:w-auto lg:sticky lg:top-4 shrink-0 flex justify-center lg:justify-start">
+          <div className="w-full lg:w-[200px] lg:sticky lg:top-4 shrink-0 flex justify-center lg:justify-start">
             <CorujinhaMascot state={mascotState} message={mascotMsg} size="sm" />
           </div>
 
           {/* Card do Quiz */}
-          <div className="flex-1 w-full bg-white rounded-xl p-4 md:p-5 shadow-lg border border-[var(--color-cinza-borda)] space-y-4">
+          <div className="flex-1 w-full min-w-0 bg-white rounded-xl p-4 md:p-6 shadow-lg border border-[var(--color-cinza-borda)] space-y-4">
             {/* Progress Bar */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[var(--color-cinza-texto)]">
