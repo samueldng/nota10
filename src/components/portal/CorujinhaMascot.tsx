@@ -75,7 +75,6 @@ const STATE_STYLES: Record<CorujinhaState, {
 
 const POSTER_SVG = `data:image/svg+xml,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <rect width="200" height="200" rx="24" fill="#f0f4ff"/>
   <circle cx="100" cy="90" r="50" fill="#dbeafe"/>
   <circle cx="80" cy="82" r="12" fill="#1e3a5f"/>
   <circle cx="120" cy="82" r="12" fill="#1e3a5f"/>
@@ -140,7 +139,7 @@ function CorujinhaAvatar({ status = 'padrao', message, size = 'md' }: CorujinhaA
   return (
     <div className="flex flex-col items-center justify-center text-center space-y-2 relative">
       {/* Vídeo Container */}
-      <div className={`relative ${cfg.cls} overflow-visible transition-shadow duration-500 ${style.anim}`}>
+      <div className={`relative ${cfg.cls} rounded-full overflow-hidden transition-shadow duration-500 ${style.anim}`} style={{ background: 'transparent' }}>
         {!videosReady && (
           <img src={POSTER_SVG} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
         )}
@@ -153,10 +152,10 @@ function CorujinhaAvatar({ status = 'padrao', message, size = 'md' }: CorujinhaA
             loop
             playsInline
             preload="auto"
-            poster={POSTER_SVG}
-            className={`absolute inset-0 w-full h-full object-cover rounded-2xl transition-opacity duration-400 ease-in-out ${
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-400 ease-in-out ${
               activeKey === key ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
+            style={{ background: 'transparent' }}
           />
         ))}
       </div>
