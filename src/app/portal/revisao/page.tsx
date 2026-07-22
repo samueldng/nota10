@@ -188,14 +188,14 @@ export default function RevisaoCorujinhaPage() {
 
       {!isFinished && questoes.length > 0 ? (
         /* === LAYOUT PRINCIPAL: Corujinha à esquerda + Quiz à direita (Desktop) === */
-        <div className="flex flex-col lg:flex-row gap-3 items-start">
+        <div className="flex flex-col lg:flex-row gap-3 items-center lg:items-start">
           {/* Corujinha (lateral em desktop, topo compacto em mobile) */}
-          <div className="w-full lg:w-auto lg:sticky lg:top-4 shrink-0">
+          <div className="w-full lg:w-auto lg:sticky lg:top-4 shrink-0 flex justify-center lg:justify-start">
             <CorujinhaMascot state={mascotState} message={mascotMsg} size="sm" />
           </div>
 
           {/* Card do Quiz */}
-          <div className="flex-1 bg-white rounded-xl p-4 md:p-5 shadow-lg border border-[var(--color-cinza-borda)] space-y-4">
+          <div className="flex-1 w-full bg-white rounded-xl p-4 md:p-5 shadow-lg border border-[var(--color-cinza-borda)] space-y-4">
             {/* Progress Bar */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[var(--color-cinza-texto)]">

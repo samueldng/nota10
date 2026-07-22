@@ -140,7 +140,7 @@ function CorujinhaAvatar({ status = 'padrao', message, size = 'md' }: CorujinhaA
   return (
     <div className="flex flex-col items-center justify-center text-center space-y-2 relative">
       {/* Vídeo Container */}
-      <div className={`relative ${cfg.cls} rounded-2xl overflow-hidden ${style.glow} transition-shadow duration-500 ${style.anim}`}>
+      <div className={`relative ${cfg.cls} overflow-visible transition-shadow duration-500 ${style.anim}`}>
         {!videosReady && (
           <img src={POSTER_SVG} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
         )}
