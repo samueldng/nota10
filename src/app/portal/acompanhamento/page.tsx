@@ -130,12 +130,12 @@ export default function AcompanhamentoPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header com selo Elite */}
-      <div className="bg-gradient-to-r from-[var(--color-azul-marinho)] via-blue-900 to-[var(--color-azul-autoridade)] rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[var(--color-azul-dark)] rounded-2xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-marinho)] mb-2 uppercase shadow-sm">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--color-amarelo-conquista)] text-[var(--color-azul-autoridade)] mb-2 uppercase shadow-sm">
             <Sparkles size={14} /> Assinatura Plano Elite Ativa
           </span>
-          <h1 className="text-2xl md:text-3xl font-black">
+          <h1 className="text-2xl md:text-3xl font-black text-white">
             Acompanhamento & Pareceres
           </h1>
           <p className="text-sm text-white/80 mt-1">
@@ -216,9 +216,6 @@ export default function AcompanhamentoPage() {
             <FileText size={22} className="text-[var(--color-amarelo-conquista)]" />
             Parecer Pedagógico Humanizado ({reportData?.mesReferencia || 'Este Mês'})
           </h3>
-          <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-[var(--color-azul-autoridade)] rounded-full border border-blue-200">
-            Gerado por IA Pedagógica
-          </span>
         </div>
 
         <div className="bg-[var(--color-cinza-fundo)] p-5 rounded-2xl border border-[var(--color-cinza-borda)] shadow-inner">

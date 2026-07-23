@@ -10,7 +10,7 @@ import type { PlanoAluno } from '@/lib/mockData';
 import {
   Home, BookOpen, Map, PlayCircle, FileText, ClipboardList,
   BarChart3, Download, Megaphone, MessageCircle, Star, LogOut,
-  Lock, X,
+  Lock, X, Receipt,
 } from 'lucide-react';
 
 interface PortalNavItem {
@@ -29,6 +29,7 @@ const portalNavItems: PortalNavItem[] = [
   { label: 'Acompanhamento', href: '/portal/acompanhamento', icon: <ClipboardList size={20} />, featureKey: 'acompanhamento' },
   { label: 'Materiais', href: '/portal/materiais', icon: <Download size={20} /> },
   { label: 'Comunicados', href: '/portal/comunicados', icon: <Megaphone size={20} /> },
+  { label: 'Financeiro', href: '/portal/financeiro', icon: <Receipt size={20} /> },
   { label: 'Suporte', href: '/portal/suporte', icon: <MessageCircle size={20} /> },
 ];
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   CalendarDays, Plus, Trash2, Save, X, ChevronDown, ChevronUp,
   Zap, BookOpen, GripVertical, AlertCircle, CheckCircle2, Loader2,
-  ListChecks, Sparkles,
+  ListChecks, Sparkles, Upload, Send, MessageCircle, FileText,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -146,6 +146,11 @@ export default function GestaoCronogramaPage() {
 
   const [toasts, setToasts]             = useState<Toast[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Upload & Dispatch
+  const [uploadFile, setUploadFile]     = useState<File | null>(null);
+  const [notifyMsg, setNotifyMsg]       = useState('Olá, {nomeResponsavel}! Segue o cronograma semanal do(a) {nomeAluno}. Acesse o Portal Nota 10 para mais detalhes.');
+  const [publishing, setPublishing]     = useState(false);
 
   // ── Toast helpers ──────────────────────────────────────────────────────────
   const addToast = useCallback((type: ToastType, message: string) => {
@@ -345,6 +350,81 @@ export default function GestaoCronogramaPage() {
     }
   };
 
+  // ── Publish + Notify via WhatsApp ──────────────────────────────────────────
+  const handlePublishAndNotify = async () => {
+    const err = validate();
+    if (err) { addToast('error', err); return; }
+
+    setPublishing(true);
+    try {
+      // 1. Save the schedule first
+      await handleSave();
+
+      // 2. Upload file attachment if present
+      let anexoId: string | null = null;
+      if (uploadFile) {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+        });
+        reader.readAsDataURL(uploadFile);
+        const conteudoBase64 = await base64Promise;
+
+        const uploadRes = await fetch('/api/anexos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo: 'cronograma',
+            nomeArquivo: uploadFile.name,
+            mimeType: uploadFile.type,
+            tamanhoBytes: uploadFile.size,
+            conteudoBase64,
+            turmaId: selectedTurmaId,
+            semanaReferencia: `S${selectedSemana}`,
+            createdBy: 'coordenador',
+          }),
+        });
+
+        if (!uploadRes.ok) throw new Error('Falha ao fazer upload do arquivo.');
+        const uploadData = await uploadRes.json();
+        anexoId = uploadData.id;
+      }
+
+      // 3. Enqueue WhatsApp messages
+      const queueRes = await fetch('/api/whatsapp/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'cronograma',
+          turmaIds: [selectedTurmaId],
+          mensagem: notifyMsg,
+          anexoId,
+        }),
+      });
+
+      const queueData = await queueRes.json();
+      if (!queueRes.ok) throw new Error(queueData.error || 'Falha ao enfileirar.');
+
+      addToast('success', `Cronograma publicado! ${queueData.enfileirados} mensagens enfileiradas. 📨`);
+
+      // 4. Trigger async processing
+      fetch('/api/whatsapp/process', { method: 'POST' })
+        .then(r => r.json())
+        .then(result => {
+          addToast('success', `Disparo concluído: ${result.sucesso} enviados. Modo: ${result.modoDemo ? 'Demo (wa.me/)' : 'Produção'} ✅`);
+        })
+        .catch(() => {});
+
+    } catch (e: any) {
+      addToast('error', e.message || 'Erro ao publicar e notificar.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const turmaAtual = turmas.find((t) => t.id === selectedTurmaId);
@@ -425,6 +505,85 @@ export default function GestaoCronogramaPage() {
                 onChange={(e) => setDatasSemana(e.target.value)}
                 placeholder="Ex: 14 a 18 de Julho de 2026"
               />
+            </div>
+          </div>
+
+          {/* Upload de Cronograma + Mensagem WhatsApp */}
+          <div className="mt-5 border-t border-[var(--color-cinza-borda)] pt-5">
+            <p className="text-xs font-black text-[var(--color-azul-autoridade)] uppercase tracking-wider flex items-center gap-1.5 mb-3">
+              <Send size={12} />
+              Publicação e Notificação WhatsApp
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* File Upload */}
+              <div className="form-group">
+                <label className="form-label flex items-center gap-1.5">
+                  <Upload size={12} />
+                  Anexo do Cronograma (PDF / Imagem)
+                </label>
+                <div
+                  className={`upload-zone !p-5 ${uploadFile ? 'active' : ''}`}
+                  onClick={() => document.getElementById('cronograma-file-input')?.click()}
+                >
+                  <input
+                    id="cronograma-file-input"
+                    type="file"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          addToast('error', 'Arquivo excede 5MB.');
+                          return;
+                        }
+                        setUploadFile(file);
+                      }
+                    }}
+                  />
+                  {uploadFile ? (
+                    <div className="flex items-center gap-3 justify-center">
+                      <FileText size={18} className="text-[var(--color-verde-sucesso)]" />
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-[var(--color-azul-autoridade)]">{uploadFile.name}</p>
+                        <p className="text-[10px] text-[var(--color-cinza-texto)]">
+                          {(uploadFile.size / 1024).toFixed(0)} KB • Clique para trocar
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setUploadFile(null); }}
+                        className="p-1 hover:bg-[var(--color-vermelho-light)] rounded transition-colors"
+                      >
+                        <X size={14} className="text-[var(--color-vermelho-erro)]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload size={20} className="mx-auto text-[var(--color-cinza-texto)] mb-1" />
+                      <p className="text-xs font-bold text-[var(--color-cinza-texto)]">
+                        Clique para anexar PDF ou imagem
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Message Template */}
+              <div className="form-group">
+                <label className="form-label flex items-center gap-1.5">
+                  <MessageCircle size={12} />
+                  Texto da Mensagem WhatsApp
+                </label>
+                <textarea
+                  className="form-input min-h-[120px] resize-y text-xs"
+                  value={notifyMsg}
+                  onChange={(e) => setNotifyMsg(e.target.value)}
+                  placeholder="Use {nomeResponsavel} e {nomeAluno} como variáveis..."
+                />
+                <p className="text-[10px] text-[var(--color-cinza-texto)]">
+                  Variáveis: <code className="bg-[var(--color-cinza-fundo)] px-1 rounded">{'{nomeResponsavel}'}</code> e <code className="bg-[var(--color-cinza-fundo)] px-1 rounded">{'{nomeAluno}'}</code>
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -516,12 +675,23 @@ export default function GestaoCronogramaPage() {
                   id="btn-salvar-cronograma"
                   className="btn btn-primary w-full sm:w-auto"
                   onClick={handleSave}
-                  disabled={saving || deleting}
+                  disabled={saving || deleting || publishing}
                 >
                   {saving
                     ? <Loader2 size={15} className="animate-spin" />
                     : <Save size={15} />}
                   {saving ? 'Salvando...' : 'Salvar Cronograma'}
+                </button>
+                <button
+                  id="btn-publicar-notificar"
+                  className="btn bg-[#22C55E] text-white hover:bg-green-600 active:scale-95 w-full sm:w-auto"
+                  onClick={handlePublishAndNotify}
+                  disabled={saving || deleting || publishing || tarefas.length === 0}
+                >
+                  {publishing
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <Send size={15} />}
+                  {publishing ? 'Publicando...' : 'Publicar e Notificar'}
                 </button>
               </div>
             </div>

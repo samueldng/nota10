@@ -23,7 +23,8 @@ import {
   Wifi,
   WifiOff,
   Calendar,
-  PlayCircle
+  PlayCircle,
+  DollarSign
 } from 'lucide-react';
 
 interface SubItem {
@@ -65,6 +66,11 @@ const navItems: NavItem[] = [
     label: 'Relatórios',
     href: '/relatorios',
     icon: <BarChart3 size={20} />,
+  },
+  {
+    label: 'Financeiro',
+    href: '/financeiro',
+    icon: <DollarSign size={20} />,
   },
   {
     label: 'Ranking',

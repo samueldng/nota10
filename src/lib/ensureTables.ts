@@ -158,6 +158,67 @@ export async function ensureProgressTables(): Promise<void> {
       );
     `);
 
+    // 9. Tabela de anexos genéricos (cronogramas, boletos, comunicados)
+    await query(`
+      CREATE TABLE IF NOT EXISTS anexos (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('cronograma', 'boleto', 'comunicado')),
+        nome_arquivo VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100) NOT NULL,
+        tamanho_bytes INT NOT NULL DEFAULT 0,
+        conteudo_base64 TEXT NOT NULL,
+        turma_id UUID,
+        aluno_id UUID,
+        semana_referencia VARCHAR(20),
+        mes_referencia VARCHAR(10),
+        link_externo TEXT,
+        status VARCHAR(20) DEFAULT 'ativo',
+        created_by VARCHAR(100),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_anexos_tipo ON anexos (tipo);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_anexos_turma ON anexos (turma_id) WHERE turma_id IS NOT NULL;`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_anexos_aluno ON anexos (aluno_id) WHERE aluno_id IS NOT NULL;`);
+
+    // 10. Fila de disparos WhatsApp (background job queue)
+    await query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_fila (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        telefone VARCHAR(20) NOT NULL,
+        mensagem TEXT NOT NULL,
+        anexo_id UUID,
+        link_anexo TEXT,
+        tipo VARCHAR(30) NOT NULL,
+        aluno_id UUID,
+        turma_id UUID,
+        status VARCHAR(20) DEFAULT 'pendente' CHECK (status IN ('pendente', 'enviando', 'enviado', 'erro')),
+        tentativas INT DEFAULT 0,
+        erro_detalhe TEXT,
+        criado_em TIMESTAMPTZ DEFAULT NOW(),
+        enviado_em TIMESTAMPTZ
+      );
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_fila_status ON whatsapp_fila (status);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_whatsapp_fila_criado ON whatsapp_fila (criado_em DESC);`);
+
+    // 11. Log de disparos WhatsApp concluídos (histórico)
+    await query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        fila_id UUID,
+        telefone VARCHAR(20) NOT NULL,
+        tipo VARCHAR(30) NOT NULL,
+        aluno_nome VARCHAR(255),
+        status VARCHAR(20) NOT NULL,
+        webhook_response TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     tablesChecked = true;
     console.log('[ensureProgressTables] Todas as tabelas de progresso, player_state e esquemas estendidos verificadas com sucesso.');
   } catch (err: any) {
