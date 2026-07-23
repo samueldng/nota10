@@ -29,7 +29,6 @@ const pageTitles: Record<string, string> = {
   '/portal/videoaulas': 'Videoaulas',
   '/portal/simulados': 'Simulados',
   '/portal/acompanhamento': 'Acompanhamento',
-  '/portal/relatorios': 'Relatórios',
   '/portal/materiais': 'Materiais',
   '/portal/comunicados': 'Comunicados',
   '/portal/suporte': 'Suporte',

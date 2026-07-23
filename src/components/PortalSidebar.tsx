@@ -27,7 +27,6 @@ const portalNavItems: PortalNavItem[] = [
   { label: 'Videoaulas', href: '/portal/videoaulas', icon: <PlayCircle size={20} /> },
   { label: 'Simulados', href: '/portal/simulados', icon: <FileText size={20} /> },
   { label: 'Acompanhamento', href: '/portal/acompanhamento', icon: <ClipboardList size={20} />, featureKey: 'acompanhamento' },
-  { label: 'Relatórios', href: '/portal/relatorios', icon: <BarChart3 size={20} /> },
   { label: 'Materiais', href: '/portal/materiais', icon: <Download size={20} /> },
   { label: 'Comunicados', href: '/portal/comunicados', icon: <Megaphone size={20} /> },
   { label: 'Suporte', href: '/portal/suporte', icon: <MessageCircle size={20} /> },
