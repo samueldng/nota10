@@ -13,13 +13,31 @@ const sectionIcons: Record<string, React.ReactNode> = {
 
 const sectionColors = ['#1A3A6B', '#8B5CF6', '#22C55E', '#F59E0B', '#3B82F6', '#EF4444'];
 
-// Helper to extract YouTube ID
-const getYoutubeVideoId = (url: string) => {
-  if (!url) return null;
+// Função auxiliar para converter qualquer link do YouTube em embed URL
+function getEmbedUrl(url: string) {
+  if (!url) return '';
+  if (url.includes('youtube.com/embed/')) {
+    return url;
+  }
+  if (url.includes('youtube.com/watch')) {
+    try {
+      const videoId = new URL(url).searchParams.get('v');
+      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+    } catch {
+      // fallback
+    }
+  }
+  if (url.includes('youtu.be/')) {
+    const videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+  }
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-};
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}`;
+  }
+  return url;
+}
 
 export default async function BemVindosPage() {
   const c = conteudoBemVindos;
@@ -33,7 +51,13 @@ export default async function BemVindosPage() {
     ORDER BY created_at ASC
   `;
   const result = await query(sql);
-  const onboardingVideos = result.rows;
+  // Evitar duplicatas na interface caso os vídeos tenham sido inseridos para múltiplas turmas no banco
+  const seenUrls = new Set<string>();
+  const onboardingVideos = result.rows.filter((video: any) => {
+    if (seenUrls.has(video.url_acesso)) return false;
+    seenUrls.add(video.url_acesso);
+    return true;
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -56,47 +80,43 @@ export default async function BemVindosPage() {
         </div>
       </div>
 
-      {/* Vídeos Institucionais de Boas-Vindas — Mapeados dinamicamente, sem XP, sem anti-skip */}
-      <div className="space-y-6">
+      {/* Vídeos Institucionais de Boas-Vindas — Mapeados dinamicamente sem hardcode no título */}
+      <div className="space-y-8">
         {onboardingVideos.map((video, idx) => {
-          const ytId = getYoutubeVideoId(video.url_acesso);
-          
+          const isYouTube = video.url_acesso?.includes('youtu');
+          const embedUrl = isYouTube ? getEmbedUrl(video.url_acesso) : video.url_acesso;
+
           return (
-            <div key={video.id} className="card overflow-hidden animate-fade-in-up p-0" style={{ animationDelay: `${0.1 * (idx + 1)}s` }}>
-              <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[#2563EB] px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                    <Play size={20} className="text-white fill-white ml-0.5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white m-0">{video.titulo}</h3>
-                    <p className="text-[10px] text-white/60 m-0 mt-0.5">Mensagem institucional • Engajamento familiar</p>
-                  </div>
+            <div key={video.id} className="bg-white rounded-xl shadow-md overflow-hidden border border-slate-200 animate-fade-in-up" style={{ animationDelay: `${0.1 * (idx + 1)}s` }}>
+              <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[#2563EB] px-6 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                  <Play size={20} className="text-white fill-white ml-0.5" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-white m-0">{video.titulo}</h2>
+                  <p className="text-xs text-white/70 m-0 mt-0.5">Mensagem institucional • Engajamento familiar</p>
                 </div>
               </div>
               
-              <div className="aspect-video bg-black relative">
-                {ytId ? (
+              <div className="aspect-video w-full bg-black relative">
+                {isYouTube ? (
                   <iframe
-                    className="w-full h-full object-cover"
-                    src={`https://www.youtube.com/embed/${ytId}?rel=0`}
+                    src={embedUrl}
+                    className="w-full h-full"
                     title={video.titulo}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
                 ) : (
                   <video
-                    className="w-full h-full object-contain"
+                    src={embedUrl}
                     controls
                     controlsList="nodownload"
-                    preload="metadata"
-                  >
-                    <source src={video.url_acesso} type="video/mp4" />
-                    Seu navegador não suporta a reprodução de vídeo.
-                  </video>
+                    className="w-full h-full object-contain"
+                  />
                 )}
               </div>
-              
+
               <div className="px-5 py-3 bg-[var(--color-cinza-fundo)] border-t border-[var(--color-cinza-borda)]">
                 <p className="text-xs text-[var(--color-cinza-texto)] text-center">
                   🎬 Assista ao vídeo para entender nossa metodologia e como funciona a parceria escola-família.
@@ -105,9 +125,10 @@ export default async function BemVindosPage() {
             </div>
           );
         })}
+
         {onboardingVideos.length === 0 && (
-          <div className="card text-center p-8 text-[var(--color-cinza-texto)] animate-fade-in-up delay-1">
-            Nenhum vídeo de boas-vindas disponível no momento.
+          <div className="bg-white rounded-xl shadow-md p-8 text-center text-[var(--color-cinza-texto)] border border-slate-200 animate-fade-in-up">
+            Nenhum vídeo institucional configurado no momento.
           </div>
         )}
       </div>
