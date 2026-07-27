@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, Loader2, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import VideoComments from '@/components/portal/VideoComments';
@@ -34,21 +34,32 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
   const videoRef = useRef<HTMLVideoElement>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<any>(null);
-  const lastTimeRef = useRef<number>(0);
   const onCompleteCalledRef = useRef<boolean>(false);
+
+  // Anti-skip refs (zero re-renders)
+  const maxTimeRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+  const progressRef = useRef<number>(0);
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [lastTime, setLastTime] = useState(0);
-  const [ytProgress, setYtProgress] = useState(0);
   const [volume, setVolume] = useState(100);
 
   const ytId = getYoutubeVideoId(videoUrl);
   const isYoutube = Boolean(ytId);
 
-  // 1. Initial State Fetch and Heartbeat
+  // Update progress bar via ref (no re-render)
+  const updateProgressBar = useCallback((percent: number) => {
+    progressRef.current = percent;
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = `${Math.min(percent, 100)}%`;
+    }
+  }, []);
+
+  // 1. Initial State Fetch and Heartbeat (10s)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -58,15 +69,20 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
         if (res.ok) {
           const data = await res.json();
           const initialTime = parseFloat(data.current_time_seconds || 0);
+          const savedMaxTime = parseFloat(data.max_time_seconds || 0);
+          
           if (!isNaN(initialTime) && initialTime > 0) {
             lastTimeRef.current = initialTime;
-            setLastTime(initialTime);
+            // maxTimeRef = the greater of saved max_time or current_time
+            maxTimeRef.current = Math.max(savedMaxTime, initialTime);
             if (videoRef.current) {
               videoRef.current.currentTime = initialTime;
             }
             if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
               ytPlayerRef.current.seekTo(initialTime, true);
             }
+          } else {
+            maxTimeRef.current = Math.max(savedMaxTime, 0);
           }
           if (data.status === 'completed') {
             setIsCompleted(true);
@@ -81,7 +97,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     
     loadState();
 
-    // 2. Heartbeat (every 5 seconds)
+    // Heartbeat every 10 seconds (spec requirement)
     interval = setInterval(() => {
       let ct = 0;
       let dur = 0;
@@ -89,7 +105,6 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
 
       if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
         const state = ytPlayerRef.current.getPlayerState ? ytPlayerRef.current.getPlayerState() : -1;
-        // YT.PlayerState.PLAYING = 1
         if (state === 1) {
           ct = ytPlayerRef.current.getCurrentTime();
           dur = ytPlayerRef.current.getDuration() || 0;
@@ -105,13 +120,16 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
         fetch('/api/player', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ alunoId, conteudoId, currentTime: ct, duration: dur })
+          body: JSON.stringify({ alunoId, conteudoId, currentTime: ct, duration: dur, maxTime: maxTimeRef.current })
         }).catch(e => console.error('Heartbeat falhou:', e));
+        
+        // Update progress bar on heartbeat (1x/10s instead of 4x/s)
+        updateProgressBar((ct / dur) * 100);
       }
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [alunoId, conteudoId, isYoutube]);
+  }, [alunoId, conteudoId, isYoutube, updateProgressBar]);
 
   // YouTube IFrame API Initialization
   useEffect(() => {
@@ -151,7 +169,6 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
-            // YT.PlayerState.ENDED = 0, PLAYING = 1, PAUSED = 2
             if (event.data === 0) {
               handleEnded();
             } else if (event.data === 1) {
@@ -205,7 +222,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     };
   }, [isYoutube, ytId]);
 
-  // Anti-skip logic for YouTube (polling progress every 500ms)
+  // Anti-skip logic for YouTube (polling progress every 500ms, using maxTimeRef)
   useEffect(() => {
     if (!isYoutube) return;
     const interval = setInterval(() => {
@@ -215,18 +232,20 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
         const state = ytPlayerRef.current.getPlayerState ? ytPlayerRef.current.getPlayerState() : -1;
 
         if (state === 1 && !isNaN(current)) {
-          if (!isCompleted && current > lastTimeRef.current + 5 && lastTimeRef.current > 0) {
-            ytPlayerRef.current.seekTo(lastTimeRef.current, true);
+          if (!isCompleted && current > maxTimeRef.current + 2) {
+            // Block forward-skip: force back to maxTime
+            ytPlayerRef.current.seekTo(maxTimeRef.current, true);
           } else {
+            // Update maxTime (monotonically increasing)
+            maxTimeRef.current = Math.max(maxTimeRef.current, current);
             lastTimeRef.current = current;
-            setLastTime(current);
-            setYtProgress((current / duration) * 100);
+            updateProgressBar((current / duration) * 100);
           }
         }
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [isYoutube, isCompleted]);
+  }, [isYoutube, isCompleted, updateProgressBar]);
 
   // Fullscreen event listener
   useEffect(() => {
@@ -253,18 +272,29 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     };
   }, []);
 
-  // Anti-skip logic for HTML5 video
-  const handleTimeUpdate = () => {
+  // Anti-skip: onTimeUpdate for HTML5 video (updates maxTimeRef, NO state updates)
+  const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
     const current = videoRef.current.currentTime;
+    const duration = videoRef.current.duration || 1;
     
-    if (!isCompleted && current > lastTimeRef.current + 5 && lastTimeRef.current > 0) {
-      videoRef.current.currentTime = lastTimeRef.current;
-    } else {
-      lastTimeRef.current = current;
-      setLastTime(current);
+    // Update maxTime monotonically (no re-render)
+    if (!isCompleted) {
+      maxTimeRef.current = Math.max(maxTimeRef.current, current);
     }
-  };
+    lastTimeRef.current = current;
+    
+    // Update progress bar via DOM ref (no re-render)
+    updateProgressBar((current / duration) * 100);
+  }, [isCompleted, updateProgressBar]);
+
+  // Anti-skip: onSeeking for HTML5 video — block fast-forward beyond maxTime
+  const handleSeeking = useCallback(() => {
+    if (!videoRef.current || isCompleted) return;
+    if (videoRef.current.currentTime > maxTimeRef.current) {
+      videoRef.current.currentTime = maxTimeRef.current;
+    }
+  }, [isCompleted]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
@@ -411,12 +441,6 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     }
   };
 
-  const progressPercentage = isYoutube
-    ? ytProgress
-    : videoRef.current && videoRef.current.duration
-      ? (lastTime / videoRef.current.duration) * 100
-      : 0;
-
   return (
     <div className="w-full flex flex-col gap-4">
       <div 
@@ -441,6 +465,7 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
             src={videoUrl === 'local' ? '/aula_local.mp4' : videoUrl} 
             className="w-full h-full object-contain"
             onTimeUpdate={handleTimeUpdate}
+            onSeeking={handleSeeking}
             onEnded={handleEnded}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -463,8 +488,9 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
             <div className="flex-1">
                <div className="w-full h-1.5 bg-white/30 rounded-full overflow-hidden relative">
                  <div 
+                   ref={progressBarRef}
                    className="absolute top-0 left-0 h-full bg-[var(--color-amarelo-conquista)] transition-all duration-300"
-                   style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                   style={{ width: '0%' }}
                  />
                </div>
             </div>

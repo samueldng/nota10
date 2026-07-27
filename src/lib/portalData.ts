@@ -27,6 +27,7 @@ export interface Videoaula {
   videoSource: 'youtube' | 'local';
   videoUrl?: string; // link do youtube ou nome do arquivo local
   turmaNome?: string;
+  dataLiberacao?: string | null; // Drip content: "DD/MM/AAAA" when locked
 }
 
 // ── Configurações da Escola ──

@@ -288,8 +288,21 @@ export async function GET(request: Request) {
 
     const semanaAtiva = semanasMap.get(semNum)!;
 
+    // Drip Content: avaliar data_liberacao INDIVIDUAL da atividade
+    let atividadeBloqueadaPorData = false;
+    let dataLiberacaoFormatada: string | null = null;
+
+    if (row.data_liberacao) {
+      const dtLib = new Date(row.data_liberacao);
+      dtLib.setHours(0, 0, 0, 0);
+      if (!isNaN(dtLib.getTime()) && hoje < dtLib) {
+        atividadeBloqueadaPorData = true;
+        dataLiberacaoFormatada = dtLib.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+    }
+
     let statusFinal: string;
-    if (!semanaAtiva.liberada) {
+    if (!semanaAtiva.liberada || atividadeBloqueadaPorData) {
       statusFinal = 'bloqueada';
     } else {
       const ps = row.progresso_status;
@@ -324,7 +337,8 @@ export async function GET(request: Request) {
       xp_total: Number(row.xp_total) || 0,
       subtarefas: subtarefasParsed,
       status: statusFinal,
-      xp_ganho: Number(row.xp_ganho) || 0
+      xp_ganho: Number(row.xp_ganho) || 0,
+      data_liberacao: dataLiberacaoFormatada,
     });
   }
 

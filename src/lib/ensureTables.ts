@@ -33,6 +33,11 @@ export async function ensureProgressTables(): Promise<void> {
       ON player_state (aluno_id, conteudo_id);
     `);
 
+    // Coluna max_time_seconds: ponto máximo assistido (monotonicamente crescente, anti-skip server-side)
+    await query(`
+      ALTER TABLE player_state ADD COLUMN IF NOT EXISTS max_time_seconds NUMERIC(10,2) DEFAULT 0;
+    `);
+
     // 2. Tabela atividades_progresso (Status geral das atividades da trilha)
     await query(`
       CREATE TABLE IF NOT EXISTS atividades_progresso (

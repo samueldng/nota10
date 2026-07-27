@@ -15,6 +15,7 @@ interface Tarefa {
   xp_total: number;
   status: 'concluido' | 'concluida' | 'em_andamento' | 'pendente' | 'bloqueada';
   xp_ganho: number;
+  data_liberacao?: string | null;
 }
 
 interface Semana {
@@ -207,7 +208,13 @@ export default function TrilhaPage() {
                     }
                     
                     return (
-                      <div key={atv.id} className={`flex items-center justify-between p-3 rounded-xl border ${isDone ? 'border-[var(--color-verde-sucesso)]/30 bg-[var(--color-verde-light)]/20' : isLocked ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-[var(--color-cinza-borda)] hover:border-[var(--color-azul-autoridade)]/30 transition-colors'}`}>
+                      <div key={atv.id} className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                        isDone 
+                          ? 'border-[var(--color-verde-sucesso)]/30 bg-[var(--color-verde-light)]/20' 
+                          : isLocked 
+                            ? 'border-gray-200 bg-gray-50 opacity-40 grayscale' 
+                            : 'border-[var(--color-cinza-borda)] hover:border-[var(--color-azul-autoridade)]/30'
+                      }`}>
                         <div className="flex items-center gap-3">
                            {isDone ? <CheckCircle2 size={18} className="text-[var(--color-verde-sucesso)]" /> : isLocked ? <Lock size={18} className="text-gray-400" /> : <Circle size={18} className="text-[var(--color-cinza-borda)]" />}
                            <div>
@@ -215,6 +222,11 @@ export default function TrilhaPage() {
                                {atv.ordem}. {atv.titulo}
                              </h4>
                              <p className="text-xs text-[var(--color-cinza-texto)]">{atv.tipo} {atv.disciplina ? `• ${atv.disciplina}` : ''}</p>
+                             {isLocked && atv.data_liberacao && (
+                               <p className="text-[10px] font-bold text-amber-600 mt-1 flex items-center gap-1">
+                                 <CalendarDays size={10} /> Disponível em {atv.data_liberacao}
+                               </p>
+                             )}
                            </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -225,6 +237,11 @@ export default function TrilhaPage() {
                             <Link href={linkHref} className="btn btn-primary py-1 px-3 text-xs">
                               {btnText}
                             </Link>
+                          )}
+                          {isLocked && (
+                            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded flex items-center gap-1">
+                              <Lock size={9} /> Bloqueada
+                            </span>
                           )}
                           {isDone && (
                              <span className="text-[10px] font-bold text-[var(--color-verde-sucesso)] bg-[var(--color-verde-light)] px-2 py-1 rounded">

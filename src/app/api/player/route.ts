@@ -17,15 +17,37 @@ export async function GET(request: Request) {
   try {
     await ensureProgressTables();
 
+    // Drip Content Protection: verificar data_liberacao na cronograma_atividades
+    const dripCheck = await query(
+      `SELECT data_liberacao FROM cronograma_atividades 
+       WHERE id::text = $1::text LIMIT 1`,
+      [conteudoId]
+    );
+
+    if (dripCheck.rows.length > 0 && dripCheck.rows[0].data_liberacao) {
+      const dataLiberacao = new Date(dripCheck.rows[0].data_liberacao);
+      dataLiberacao.setHours(0, 0, 0, 0);
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      if (hoje < dataLiberacao) {
+        const dataFormatada = dataLiberacao.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return NextResponse.json(
+          { error: `Conteúdo bloqueado cronologicamente. Disponível a partir de ${dataFormatada}.` },
+          { status: 403 }
+        );
+      }
+    }
+
     const res = await query(
-      `SELECT current_time_seconds, status, percent_watched
+      `SELECT current_time_seconds, max_time_seconds, status, percent_watched
        FROM player_state
        WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
       [alunoId, conteudoId]
     );
 
     if (res.rows.length === 0) {
-      return NextResponse.json({ current_time_seconds: 0, status: 'not_started', percent_watched: 0 });
+      return NextResponse.json({ current_time_seconds: 0, max_time_seconds: 0, status: 'not_started', percent_watched: 0 });
     }
 
     return NextResponse.json(res.rows[0]);
@@ -35,11 +57,11 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Grava posição atual (heartbeat)
+// POST: Grava posição atual (heartbeat) — tolerante a rewind
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { alunoId, conteudoId, currentTime, duration } = body;
+    const { alunoId, conteudoId, currentTime, duration, maxTime } = body;
 
     if (!alunoId || !conteudoId || typeof currentTime !== 'number' || typeof duration !== 'number') {
       return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 });
@@ -49,39 +71,43 @@ export async function POST(request: Request) {
 
     const percentWatched = duration > 0 ? (currentTime / duration) * 100 : 0;
     
-    // Recupera o estado atual para validação anti-skip
+    // Recupera o estado atual para validação anti-skip server-side
     const stateRes = await query(
-      `SELECT current_time_seconds FROM player_state WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
+      `SELECT current_time_seconds, max_time_seconds FROM player_state WHERE aluno_id::text = $1::text AND conteudo_id::text = $2::text`,
       [alunoId, conteudoId]
     );
     
-    let previousTime = 0;
+    let previousMaxTime = 0;
     if (stateRes.rows.length > 0) {
-      previousTime = parseFloat(stateRes.rows[0].current_time_seconds);
+      previousMaxTime = parseFloat(stateRes.rows[0].max_time_seconds || 0);
     }
-    
-    // Anti-skip validation: Não permitir avanço súbito de mais de 15 segundos
-    // (A tolerância é 15s considerando um heartbeat de 5s + lag de rede)
-    if (currentTime > previousTime + 15 && previousTime > 0) {
-      // Ignora o heartbeat suspeito (a menos que seja rewind)
+
+    // O client envia maxTime (ponto máximo da sessão). 
+    // Server valida: maxTime do client não pode exceder o previousMaxTime + tolerância (15s por heartbeat de 10s + lag)
+    const clientMaxTime = typeof maxTime === 'number' ? maxTime : currentTime;
+    if (clientMaxTime > previousMaxTime + 15 && previousMaxTime > 0) {
       return NextResponse.json({ error: 'Avanço de tempo inválido detectado (anti-skip)' }, { status: 400 });
     }
 
-    // Upsert the state (usando casting explícito ::text na chave para flexibilidade absoluta de UUID vs String)
+    // O max_time_seconds real é o GREATEST entre o do banco e o do client
+    const newMaxTime = Math.max(previousMaxTime, clientMaxTime);
+
+    // Upsert: currentTime pode ser < maxTime (rewind é permitido)
     await query(
-      `INSERT INTO player_state (aluno_id, conteudo_id, current_time_seconds, duration_seconds, percent_watched, status)
-       VALUES ($1, $2, $3, $4, $5, 'in_progress')
+      `INSERT INTO player_state (aluno_id, conteudo_id, current_time_seconds, max_time_seconds, duration_seconds, percent_watched, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'in_progress')
        ON CONFLICT (aluno_id, conteudo_id)
        DO UPDATE SET
          current_time_seconds = EXCLUDED.current_time_seconds,
+         max_time_seconds = GREATEST(player_state.max_time_seconds, EXCLUDED.max_time_seconds),
          duration_seconds = EXCLUDED.duration_seconds,
-         percent_watched = EXCLUDED.percent_watched,
+         percent_watched = GREATEST(player_state.percent_watched, EXCLUDED.percent_watched),
          status = CASE 
            WHEN player_state.status = 'completed' THEN 'completed' 
            ELSE 'in_progress' 
          END,
          updated_at = NOW()`,
-      [String(alunoId).trim(), String(conteudoId).trim(), currentTime, duration, percentWatched]
+      [String(alunoId).trim(), String(conteudoId).trim(), currentTime, newMaxTime, duration, percentWatched]
     );
 
     return NextResponse.json({ success: true });

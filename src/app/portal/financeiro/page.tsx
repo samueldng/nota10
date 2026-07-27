@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
   DollarSign, Download, ExternalLink, FileText, Clock,
@@ -45,14 +46,27 @@ function formatSize(bytes: number): string {
 }
 
 export default function PortalFinanceiroPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [boletos, setBoletos] = useState<Boleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewBoleto, setPreviewBoleto] = useState<Boleto | null>(null);
   const [previewData, setPreviewData] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // RBAC Guard: parent role cannot access this page — redirect before any data fetch
+  const isBlocked = !authLoading && user?.role === 'parent';
+
   useEffect(() => {
+    if (isBlocked) {
+      router.replace('/portal');
+    }
+  }, [isBlocked, router]);
+
+  // Block ALL data fetching for parent role — zero network exposure
+  useEffect(() => {
+    if (isBlocked || authLoading) return;
+    
     async function loadBoletos() {
       if (!user?.alunoId) return;
       try {
@@ -70,7 +84,16 @@ export default function PortalFinanceiroPage() {
       }
     }
     loadBoletos();
-  }, [user]);
+  }, [user, authLoading, isBlocked]);
+
+  // Render NOTHING while redirect is pending (empty wrapper — no financial data in DOM)
+  if (authLoading || isBlocked) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} className="animate-spin text-[var(--color-azul-autoridade)]" />
+      </div>
+    );
+  }
 
   const handlePreview = async (boleto: Boleto) => {
     setPreviewBoleto(boleto);

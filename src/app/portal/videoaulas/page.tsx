@@ -57,6 +57,20 @@ export default function VideoaulasPage() {
           }
           
           const completed = completedList.includes(item.id);
+
+          // Drip Content: verificar data de disponibilização
+          let videoStatus = completed ? 'assistido' : 'disponivel';
+          let dataLiberacao: string | null = null;
+          if (item.dataDisponibilizacao && !completed) {
+            const dtDisp = new Date(item.dataDisponibilizacao);
+            dtDisp.setHours(0, 0, 0, 0);
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            if (hoje < dtDisp) {
+              videoStatus = 'bloqueado';
+              dataLiberacao = dtDisp.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            }
+          }
  
           return {
             id: item.id,
@@ -64,12 +78,13 @@ export default function VideoaulasPage() {
             disciplina: item.disciplina,
             bloco: extra.bloco,
             duracao: extra.duracao,
-            status: completed ? 'assistido' : 'disponivel',
+            status: videoStatus,
             xp: extra.xp,
             thumbnailColor: extra.thumbnailColor,
             videoSource: extra.videoSource,
             videoUrl: item.urlAcesso,
             turmaNome: item.turmaNome || '',
+            dataLiberacao,
           } as any;
         });
         setVideoaulas(formatted);
@@ -163,7 +178,7 @@ export default function VideoaulasPage() {
                     onClick={() => handleOpenVideo(video)}
                     className={`card overflow-hidden transition-all ${
                       video.status === 'bloqueado'
-                        ? 'opacity-50 cursor-not-allowed'
+                        ? 'opacity-40 grayscale cursor-not-allowed'
                         : 'hover:shadow-md cursor-pointer hover:border-[var(--color-azul-autoridade)]/30'
                     }`}
                   >
@@ -203,6 +218,11 @@ export default function VideoaulasPage() {
                     <h4 className="text-sm font-bold text-[var(--color-azul-autoridade)] mb-1.5 leading-tight truncate">
                       {video.titulo}
                     </h4>
+                    {video.status === 'bloqueado' && video.dataLiberacao && (
+                      <p className="text-[10px] font-bold text-amber-600 mb-1.5 flex items-center gap-1">
+                        <Lock size={9} /> Disponível em {video.dataLiberacao}
+                      </p>
+                    )}
                      <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-cinza-texto)] flex-wrap">
                         <span className="flex items-center gap-0.5"><Clock size={10} /> {video.duracao}</span>

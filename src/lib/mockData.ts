@@ -372,6 +372,7 @@ export interface Videoaula {
   xp: number;
   thumbnailColor: string;
   turmaNome?: string;
+  dataLiberacao?: string | null;
 }
 
 export interface Simulado {

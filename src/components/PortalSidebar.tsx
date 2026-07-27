@@ -121,6 +121,10 @@ export default function PortalSidebar({ isOpen, onClose }: PortalSidebarProps) {
         {/* Navigation */}
         <nav className="sidebar-nav">
           {portalNavItems.map((item) => {
+            // RBAC: Ocultar módulo Financeiro para perfil parent (aluno/responsável)
+            if (item.href === '/portal/financeiro' && user?.role === 'parent') {
+              return null;
+            }
             const isLocked = item.featureKey ? !canAccessFeature(item.featureKey, plano) : false;
             return (
               <Link

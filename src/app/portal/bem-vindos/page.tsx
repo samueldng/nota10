@@ -1,8 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { conteudoBemVindos } from '@/lib/portalData';
-import Image from 'next/image';
-import { BookOpen, Users, Monitor, FileText, Calendar, Shield, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Users, Monitor, FileText, Calendar, Shield, CheckCircle2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 const sectionIcons: Record<string, React.ReactNode> = {
   metodo: <BookOpen size={22} />,
@@ -17,6 +17,7 @@ const sectionColors = ['#1A3A6B', '#8B5CF6', '#22C55E', '#F59E0B', '#3B82F6', '#
 
 export default function BemVindosPage() {
   const c = conteudoBemVindos;
+  const [videoPlaying, setVideoPlaying] = useState(false);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -36,6 +37,42 @@ export default function BemVindosPage() {
           <span>Rotina</span>
           <span className="text-[var(--color-amarelo-conquista)] font-black text-base">•</span>
           <span>Acompanhamento</span>
+        </div>
+      </div>
+
+      {/* Vídeo Institucional de Boas-Vindas — player simples, sem XP, sem anti-skip */}
+      <div className="card overflow-hidden animate-fade-in-up delay-1 p-0">
+        <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[#2563EB] px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+              <Play size={20} className="text-white fill-white ml-0.5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white m-0">Vídeo de Boas-Vindas</h3>
+              <p className="text-[10px] text-white/60 m-0 mt-0.5">Mensagem institucional • Engajamento familiar</p>
+            </div>
+          </div>
+        </div>
+        <div className="aspect-video bg-black relative">
+          {/* Player institucional simples — controles nativos, sem lógica de gamificação */}
+          <video
+            className="w-full h-full object-contain"
+            controls
+            controlsList="nodownload"
+            poster="/logo-nota10.png"
+            preload="metadata"
+            onPlay={() => setVideoPlaying(true)}
+            onPause={() => setVideoPlaying(false)}
+            onEnded={() => setVideoPlaying(false)}
+          >
+            <source src="/aula_local.mp4" type="video/mp4" />
+            Seu navegador não suporta a reprodução de vídeo.
+          </video>
+        </div>
+        <div className="px-5 py-3 bg-[var(--color-cinza-fundo)] border-t border-[var(--color-cinza-borda)]">
+          <p className="text-xs text-[var(--color-cinza-texto)] text-center">
+            🎬 Assista ao vídeo para entender nossa metodologia e como funciona a parceria escola-família.
+          </p>
         </div>
       </div>
 

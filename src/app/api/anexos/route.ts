@@ -110,6 +110,18 @@ export async function GET(request: Request) {
     const alunoId = searchParams.get('alunoId');
     const download = searchParams.get('download') === 'true';
 
+    // RBAC Defense-in-Depth: Bloquear acesso a boletos quando chamado do contexto de portal (parent)
+    // O componente do portal nunca faz esta chamada, mas este guard protege contra requisições manuais
+    if (tipo === 'boleto' && alunoId) {
+      const portalRole = request.headers.get('x-portal-role');
+      if (portalRole === 'parent') {
+        return NextResponse.json(
+          { error: 'Acesso negado. Área financeira indisponível para este perfil.' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Single attachment by ID (download)
     if (id) {
       const result = await query(
