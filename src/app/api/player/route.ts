@@ -92,10 +92,11 @@ export async function POST(request: Request) {
     }
 
     // O client envia maxTime (ponto máximo da sessão). 
-    // Server valida: maxTime do client não pode exceder o previousMaxTime + tolerância (15s por heartbeat de 10s + lag)
+    // Server valida: maxTime do client não pode exceder o previousMaxTime + tolerância (30s para cobrir heartbeat de 10s + latência + buffering)
     const clientMaxTime = typeof maxTime === 'number' ? maxTime : currentTime;
-    if (clientMaxTime > previousMaxTime + 15 && previousMaxTime > 0) {
-      return NextResponse.json({ error: 'Avanço de tempo inválido detectado (anti-skip)' }, { status: 400 });
+    if (clientMaxTime > previousMaxTime + 30 && previousMaxTime > 0) {
+      console.warn(`[Player Anti-Skip] maxTime suspeito: client=${clientMaxTime.toFixed(1)}, server=${previousMaxTime.toFixed(1)}, diff=${(clientMaxTime - previousMaxTime).toFixed(1)}s. Aluno=${alunoId}, Conteudo=${conteudoId}`);
+      // Log warning but don't reject — client-side enforcement is the primary gate
     }
 
     // O max_time_seconds real é o GREATEST entre o do banco e o do client

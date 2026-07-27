@@ -156,7 +156,8 @@ export default function PortalInicioPage() {
           }
 
           if (proximaEncontrada && proximaSemanaEncontrada) {
-            const dataFormatada = proximaSemanaEncontrada.periodo?.split(' - ')[0] || '--';
+            // Usar a data_liberacao individual da atividade (dd/mm/yyyy) como data real
+            const dataFormatada = proximaEncontrada.data_liberacao || proximaSemanaEncontrada.periodo?.split(' - ')[0] || '--';
             setProximaAula({
               data: dataFormatada,
               diaSemana: proximaEncontrada.dia_semana || 'Segunda',

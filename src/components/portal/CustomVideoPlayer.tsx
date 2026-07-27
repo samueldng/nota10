@@ -222,6 +222,36 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
     };
   }, [isYoutube, ytId]);
 
+  // Seek handler: allows rewind, blocks forward-skip beyond maxTime
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, clickX / rect.width));
+
+    let duration = 1;
+    if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.getDuration === 'function') {
+      duration = ytPlayerRef.current.getDuration() || 1;
+    } else if (!isYoutube && videoRef.current) {
+      duration = videoRef.current.duration || 1;
+    }
+
+    let targetTime = percent * duration;
+
+    // Anti-skip: block forward beyond maxTime (allow rewind freely)
+    if (!isCompleted && targetTime > maxTimeRef.current + 2) {
+      targetTime = maxTimeRef.current;
+    }
+
+    if (isYoutube && ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      ytPlayerRef.current.seekTo(targetTime, true);
+    } else if (!isYoutube && videoRef.current) {
+      videoRef.current.currentTime = targetTime;
+    }
+
+    lastTimeRef.current = targetTime;
+    updateProgressBar((targetTime / duration) * 100);
+  }, [isYoutube, isCompleted, updateProgressBar]);
+
   // Anti-skip logic for YouTube (polling progress every 500ms, using maxTimeRef)
   useEffect(() => {
     if (!isYoutube) return;
@@ -232,8 +262,8 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
         const state = ytPlayerRef.current.getPlayerState ? ytPlayerRef.current.getPlayerState() : -1;
 
         if (state === 1 && !isNaN(current)) {
-          if (!isCompleted && current > maxTimeRef.current + 2) {
-            // Block forward-skip only: force back to maxTime
+          if (!isCompleted && current > maxTimeRef.current + 5) {
+            // Block forward-skip only: force back to maxTime (5s tolerance for buffering)
             ytPlayerRef.current.seekTo(maxTimeRef.current, true);
           } else {
             // Allow rewind freely — only advance maxTime monotonically
@@ -488,12 +518,17 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
               {isPlaying ? <Pause size={28} /> : <Play size={28} />}
             </button>
             <div className="flex-1">
-               <div className="w-full h-1.5 bg-white/30 rounded-full overflow-hidden relative">
+               <div 
+                 className="w-full h-3 bg-white/30 rounded-full overflow-hidden relative cursor-pointer group/seek"
+                 onClick={handleSeek}
+                 title="Arraste para navegar no vídeo"
+               >
                  <div 
                    ref={progressBarRef}
-                   className="absolute top-0 left-0 h-full bg-[var(--color-amarelo-conquista)] transition-all duration-300"
+                   className="absolute top-0 left-0 h-full bg-[var(--color-amarelo-conquista)] transition-all duration-100 pointer-events-none"
                    style={{ width: '0%' }}
                  />
+                 <div className="absolute top-0 left-0 w-full h-full opacity-0 group-hover/seek:opacity-100 bg-white/10 transition-opacity pointer-events-none" />
                </div>
             </div>
             

@@ -16,27 +16,8 @@ const sectionColors = ['#1A3A6B', '#8B5CF6', '#22C55E', '#F59E0B', '#3B82F6', '#
 // Função auxiliar para converter qualquer link do YouTube em embed URL
 function getEmbedUrl(url: string) {
   if (!url) return '';
-  if (url.includes('youtube.com/embed/')) {
-    return url;
-  }
-  if (url.includes('youtube.com/watch')) {
-    try {
-      const videoId = new URL(url).searchParams.get('v');
-      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-    } catch {
-      // fallback
-    }
-  }
-  if (url.includes('youtu.be/')) {
-    const videoId = url.split('youtu.be/')[1]?.split('?')[0];
-    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-  }
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  if (match && match[2].length === 11) {
-    return `https://www.youtube.com/embed/${match[2]}`;
-  }
-  return url;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&\s]{11})/);
+  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=0&rel=0` : url;
 }
 
 export default async function BemVindosPage() {
