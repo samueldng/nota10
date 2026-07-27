@@ -17,19 +17,27 @@ export async function GET(request: Request) {
   try {
     await ensureProgressTables();
 
-    // Drip Content Protection: verificar data_liberacao na cronograma_atividades
+    // Drip Content Protection (DEFAULT DENY): verificar data_liberacao na cronograma_atividades
     const dripCheck = await query(
       `SELECT data_liberacao FROM cronograma_atividades 
        WHERE id::text = $1::text LIMIT 1`,
       [conteudoId]
     );
 
-    if (dripCheck.rows.length > 0 && dripCheck.rows[0].data_liberacao) {
-      const dataLiberacao = new Date(dripCheck.rows[0].data_liberacao);
-      dataLiberacao.setHours(0, 0, 0, 0);
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
 
+    if (dripCheck.rows.length > 0) {
+      const row = dripCheck.rows[0];
+      // DEFAULT DENY: Se data_liberacao for NULL ou futura → bloqueado
+      if (!row.data_liberacao) {
+        return NextResponse.json(
+          { error: 'Conteúdo bloqueado. Data de liberação ainda não definida.' },
+          { status: 403 }
+        );
+      }
+      const dataLiberacao = new Date(row.data_liberacao);
+      dataLiberacao.setHours(0, 0, 0, 0);
       if (hoje < dataLiberacao) {
         const dataFormatada = dataLiberacao.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         return NextResponse.json(
@@ -38,6 +46,7 @@ export async function GET(request: Request) {
         );
       }
     }
+    // Se não encontrar no cronograma, permite prosseguir (pode ser vídeo institucional sem drip)
 
     const res = await query(
       `SELECT current_time_seconds, max_time_seconds, status, percent_watched

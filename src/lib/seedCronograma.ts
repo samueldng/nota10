@@ -155,6 +155,7 @@ export async function seedCronogramaOficial() {
     const updates = [
       { newName: 'T5 - Quarta-feira Manhã', where: "TRIM(nome) ILIKE '%5A Manhã 2025%'" },
       { newName: 'T1 - Segunda-feira', where: "TRIM(nome) ILIKE '%5A Manhã%' AND TRIM(nome) NOT ILIKE '%2025%'" },
+      { newName: 'T1 - Segunda-feira', where: "TRIM(nome) ILIKE '%4A Manhã%'" },
       { newName: 'T2 - Terça-feira', where: "TRIM(nome) ILIKE '%5B Tarde%'" },
       { newName: 'T3 - Quarta-feira', where: "TRIM(nome) ILIKE '%5C Manhã%'" },
     ];

@@ -265,18 +265,15 @@ export async function GET(request: Request) {
   for (const row of trilhaRes.rows) {
     const semNum = Number(row.semana_numero) || 1;
     if (!semanasMap.has(semNum)) {
+      // DEFAULT DENY: Semana só é liberada se data_liberacao existir E for <= hoje
       let liberada = false;
 
-      if (!turmaFutura) {
-        if (row.data_liberacao) {
-          const dtLiberacao = new Date(row.data_liberacao);
-          dtLiberacao.setHours(0, 0, 0, 0);
-          if (!isNaN(dtLiberacao.getTime()) && hoje >= dtLiberacao) liberada = true;
-        } else {
-          // Sem data_liberacao explícita: semana 1 sempre liberada se a turma já iniciou
-          if (semNum === 1) liberada = true;
-        }
+      if (!turmaFutura && row.data_liberacao) {
+        const dtLiberacao = new Date(row.data_liberacao);
+        dtLiberacao.setHours(0, 0, 0, 0);
+        if (!isNaN(dtLiberacao.getTime()) && hoje >= dtLiberacao) liberada = true;
       }
+      // Se data_liberacao for NULL → liberada permanece false (Default Deny)
 
       semanasMap.set(semNum, {
         semana: semNum,
@@ -288,18 +285,22 @@ export async function GET(request: Request) {
 
     const semanaAtiva = semanasMap.get(semNum)!;
 
-    // Drip Content: avaliar data_liberacao INDIVIDUAL da atividade
-    let atividadeBloqueadaPorData = false;
+    // DEFAULT DENY: Atividade bloqueada se data_liberacao for NULL, inválida ou futura
+    let atividadeBloqueadaPorData = true; // DEFAULT: bloqueada
     let dataLiberacaoFormatada: string | null = null;
 
     if (row.data_liberacao) {
       const dtLib = new Date(row.data_liberacao);
       dtLib.setHours(0, 0, 0, 0);
-      if (!isNaN(dtLib.getTime()) && hoje < dtLib) {
-        atividadeBloqueadaPorData = true;
-        dataLiberacaoFormatada = dtLib.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (!isNaN(dtLib.getTime()) && hoje >= dtLib) {
+        atividadeBloqueadaPorData = false; // Desbloqueada: data existe e é passada
+      } else {
+        dataLiberacaoFormatada = !isNaN(dtLib.getTime())
+          ? dtLib.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : null;
       }
     }
+    // Se data_liberacao for NULL → atividadeBloqueadaPorData permanece true (Default Deny)
 
     let statusFinal: string;
     if (!semanaAtiva.liberada || atividadeBloqueadaPorData) {
