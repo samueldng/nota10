@@ -24,12 +24,12 @@ const getYoutubeVideoId = (url: string) => {
 export default async function BemVindosPage() {
   const c = conteudoBemVindos;
   
-  // Fetch onboarding videos dynamically (Zero Hardcode)
+  // Fetch onboarding videos dynamically (Fuzzy Matching para tolerância a variações no título)
   const sql = `
     SELECT id, titulo, url_acesso 
     FROM conteudos_midia 
-    WHERE titulo ILIKE '%Bem Vindo ao PRÉ-CMT%' 
-       OR titulo ILIKE '%REVELADO%Segredo%aprovado%'
+    WHERE titulo ILIKE '%Bem%Vindo%' 
+       OR titulo ILIKE '%REVELADO%'
     ORDER BY created_at ASC
   `;
   const result = await query(sql);

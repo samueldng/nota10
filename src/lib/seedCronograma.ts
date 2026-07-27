@@ -150,11 +150,25 @@ export async function seedCronogramaOficial() {
     await client.query(`ALTER TABLE cronograma_atividades ADD COLUMN IF NOT EXISTS dia_semana VARCHAR(20);`);
     await client.query(`ALTER TABLE cronograma_atividades ADD COLUMN IF NOT EXISTS subtarefas JSONB DEFAULT '[]'::jsonb;`);
 
-    // 1. Renomear turmas (idempotente — WHERE nome = old_name só afecta se ainda não renomeada)
-    console.log('📝 [Seed Cronograma] Atualizando nomenclatura das turmas...');
+    // 1. Renomear turmas (tolerante a espaços invisíveis e variações com TRIM e ILIKE)
+    console.log('📝 [Seed Cronograma] Atualizando nomenclatura das turmas (TRIM + ILIKE)...');
+    const updates = [
+      { newName: 'T5 - Quarta-feira Manhã', where: "TRIM(nome) ILIKE '%5A Manhã 2025%'" },
+      { newName: 'T1 - Segunda-feira', where: "TRIM(nome) ILIKE '%5A Manhã%' AND TRIM(nome) NOT ILIKE '%2025%'" },
+      { newName: 'T2 - Terça-feira', where: "TRIM(nome) ILIKE '%5B Tarde%'" },
+      { newName: 'T3 - Quarta-feira', where: "TRIM(nome) ILIKE '%5C Manhã%'" },
+    ];
+
+    for (const u of updates) {
+      const res = await client.query(`UPDATE turmas SET nome = $1 WHERE ${u.where}`, [u.newName]);
+      if (res.rowCount && res.rowCount > 0) {
+        console.log(`  ✅ Atualizado para "${u.newName}" (${res.rowCount} turma(s))`);
+      }
+    }
+
     for (const [oldName, newName] of Object.entries(TURMA_RENAMES)) {
       const res = await client.query(
-        `UPDATE turmas SET nome = $1 WHERE nome = $2`,
+        `UPDATE turmas SET nome = $1 WHERE TRIM(nome) = $2`,
         [newName, oldName]
       );
       if (res.rowCount && res.rowCount > 0) {
