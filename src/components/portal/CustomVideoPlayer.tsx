@@ -233,11 +233,13 @@ export default function CustomVideoPlayer({ conteudoId, videoUrl, xpVal, onCompl
 
         if (state === 1 && !isNaN(current)) {
           if (!isCompleted && current > maxTimeRef.current + 2) {
-            // Block forward-skip: force back to maxTime
+            // Block forward-skip only: force back to maxTime
             ytPlayerRef.current.seekTo(maxTimeRef.current, true);
           } else {
-            // Update maxTime (monotonically increasing)
-            maxTimeRef.current = Math.max(maxTimeRef.current, current);
+            // Allow rewind freely — only advance maxTime monotonically
+            if (current > maxTimeRef.current) {
+              maxTimeRef.current = current;
+            }
             lastTimeRef.current = current;
             updateProgressBar((current / duration) * 100);
           }

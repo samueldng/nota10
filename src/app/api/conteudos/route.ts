@@ -89,6 +89,8 @@ export async function GET(request: Request) {
         JOIN turmas t ON c.turma_id = t.id
         WHERE c.status = true 
           AND c.turma_id IN (SELECT turma_id FROM matriculas WHERE aluno_id = $1 AND status = 'ativo')
+          AND c.titulo NOT ILIKE '%Bem Vindo ao PRÉ-CMT%'
+          AND c.titulo NOT ILIKE '%REVELADO%Segredo%aprovado%'
       `;
       const params: any[] = [alunoId];
 
@@ -137,6 +139,8 @@ export async function GET(request: Request) {
       FROM conteudos_midia c
       LEFT JOIN turmas t ON c.turma_id = t.id
       WHERE c.turma_id = $1
+        AND c.titulo NOT ILIKE '%Bem Vindo ao PRÉ-CMT%'
+        AND c.titulo NOT ILIKE '%REVELADO%Segredo%aprovado%'
     `;
     const params: any[] = [resolvedTurmaId];
 
