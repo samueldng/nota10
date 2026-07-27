@@ -2,6 +2,8 @@ import { conteudoBemVindos } from '@/lib/portalData';
 import { BookOpen, Users, Monitor, FileText, Calendar, Shield, CheckCircle2, Play } from 'lucide-react';
 import { query } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const sectionIcons: Record<string, React.ReactNode> = {
   metodo: <BookOpen size={22} />,
   familia: <Users size={22} />,
