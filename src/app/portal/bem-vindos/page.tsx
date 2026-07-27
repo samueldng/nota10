@@ -1,8 +1,6 @@
-'use client';
-
-import { useState } from 'react';
 import { conteudoBemVindos } from '@/lib/portalData';
-import { BookOpen, Users, Monitor, FileText, Calendar, Shield, CheckCircle2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { BookOpen, Users, Monitor, FileText, Calendar, Shield, CheckCircle2, Play } from 'lucide-react';
+import { query } from '@/lib/db';
 
 const sectionIcons: Record<string, React.ReactNode> = {
   metodo: <BookOpen size={22} />,
@@ -15,9 +13,27 @@ const sectionIcons: Record<string, React.ReactNode> = {
 
 const sectionColors = ['#1A3A6B', '#8B5CF6', '#22C55E', '#F59E0B', '#3B82F6', '#EF4444'];
 
-export default function BemVindosPage() {
+// Helper to extract YouTube ID
+const getYoutubeVideoId = (url: string) => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
+export default async function BemVindosPage() {
   const c = conteudoBemVindos;
-  const [videoPlaying, setVideoPlaying] = useState(false);
+  
+  // Fetch onboarding videos dynamically (Zero Hardcode)
+  const sql = `
+    SELECT id, titulo, url_acesso 
+    FROM conteudos_midia 
+    WHERE titulo ILIKE '%Bem Vindo ao PRÉ-CMT%' 
+       OR titulo ILIKE '%REVELADO%Segredo%aprovado%'
+    ORDER BY created_at ASC
+  `;
+  const result = await query(sql);
+  const onboardingVideos = result.rows;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -40,40 +56,60 @@ export default function BemVindosPage() {
         </div>
       </div>
 
-      {/* Vídeo Institucional de Boas-Vindas — player simples, sem XP, sem anti-skip */}
-      <div className="card overflow-hidden animate-fade-in-up delay-1 p-0">
-        <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[#2563EB] px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-              <Play size={20} className="text-white fill-white ml-0.5" />
+      {/* Vídeos Institucionais de Boas-Vindas — Mapeados dinamicamente, sem XP, sem anti-skip */}
+      <div className="space-y-6">
+        {onboardingVideos.map((video, idx) => {
+          const ytId = getYoutubeVideoId(video.url_acesso);
+          
+          return (
+            <div key={video.id} className="card overflow-hidden animate-fade-in-up p-0" style={{ animationDelay: `${0.1 * (idx + 1)}s` }}>
+              <div className="bg-gradient-to-r from-[var(--color-azul-autoridade)] to-[#2563EB] px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
+                    <Play size={20} className="text-white fill-white ml-0.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white m-0">{video.titulo}</h3>
+                    <p className="text-[10px] text-white/60 m-0 mt-0.5">Mensagem institucional • Engajamento familiar</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="aspect-video bg-black relative">
+                {ytId ? (
+                  <iframe
+                    className="w-full h-full object-cover"
+                    src={`https://www.youtube.com/embed/${ytId}?rel=0`}
+                    title={video.titulo}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    className="w-full h-full object-contain"
+                    controls
+                    controlsList="nodownload"
+                    preload="metadata"
+                  >
+                    <source src={video.url_acesso} type="video/mp4" />
+                    Seu navegador não suporta a reprodução de vídeo.
+                  </video>
+                )}
+              </div>
+              
+              <div className="px-5 py-3 bg-[var(--color-cinza-fundo)] border-t border-[var(--color-cinza-borda)]">
+                <p className="text-xs text-[var(--color-cinza-texto)] text-center">
+                  🎬 Assista ao vídeo para entender nossa metodologia e como funciona a parceria escola-família.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold text-white m-0">Vídeo de Boas-Vindas</h3>
-              <p className="text-[10px] text-white/60 m-0 mt-0.5">Mensagem institucional • Engajamento familiar</p>
-            </div>
+          );
+        })}
+        {onboardingVideos.length === 0 && (
+          <div className="card text-center p-8 text-[var(--color-cinza-texto)] animate-fade-in-up delay-1">
+            Nenhum vídeo de boas-vindas disponível no momento.
           </div>
-        </div>
-        <div className="aspect-video bg-black relative">
-          {/* Player institucional simples — controles nativos, sem lógica de gamificação */}
-          <video
-            className="w-full h-full object-contain"
-            controls
-            controlsList="nodownload"
-            poster="/logo-nota10.png"
-            preload="metadata"
-            onPlay={() => setVideoPlaying(true)}
-            onPause={() => setVideoPlaying(false)}
-            onEnded={() => setVideoPlaying(false)}
-          >
-            <source src="/aula_local.mp4" type="video/mp4" />
-            Seu navegador não suporta a reprodução de vídeo.
-          </video>
-        </div>
-        <div className="px-5 py-3 bg-[var(--color-cinza-fundo)] border-t border-[var(--color-cinza-borda)]">
-          <p className="text-xs text-[var(--color-cinza-texto)] text-center">
-            🎬 Assista ao vídeo para entender nossa metodologia e como funciona a parceria escola-família.
-          </p>
-        </div>
+        )}
       </div>
 
       {/* Main Grid Content */}
