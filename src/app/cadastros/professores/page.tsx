@@ -1,39 +1,58 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit3, Eye, X, Save, UserCog, Mail, GraduationCap, CheckCircle, Trash2 } from 'lucide-react';
-import { turmas, type Professor } from '@/lib/mockData';
-import { getProfessores, createProfessor, updateProfessor } from '@/lib/api';
+import { Plus, Search, Edit3, X, Save, UserCog, Mail, GraduationCap, CheckCircle, Trash2 } from 'lucide-react';
+import { type Professor, type Turma } from '@/lib/mockData';
+import { getProfessores, createProfessor, updateProfessor, getTurmas } from '@/lib/api';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
-interface ProfessorForm {
-  nome: string;
-  email: string;
-  turmas: string[];
-  status: 'ativo' | 'inativo';
-}
+const professorSchema = z.object({
+  nome: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
+  email: z.string().email('Formato de e-mail inválido.').or(z.literal('')),
+  status: z.enum(['ativo', 'inativo']),
+  turmas: z.array(z.string().uuid('ID de turma inválido.')).min(1, 'O professor deve ser vinculado a pelo menos uma turma.'),
+});
 
-const EMPTY_FORM: ProfessorForm = {
-  nome: '',
-  email: '',
-  turmas: [],
-  status: 'ativo',
-};
+type ProfessorFormData = z.infer<typeof professorSchema>;
 
 export default function CadastroProfessoresPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editProfId, setEditProfId] = useState<string | null>(null);
+  
   const [profList, setProfList] = useState<Professor[]>([]);
-  const [form, setForm] = useState<ProfessorForm>(EMPTY_FORM);
+  const [turmasAtivas, setTurmasAtivas] = useState<Turma[]>([]);
+  
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors }
+  } = useForm<ProfessorFormData>({
+    resolver: zodResolver(professorSchema),
+    defaultValues: {
+      nome: '',
+      email: '',
+      turmas: [],
+      status: 'ativo',
+    }
+  });
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await getProfessores();
-        setProfList(data);
+        const [profsData, turmasData] = await Promise.all([
+          getProfessores(),
+          getTurmas()
+        ]);
+        setProfList(profsData);
+        setTurmasAtivas(turmasData.filter(t => t.status === 'ativa'));
       } catch (err) {
         console.error(err);
       } finally {
@@ -52,55 +71,40 @@ export default function CadastroProfessoresPage() {
 
   const openCreateModal = () => {
     setEditProfId(null);
-    setForm(EMPTY_FORM);
+    reset({
+      nome: '',
+      email: '',
+      turmas: [],
+      status: 'ativo',
+    });
     setShowModal(true);
   };
 
   const openEditModal = (prof: Professor) => {
     setEditProfId(prof.id);
-    setForm({
+    reset({
       nome: prof.nome,
       email: prof.email,
       turmas: [...prof.turmas],
-      status: prof.status,
+      status: prof.status as 'ativo' | 'inativo',
     });
     setShowModal(true);
   };
 
-  const toggleTurma = (turmaId: string) => {
-    setForm(prev => ({
-      ...prev,
-      turmas: prev.turmas.includes(turmaId)
-        ? prev.turmas.filter(x => x !== turmaId)
-        : [...prev.turmas, turmaId],
-    }));
-  };
-
-  const handleSave = async () => {
-    if (!form.nome.trim()) return;
-
+  const onSubmit = async (data: ProfessorFormData) => {
     try {
       if (editProfId) {
         const original = profList.find(p => p.id === editProfId);
         if (!original) return;
         const updatedData: Professor = {
           ...original,
-          nome: form.nome,
-          email: form.email,
-          turmas: form.turmas,
-          status: form.status,
+          ...data,
         };
         const result = await updateProfessor(updatedData);
         setProfList(prev => prev.map(p => p.id === editProfId ? result : p));
         setToast('Professor atualizado com sucesso!');
       } else {
-        const newProfPayload = {
-          nome: form.nome,
-          email: form.email,
-          turmas: form.turmas,
-          status: form.status,
-        };
-        const result = await createProfessor(newProfPayload);
+        const result = await createProfessor(data);
         setProfList(prev => [...prev, result]);
         setToast('Professor cadastrado com sucesso!');
       }
@@ -114,7 +118,6 @@ export default function CadastroProfessoresPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este professor?')) {
       try {
-        // We simulate delete or we could add a delete endpoint. Let's just update local state and show toast.
         setProfList(prev => prev.filter(p => p.id !== id));
         setToast('Professor removido.');
       } catch (err: any) {
@@ -130,13 +133,8 @@ export default function CadastroProfessoresPage() {
     return true;
   });
 
-  const getTurmasNomes = (turmaIds: string[]) => {
-    return turmaIds.map(id => turmas.find(t => t.id === id)?.nome || id).join(', ');
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Toast */}
       {toast && (
         <div className="fixed top-6 right-6 z-[60] bg-[var(--color-verde-sucesso)] text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-fade-in-up text-sm font-bold">
           <CheckCircle size={18} /> {toast}
@@ -194,7 +192,7 @@ export default function CadastroProfessoresPage() {
                     {p.turmas.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {p.turmas.map(tId => {
-                          const t = turmas.find(x => x.id === tId);
+                          const t = turmasAtivas.find(x => x.id === tId);
                           return t ? (
                             <span key={tId} className="badge badge-info text-[10px]">
                               <GraduationCap size={10} /> {t.nome}
@@ -223,6 +221,13 @@ export default function CadastroProfessoresPage() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={5} className="text-center py-6 text-[var(--color-cinza-texto)]">
+                    Nenhum professor encontrado.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -236,67 +241,83 @@ export default function CadastroProfessoresPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in-up p-6">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in-up p-6 overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-[var(--color-azul-autoridade)]">{editProfId ? 'Editar Professor' : 'Novo Professor'}</h3>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-[var(--color-cinza-fundo)] rounded-lg"><X size={20} /></button>
             </div>
-            <div className="space-y-4">
+            
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="form-group">
                 <label className="form-label">Nome Completo *</label>
                 <input
-                  className="form-input"
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                  className={`form-input ${errors.nome ? 'border-red-500' : ''}`}
                   placeholder="Nome do professor"
+                  {...register('nome')}
                 />
+                {errors.nome && <p className="text-red-500 text-xs mt-1">{errors.nome.message}</p>}
               </div>
+              
               <div className="form-group">
                 <label className="form-label">Email</label>
                 <input
-                  className="form-input"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className={`form-input ${errors.email ? 'border-red-500' : ''}`}
                   placeholder="email@nota10.edu.br"
+                  {...register('email')}
                 />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
               </div>
+              
               <div className="form-group">
-                <label className="form-label">Turmas vinculadas</label>
-                <div className="grid grid-cols-2 gap-2 p-3 bg-[var(--color-cinza-fundo)] rounded-xl">
-                  {turmas.filter(t => t.status === 'ativa').map(t => (
+                <label className="form-label">Turmas vinculadas *</label>
+                <div className={`grid grid-cols-2 gap-2 p-3 bg-[var(--color-cinza-fundo)] rounded-xl ${errors.turmas ? 'border border-red-500' : ''}`}>
+                  {turmasAtivas.map(t => (
                     <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        className="accent-[var(--color-azul-autoridade)] w-4 h-4"
-                        checked={form.turmas.includes(t.id)}
-                        onChange={() => toggleTurma(t.id)}
+                        value={t.id}
+                        {...register('turmas')}
+                        className="accent-[var(--color-azul-autoridade)] w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span>{t.nome}</span>
+                      <span className="font-medium text-slate-700">{t.nome}</span>
                     </label>
                   ))}
                 </div>
+                {errors.turmas && <p className="text-red-500 text-xs mt-1">{errors.turmas.message}</p>}
               </div>
+              
               <div className="form-group">
                 <label className="form-label">Status</label>
                 <div className="flex items-center gap-4 h-[42px]">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="status" checked={form.status === 'ativo'} onChange={() => setForm({ ...form, status: 'ativo' })} className="accent-[var(--color-verde-sucesso)]" />
+                    <input 
+                      type="radio" 
+                      value="ativo"
+                      {...register('status')}
+                      className="accent-[var(--color-verde-sucesso)]" 
+                    />
                     <span className="text-sm font-medium">Ativo</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="status" checked={form.status === 'inativo'} onChange={() => setForm({ ...form, status: 'inativo' })} className="accent-[var(--color-vermelho-erro)]" />
+                    <input 
+                      type="radio" 
+                      value="inativo"
+                      {...register('status')}
+                      className="accent-[var(--color-vermelho-erro)]" 
+                    />
                     <span className="text-sm font-medium">Inativo</span>
                   </label>
                 </div>
+                {errors.status && <p className="text-red-500 text-xs mt-1">{errors.status.message}</p>}
               </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-cinza-borda)]">
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={!form.nome.trim()}>
-                <Save size={16} /> {editProfId ? 'Salvar Professor' : 'Cadastrar Professor'}
-              </button>
-            </div>
+              
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[var(--color-cinza-borda)]">
+                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary">
+                  <Save size={16} /> {editProfId ? 'Salvar Professor' : 'Cadastrar Professor'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
