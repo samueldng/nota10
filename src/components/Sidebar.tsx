@@ -24,7 +24,8 @@ import {
   WifiOff,
   Calendar,
   PlayCircle,
-  DollarSign
+  DollarSign,
+  Lock
 } from 'lucide-react';
 
 interface SubItem {
@@ -38,16 +39,18 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   subItems?: SubItem[];
+  locked?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { label: 'Home', href: '/', icon: <Home size={20} /> },
-  { label: 'Lançar Registro', href: '/lancar', icon: <FileEdit size={20} /> },
-  { label: 'Folhas de Acompanhamento', href: '/folhas', icon: <FileText size={20} /> },
+  { label: 'Home', href: '/', icon: <Home size={20} />, locked: true },
+  { label: 'Lançar Registro', href: '/lancar', icon: <FileEdit size={20} />, locked: true },
+  { label: 'Folhas de Acompanhamento', href: '/folhas', icon: <FileText size={20} />, locked: true },
   {
     label: 'Cadastros',
     href: '/cadastros',
     icon: <Users size={20} />,
+    locked: false,
     subItems: [
       { label: 'Alunos', href: '/cadastros/alunos', icon: <UserCheck size={16} /> },
       { label: 'Turmas', href: '/cadastros/turmas', icon: <GraduationCap size={16} /> },
@@ -61,21 +64,25 @@ const navItems: NavItem[] = [
     label: 'Histórico',
     href: '/historico',
     icon: <Database size={20} />,
+    locked: true,
   },
   {
     label: 'Relatórios',
     href: '/relatorios',
     icon: <BarChart3 size={20} />,
+    locked: true,
   },
   {
     label: 'Financeiro',
     href: '/financeiro',
     icon: <DollarSign size={20} />,
+    locked: true,
   },
   {
     label: 'Ranking',
     href: '/ranking',
     icon: <Trophy size={20} />,
+    locked: true,
   },
 ];
 
@@ -123,49 +130,62 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <div key={item.label}>
-              {item.subItems ? (
-                <>
-                  <button
-                    className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}
-                    onClick={() => toggleMenu(item.label)}
+          {navItems.map((item) => {
+            const isLocked = item.locked;
+
+            return (
+              <div key={item.label}>
+                {item.subItems && !isLocked ? (
+                  <>
+                    <button
+                      className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}
+                      onClick={() => toggleMenu(item.label)}
+                    >
+                      {item.icon}
+                      <span className="flex-1">{item.label}</span>
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${
+                          openMenus[item.label] ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    <div className={`sidebar-submenu ${openMenus[item.label] ? 'open' : ''}`}>
+                      {item.subItems.map((sub) => (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={`sidebar-submenu-link ${pathname === sub.href ? 'active' : ''}`}
+                          onClick={onClose}
+                        >
+                          {sub.icon}
+                          <span>{sub.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                ) : isLocked ? (
+                  <span
+                    className="sidebar-link opacity-50 cursor-not-allowed pointer-events-none select-none"
+                    aria-disabled="true"
                   >
                     {item.icon}
                     <span className="flex-1">{item.label}</span>
-                    <ChevronDown
-                      size={16}
-                      className={`transition-transform duration-200 ${
-                        openMenus[item.label] ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                  <div className={`sidebar-submenu ${openMenus[item.label] ? 'open' : ''}`}>
-                    {item.subItems.map((sub) => (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        className={`sidebar-submenu-link ${pathname === sub.href ? 'active' : ''}`}
-                        onClick={onClose}
-                      >
-                        {sub.icon}
-                        <span>{sub.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}
-                  onClick={onClose}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              )}
-            </div>
-          ))}
+                    <Lock size={16} className="text-white/40" />
+                  </span>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className={`sidebar-link ${isActive(item.href) ? 'active' : ''}`}
+                    onClick={onClose}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Footer info & Logout */}

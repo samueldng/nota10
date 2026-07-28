@@ -17,6 +17,7 @@ const TURMA_RENAMES: Record<string, string> = {
   '5B Tarde': 'T2 - Terça-feira',
   '5C Manhã': 'T3 - Quarta-feira',
   '5A Manhã 2025': 'T5 - Quarta-feira Manhã',
+  'Turma de Quinta-feira': 'T4 - Quinta-feira',
 };
 
 /**
@@ -42,6 +43,37 @@ interface SemanaCalendario {
   fixacao_port?: string;      // Fixação Português (apostila)
   fixacao_mat?: string;       // Fixação Matemática (apostila)
 }
+
+// Schedules compartilhados por turmas do mesmo dia
+const SCHEDULE_QUINTA: SemanaCalendario[] = [
+  { semana: 1, label: '06 Ago - 12 Ago', bloco: 'Abertura', abertura: '2026-08-06', videoaula_port: '2026-08-07', fixacao_port: '2026-08-08', videoaula_mat: '2026-08-10', fixacao_mat: '2026-08-11' },
+  { semana: 2, label: '13 Ago - 19 Ago', bloco: 'Bloco I', abertura: '2026-08-13', revisao_port: '2026-08-14', revisao_mat: '2026-08-15', videoaula_port: '2026-08-17', fixacao_port: '2026-08-18', videoaula_mat: '2026-08-19', fixacao_mat: '2026-08-19' },
+  { semana: 3, label: '20 Ago - 26 Ago', bloco: 'Bloco II', abertura: '2026-08-20', revisao_port: '2026-08-21', revisao_mat: '2026-08-22', videoaula_port: '2026-08-24', fixacao_port: '2026-08-25', videoaula_mat: '2026-08-26', fixacao_mat: '2026-08-26' },
+  { semana: 4, label: '27 Ago - 02 Set', bloco: 'Bloco III', abertura: '2026-08-27', revisao_port: '2026-08-28', revisao_mat: '2026-08-29', videoaula_port: '2026-08-31', fixacao_port: '2026-09-01', videoaula_mat: '2026-09-02', fixacao_mat: '2026-09-02' },
+  { semana: 5, label: '03 Set - 09 Set', bloco: 'Bloco IV', abertura: '2026-09-03', revisao_port: '2026-09-04', revisao_mat: '2026-09-05', videoaula_port: '2026-09-07', fixacao_port: '2026-09-08', videoaula_mat: '2026-09-09', fixacao_mat: '2026-09-09' },
+  { semana: 6, label: '10 Set - 16 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-10', revisao_port: '2026-09-11', revisao_mat: '2026-09-12', fixacao_port: '2026-09-14', fixacao_mat: '2026-09-15', videoaula_port: '2026-09-16', videoaula_mat: '2026-09-16' },
+  { semana: 7, label: '17 Set', bloco: 'Simulado', abertura: '2026-09-17' },
+];
+
+const SCHEDULE_SEXTA_TARDE: SemanaCalendario[] = [
+  { semana: 1, label: '07 Ago - 13 Ago', bloco: 'Abertura', abertura: '2026-08-07', videoaula_port: '2026-08-08', fixacao_port: '2026-08-10', videoaula_mat: '2026-08-11', fixacao_mat: '2026-08-12' },
+  { semana: 2, label: '14 Ago - 20 Ago', bloco: 'Bloco I', abertura: '2026-08-14', revisao_port: '2026-08-15', revisao_mat: '2026-08-17', videoaula_port: '2026-08-18', fixacao_port: '2026-08-19', videoaula_mat: '2026-08-20', fixacao_mat: '2026-08-20' },
+  { semana: 3, label: '21 Ago - 27 Ago', bloco: 'Bloco II', abertura: '2026-08-21', revisao_port: '2026-08-22', revisao_mat: '2026-08-24', videoaula_port: '2026-08-25', fixacao_port: '2026-08-26', videoaula_mat: '2026-08-27', fixacao_mat: '2026-08-27' },
+  { semana: 4, label: '28 Ago - 03 Set', bloco: 'Bloco III', abertura: '2026-08-28', revisao_port: '2026-08-29', revisao_mat: '2026-08-31', videoaula_port: '2026-09-01', fixacao_port: '2026-09-02', videoaula_mat: '2026-09-03', fixacao_mat: '2026-09-03' },
+  { semana: 5, label: '04 Set - 10 Set', bloco: 'Bloco IV', abertura: '2026-09-04', revisao_port: '2026-09-05', revisao_mat: '2026-09-07', videoaula_port: '2026-09-08', fixacao_port: '2026-09-09', videoaula_mat: '2026-09-10', fixacao_mat: '2026-09-10' },
+  { semana: 6, label: '11 Set - 17 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-11', revisao_port: '2026-09-12', revisao_mat: '2026-09-14', fixacao_port: '2026-09-15', fixacao_mat: '2026-09-16', videoaula_port: '2026-09-17', videoaula_mat: '2026-09-17' },
+  { semana: 7, label: '18 Set', bloco: 'Simulado', abertura: '2026-09-18' },
+];
+
+const SCHEDULE_SABADO_MANHA: SemanaCalendario[] = [
+  { semana: 1, label: '08 Ago - 14 Ago', bloco: 'Abertura', abertura: '2026-08-08', videoaula_port: '2026-08-10', fixacao_port: '2026-08-11', videoaula_mat: '2026-08-12', fixacao_mat: '2026-08-13' },
+  { semana: 2, label: '15 Ago - 21 Ago', bloco: 'Bloco I', abertura: '2026-08-15', revisao_port: '2026-08-17', revisao_mat: '2026-08-18', videoaula_port: '2026-08-19', fixacao_port: '2026-08-20', videoaula_mat: '2026-08-21', fixacao_mat: '2026-08-21' },
+  { semana: 3, label: '22 Ago - 28 Ago', bloco: 'Bloco II', abertura: '2026-08-22', revisao_port: '2026-08-24', revisao_mat: '2026-08-25', videoaula_port: '2026-08-26', fixacao_port: '2026-08-27', videoaula_mat: '2026-08-28', fixacao_mat: '2026-08-28' },
+  { semana: 4, label: '29 Ago - 04 Set', bloco: 'Bloco III', abertura: '2026-08-29', revisao_port: '2026-08-31', revisao_mat: '2026-09-01', videoaula_port: '2026-09-02', fixacao_port: '2026-09-03', videoaula_mat: '2026-09-04', fixacao_mat: '2026-09-04' },
+  { semana: 5, label: '05 Set - 11 Set', bloco: 'Bloco IV', abertura: '2026-09-05', revisao_port: '2026-09-07', revisao_mat: '2026-09-08', videoaula_port: '2026-09-09', fixacao_port: '2026-09-10', videoaula_mat: '2026-09-11', fixacao_mat: '2026-09-11' },
+  { semana: 6, label: '12 Set - 18 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-12', revisao_port: '2026-09-14', revisao_mat: '2026-09-15', fixacao_port: '2026-09-16', fixacao_mat: '2026-09-17', videoaula_port: '2026-09-18', videoaula_mat: '2026-09-18' },
+  { semana: 7, label: '19 Set', bloco: 'Simulado', abertura: '2026-09-19' },
+];
 
 const CRONOGRAMA: Record<string, SemanaCalendario[]> = {
   'T1 - Segunda-feira': [
@@ -71,6 +103,8 @@ const CRONOGRAMA: Record<string, SemanaCalendario[]> = {
     { semana: 6, label: '09 Set - 15 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-09', revisao_port: '2026-09-10', revisao_mat: '2026-09-11', fixacao_port: '2026-09-12', fixacao_mat: '2026-09-12', videoaula_port: '2026-09-14', videoaula_mat: '2026-09-15' },
     { semana: 7, label: '16 Set', bloco: 'Simulado', abertura: '2026-09-16' },
   ],
+  // T4 — Quinta-feira (turma individual)
+  'T4 - Quinta-feira': SCHEDULE_QUINTA,
   'T5 - Quarta-feira Manhã': [
     { semana: 1, label: '05 Ago - 11 Ago', bloco: 'Abertura', abertura: '2026-08-05', videoaula_port: '2026-08-06', fixacao_port: '2026-08-07', videoaula_mat: '2026-08-08', fixacao_mat: '2026-08-08' },
     { semana: 2, label: '12 Ago - 18 Ago', bloco: 'Bloco I', abertura: '2026-08-12', revisao_port: '2026-08-13', revisao_mat: '2026-08-14', videoaula_port: '2026-08-15', fixacao_port: '2026-08-15', videoaula_mat: '2026-08-17', fixacao_mat: '2026-08-18' },
@@ -80,33 +114,14 @@ const CRONOGRAMA: Record<string, SemanaCalendario[]> = {
     { semana: 6, label: '09 Set - 15 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-09', revisao_port: '2026-09-10', revisao_mat: '2026-09-11', fixacao_port: '2026-09-12', fixacao_mat: '2026-09-12', videoaula_port: '2026-09-14', videoaula_mat: '2026-09-15' },
     { semana: 7, label: '16 Set', bloco: 'Simulado', abertura: '2026-09-16' },
   ],
-  'Turma de Quinta-feira': [
-    { semana: 1, label: '06 Ago - 12 Ago', bloco: 'Abertura', abertura: '2026-08-06', videoaula_port: '2026-08-07', fixacao_port: '2026-08-08', videoaula_mat: '2026-08-10', fixacao_mat: '2026-08-11' },
-    { semana: 2, label: '13 Ago - 19 Ago', bloco: 'Bloco I', abertura: '2026-08-13', revisao_port: '2026-08-14', revisao_mat: '2026-08-15', videoaula_port: '2026-08-17', fixacao_port: '2026-08-18', videoaula_mat: '2026-08-19', fixacao_mat: '2026-08-19' },
-    { semana: 3, label: '20 Ago - 26 Ago', bloco: 'Bloco II', abertura: '2026-08-20', revisao_port: '2026-08-21', revisao_mat: '2026-08-22', videoaula_port: '2026-08-24', fixacao_port: '2026-08-25', videoaula_mat: '2026-08-26', fixacao_mat: '2026-08-26' },
-    { semana: 4, label: '27 Ago - 02 Set', bloco: 'Bloco III', abertura: '2026-08-27', revisao_port: '2026-08-28', revisao_mat: '2026-08-29', videoaula_port: '2026-08-31', fixacao_port: '2026-09-01', videoaula_mat: '2026-09-02', fixacao_mat: '2026-09-02' },
-    { semana: 5, label: '03 Set - 09 Set', bloco: 'Bloco IV', abertura: '2026-09-03', revisao_port: '2026-09-04', revisao_mat: '2026-09-05', videoaula_port: '2026-09-07', fixacao_port: '2026-09-08', videoaula_mat: '2026-09-09', fixacao_mat: '2026-09-09' },
-    { semana: 6, label: '10 Set - 16 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-10', revisao_port: '2026-09-11', revisao_mat: '2026-09-12', fixacao_port: '2026-09-14', fixacao_mat: '2026-09-15', videoaula_port: '2026-09-16', videoaula_mat: '2026-09-16' },
-    { semana: 7, label: '17 Set', bloco: 'Simulado', abertura: '2026-09-17' },
-  ],
-  'T6, T7 e T8 - Sexta-feira Tarde': [
-    { semana: 1, label: '07 Ago - 13 Ago', bloco: 'Abertura', abertura: '2026-08-07', videoaula_port: '2026-08-08', fixacao_port: '2026-08-10', videoaula_mat: '2026-08-11', fixacao_mat: '2026-08-12' },
-    { semana: 2, label: '14 Ago - 20 Ago', bloco: 'Bloco I', abertura: '2026-08-14', revisao_port: '2026-08-15', revisao_mat: '2026-08-17', videoaula_port: '2026-08-18', fixacao_port: '2026-08-19', videoaula_mat: '2026-08-20', fixacao_mat: '2026-08-20' },
-    { semana: 3, label: '21 Ago - 27 Ago', bloco: 'Bloco II', abertura: '2026-08-21', revisao_port: '2026-08-22', revisao_mat: '2026-08-24', videoaula_port: '2026-08-25', fixacao_port: '2026-08-26', videoaula_mat: '2026-08-27', fixacao_mat: '2026-08-27' },
-    { semana: 4, label: '28 Ago - 03 Set', bloco: 'Bloco III', abertura: '2026-08-28', revisao_port: '2026-08-29', revisao_mat: '2026-08-31', videoaula_port: '2026-09-01', fixacao_port: '2026-09-02', videoaula_mat: '2026-09-03', fixacao_mat: '2026-09-03' },
-    { semana: 5, label: '04 Set - 10 Set', bloco: 'Bloco IV', abertura: '2026-09-04', revisao_port: '2026-09-05', revisao_mat: '2026-09-07', videoaula_port: '2026-09-08', fixacao_port: '2026-09-09', videoaula_mat: '2026-09-10', fixacao_mat: '2026-09-10' },
-    { semana: 6, label: '11 Set - 17 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-11', revisao_port: '2026-09-12', revisao_mat: '2026-09-14', fixacao_port: '2026-09-15', fixacao_mat: '2026-09-16', videoaula_port: '2026-09-17', videoaula_mat: '2026-09-17' },
-    { semana: 7, label: '18 Set', bloco: 'Simulado', abertura: '2026-09-18' },
-  ],
-  'T9, T10 e T11 - Sábado Manhã': [
-    { semana: 1, label: '08 Ago - 14 Ago', bloco: 'Abertura', abertura: '2026-08-08', videoaula_port: '2026-08-10', fixacao_port: '2026-08-11', videoaula_mat: '2026-08-12', fixacao_mat: '2026-08-13' },
-    { semana: 2, label: '15 Ago - 21 Ago', bloco: 'Bloco I', abertura: '2026-08-15', revisao_port: '2026-08-17', revisao_mat: '2026-08-18', videoaula_port: '2026-08-19', fixacao_port: '2026-08-20', videoaula_mat: '2026-08-21', fixacao_mat: '2026-08-21' },
-    { semana: 3, label: '22 Ago - 28 Ago', bloco: 'Bloco II', abertura: '2026-08-22', revisao_port: '2026-08-24', revisao_mat: '2026-08-25', videoaula_port: '2026-08-26', fixacao_port: '2026-08-27', videoaula_mat: '2026-08-28', fixacao_mat: '2026-08-28' },
-    { semana: 4, label: '29 Ago - 04 Set', bloco: 'Bloco III', abertura: '2026-08-29', revisao_port: '2026-08-31', revisao_mat: '2026-09-01', videoaula_port: '2026-09-02', fixacao_port: '2026-09-03', videoaula_mat: '2026-09-04', fixacao_mat: '2026-09-04' },
-    { semana: 5, label: '05 Set - 11 Set', bloco: 'Bloco IV', abertura: '2026-09-05', revisao_port: '2026-09-07', revisao_mat: '2026-09-08', videoaula_port: '2026-09-09', fixacao_port: '2026-09-10', videoaula_mat: '2026-09-11', fixacao_mat: '2026-09-11' },
-    { semana: 6, label: '12 Set - 18 Set', bloco: 'Bloco V / Revisão', abertura: '2026-09-12', revisao_port: '2026-09-14', revisao_mat: '2026-09-15', fixacao_port: '2026-09-16', fixacao_mat: '2026-09-17', videoaula_port: '2026-09-18', videoaula_mat: '2026-09-18' },
-    { semana: 7, label: '19 Set', bloco: 'Simulado', abertura: '2026-09-19' },
-  ],
+  // T6, T7, T8 — Sexta-feira Tarde (mesmo cronograma, turmas individuais)
+  'T6 - Sexta-feira Tarde': SCHEDULE_SEXTA_TARDE,
+  'T7 - Sexta-feira Tarde': SCHEDULE_SEXTA_TARDE,
+  'T8 - Sexta-feira Tarde': SCHEDULE_SEXTA_TARDE,
+  // T9, T10, T11 — Sábado Manhã (mesmo cronograma, turmas individuais)
+  'T9 - Sábado Manhã': SCHEDULE_SABADO_MANHA,
+  'T10 - Sábado Manhã': SCHEDULE_SABADO_MANHA,
+  'T11 - Sábado Manhã': SCHEDULE_SABADO_MANHA,
 };
 
 export async function seedCronogramaOficial() {

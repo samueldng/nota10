@@ -18,6 +18,7 @@ interface PortalNavItem {
   href: string;
   icon: React.ReactNode;
   featureKey?: string; // if set, checks plan access
+  locked?: boolean; // hard lock for routes in development
 }
 
 const portalNavItems: PortalNavItem[] = [
@@ -25,8 +26,8 @@ const portalNavItems: PortalNavItem[] = [
   { label: 'Bem-vindos', href: '/portal/bem-vindos', icon: <BookOpen size={20} /> },
   { label: 'Trilha de Estudos', href: '/portal/trilha', icon: <Map size={20} /> },
   { label: 'Videoaulas', href: '/portal/videoaulas', icon: <PlayCircle size={20} /> },
-  { label: 'Simulados', href: '/portal/simulados', icon: <FileText size={20} /> },
-  { label: 'Acompanhamento', href: '/portal/acompanhamento', icon: <ClipboardList size={20} />, featureKey: 'acompanhamento' },
+  { label: 'Simulados', href: '/portal/simulados', icon: <FileText size={20} />, locked: true },
+  { label: 'Acompanhamento', href: '/portal/acompanhamento', icon: <ClipboardList size={20} />, featureKey: 'acompanhamento', locked: true },
   { label: 'Materiais', href: '/portal/materiais', icon: <Download size={20} /> },
   { label: 'Comunicados', href: '/portal/comunicados', icon: <Megaphone size={20} /> },
   { label: 'Financeiro', href: '/portal/financeiro', icon: <Receipt size={20} /> },
@@ -125,7 +126,25 @@ export default function PortalSidebar({ isOpen, onClose }: PortalSidebarProps) {
             if (item.href === '/portal/financeiro' && user?.role === 'parent') {
               return null;
             }
-            const isLocked = item.featureKey ? !canAccessFeature(item.featureKey, plano) : false;
+            // Dev lock takes priority, then plan-based lock
+            const isDevLocked = item.locked;
+            const isPlanLocked = item.featureKey ? !canAccessFeature(item.featureKey, plano) : false;
+            const isLocked = isDevLocked || isPlanLocked;
+
+            if (isLocked) {
+              return (
+                <span
+                  key={item.href}
+                  className="sidebar-link opacity-50 cursor-not-allowed pointer-events-none select-none"
+                  aria-disabled="true"
+                >
+                  {item.icon}
+                  <span className="flex-1">{item.label}</span>
+                  <Lock size={16} className="text-white/40" />
+                </span>
+              );
+            }
+
             return (
               <Link
                 key={item.href}
@@ -135,9 +154,6 @@ export default function PortalSidebar({ isOpen, onClose }: PortalSidebarProps) {
               >
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
-                {isLocked && (
-                  <Lock size={12} className="text-white/30" />
-                )}
               </Link>
             );
           })}
