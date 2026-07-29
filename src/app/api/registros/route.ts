@@ -74,8 +74,8 @@ export async function POST(request: Request) {
           `INSERT INTO registros_lancados (
             data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
             lancado_por, editado_por, data_edicao, aluno_id, presenca, video, palavra_chave,
-            fixacao, atencao, participacao, comportamento, observacoes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
+            fixacao, praticar, atencao, participacao, comportamento, observacoes, pontualidade_pais
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
           [
             data,
             acompanhamento,
@@ -90,14 +90,16 @@ export async function POST(request: Request) {
             editadoPor || null,
             dataEdicao || null,
             row.alunoId || null,
-            row.presenca || 'presente',
-            row.video === 'fez' ? 5 : (row.video === 'metade' ? 3 : 0),
-            row.palavraChave === 'fez' ? 5 : (row.palavraChave === 'metade' ? 3 : 0),
-            row.fixacao === 'fez' ? 5 : (row.fixacao === 'metade' ? 3 : 0),
-            row.atencao === 'atento' ? 5 : (row.atencao === 'distraido' ? 3 : 1),
-            Number(row.participacao) || 3,
-            Number(row.comportamento) || 3,
-            row.observacao || null
+            row.presenca || 'Presente',
+            row.video || null,
+            row.palavraChave || null,
+            row.fixacao || null,
+            row.praticar || null,
+            row.atencao || null,
+            row.participacao || null,
+            row.comportamento || null,
+            row.observacao || null,
+            row.pontualidadePais || null
           ]
         );
         const record = res.rows[0];
@@ -105,10 +107,10 @@ export async function POST(request: Request) {
 
         // ── Calculadora de XP por Desempenho na Folha Presencial ──
         let xpGained = 0;
-        if (row.presenca === 'presente') xpGained += 20;
-        if (row.fixacao === 'fez' || Number(row.fixacao) >= 4) xpGained += 50;
-        else if (row.fixacao === 'metade' || Number(row.fixacao) === 3) xpGained += 25;
-        if (Number(row.participacao) >= 3) xpGained += 30;
+        if (row.presenca === 'Presente') xpGained += 20;
+        if (row.fixacao === 'Excelente' || row.fixacao === 'Bom') xpGained += 50;
+        else if (row.fixacao === 'Regular') xpGained += 25;
+        if (row.participacao === 'Engajado' || row.participacao === 'Colaborativo') xpGained += 30;
 
         if (row.alunoId && xpGained > 0) {
           const atvKey = `folha_${record.id}_${data}`;
@@ -131,7 +133,7 @@ export async function POST(request: Request) {
         }
 
         // Se faltou, enfileirar para alerta WhatsApp
-        if (row.presenca === 'faltou' && row.alunoId) {
+        if (row.presenca === 'Faltou' && row.alunoId) {
           faltasDisparar.push({
             alunoId: row.alunoId,
             alunoNome: row.nome,

@@ -106,6 +106,80 @@ async function ensureAtividadeIdIsText(p: Pool) {
   }
 }
 
+async function ensureAcompanhamentoInConteudosMidia(p: Pool) {
+  try {
+    const colRes = await p.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'conteudos_midia' AND column_name = 'acompanhamento'
+    `);
+    
+    if (colRes.rows.length === 0) {
+      console.log('[DB Migration] Adicionando coluna acompanhamento em conteudos_midia...');
+      await p.query(`ALTER TABLE conteudos_midia ADD COLUMN acompanhamento VARCHAR(255)`);
+      console.log('[DB Migration] ✅ Coluna acompanhamento adicionada com sucesso.');
+    }
+  } catch (err: any) {
+    console.error('[DB Migration] ❌ Falha ao adicionar acompanhamento:', err.message);
+  }
+}
+
+async function ensureEscalasPedagogicas(p: Pool) {
+  try {
+    // Drop 'nota' column if it exists in registros_lancados
+    await p.query(`ALTER TABLE registros_lancados DROP COLUMN IF EXISTS nota;`);
+    
+    // Rename 'pontualidade' to 'pontualidade_pais' if needed
+    const colRes = await p.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'registros_lancados' AND column_name = 'pontualidade'
+    `);
+    
+    if (colRes.rows.length > 0) {
+      console.log('[DB Migration] Renomeando pontualidade para pontualidade_pais em registros_lancados...');
+      await p.query(`ALTER TABLE registros_lancados RENAME COLUMN pontualidade TO pontualidade_pais;`);
+    } else {
+      // Create pontualidade_pais if it doesn't exist at all
+      const checkRes = await p.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'registros_lancados' AND column_name = 'pontualidade_pais'
+      `);
+      if (checkRes.rows.length === 0) {
+        await p.query(`ALTER TABLE registros_lancados ADD COLUMN pontualidade_pais VARCHAR(255);`);
+      }
+    }
+
+    // Add 'praticar' if it doesn't exist
+    const checkPraticar = await p.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'registros_lancados' AND column_name = 'praticar'
+    `);
+    if (checkPraticar.rows.length === 0) {
+      console.log('[DB Migration] Adicionando praticar em registros_lancados...');
+      await p.query(`ALTER TABLE registros_lancados ADD COLUMN praticar VARCHAR(255);`);
+    }
+
+    // Convert columns to VARCHAR(255) to support string enum values
+    const columnsToConvert = [
+      'presenca', 'video', 'palavra_chave', 'fixacao', 'atencao', 'participacao', 'comportamento'
+    ];
+    for (const col of columnsToConvert) {
+      await p.query(`
+        ALTER TABLE registros_lancados 
+        ALTER COLUMN ${col} TYPE VARCHAR(255) USING ${col}::varchar
+      `);
+    }
+
+    console.log('[DB Migration] ✅ Escalas pedagógicas atualizadas com sucesso em registros_lancados.');
+  } catch (err: any) {
+    console.error('[DB Migration] ❌ Falha ao atualizar escalas pedagógicas:', err.message);
+  }
+}
+
+
 if (connectionString) {
   pool = new Pool({
     connectionString,
@@ -120,6 +194,8 @@ if (connectionString) {
 
   // Disparar migração automaticamente ao arrancar
   ensureAtividadeIdIsText(pool);
+  ensureAcompanhamentoInConteudosMidia(pool);
+  ensureEscalasPedagogicas(pool);
 } else {
   console.warn('DATABASE_URL is not set. Database connections will not be available.');
 }

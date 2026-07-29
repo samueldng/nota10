@@ -24,11 +24,16 @@ import {
 import {
   blocos,
   acompanhamentoLabels,
+  OPCOES_PRESENCA,
+  OPCOES_VIDEOAULA,
+  OPCOES_P_CHAVE,
+  OPCOES_DESEMPENHO,
+  OPCOES_ATENCAO,
+  OPCOES_PARTICIPACAO,
+  OPCOES_COMPORTAMENTO,
+  OPCOES_PONTUALIDADE_PAIS,
+  FRASES_OBSERVACAO,
   type Acompanhamento,
-  type Presenca,
-  type TriState,
-  type Atencao,
-  type Pontualidade,
 } from '@/lib/mockData';
 
 type ModoLancamento = 'foto' | 'formulario' | null;
@@ -36,17 +41,16 @@ type ModoLancamento = 'foto' | 'formulario' | null;
 interface AlunoFormRow {
   alunoId: string;
   nome: string;
-  presenca: Presenca;
-  video: TriState;
-  palavraChave: TriState;
-  fixacao: TriState;
-  praticar: TriState;
-  nota: string;
-  atencao: Atencao;
-  participacao: 1 | 2 | 3;
-  comportamento: 1 | 2 | 3;
+  presenca: typeof OPCOES_PRESENCA[number];
+  video: typeof OPCOES_VIDEOAULA[number];
+  palavraChave: typeof OPCOES_P_CHAVE[number];
+  fixacao: typeof OPCOES_DESEMPENHO[number];
+  praticar: typeof OPCOES_DESEMPENHO[number];
+  atencao: typeof OPCOES_ATENCAO[number];
+  participacao: typeof OPCOES_PARTICIPACAO[number];
+  comportamento: typeof OPCOES_COMPORTAMENTO[number];
   observacao: string;
-  pontualidade: Pontualidade;
+  pontualidadePais: typeof OPCOES_PONTUALIDADE_PAIS[number];
 }
 
 export default function LancarRegistroPage() {
@@ -122,17 +126,16 @@ export default function LancarRegistroPage() {
           setFormRows(filtrados.map((a: any) => ({
             alunoId: a.id,
             nome: a.nome,
-            presenca: 'presente',
-            video: 'fez',
-            palavraChave: 'fez',
-            fixacao: 'fez',
-            praticar: 'fez',
-            nota: '',
-            atencao: 'atento',
-            participacao: 3,
-            comportamento: 3,
+            presenca: 'Presente',
+            video: 'Sim',
+            palavraChave: 'Sim',
+            fixacao: 'Excelente',
+            praticar: 'Excelente',
+            atencao: 'Atento',
+            participacao: 'Engajado',
+            comportamento: 'Exemplar',
             observacao: '',
-            pontualidade: 'pontual',
+            pontualidadePais: 'Pontual',
           })));
         }
       } catch (err) {
@@ -490,7 +493,7 @@ export default function LancarRegistroPage() {
                       <th>Partic.</th>
                       <th>Comport.</th>
                       <th>Obs.</th>
-                      <th>Pontualid.</th>
+                      <th>Pont. Pais</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -500,71 +503,66 @@ export default function LancarRegistroPage() {
                         <td className="font-medium whitespace-nowrap text-sm">{row.nome}</td>
                         <td>
                           <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 90 }} value={row.presenca} onChange={e => updateRow(row.alunoId, 'presenca', e.target.value)}>
-                            <option value="presente">Presente</option>
-                            <option value="atrasado">Atrasado</option>
-                            <option value="faltou">Faltou</option>
+                            {OPCOES_PRESENCA.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         {selectedAcomp === 'pre_cmt_5' && (
                           <td>
                             <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.video} onChange={e => updateRow(row.alunoId, 'video', e.target.value)}>
-                              <option value="nao_fez">Não Fez</option>
-                              <option value="metade">Metade</option>
-                              <option value="fez">Fez</option>
+                              {OPCOES_VIDEOAULA.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                           </td>
                         )}
                         {selectedAcomp === 'pre_cmt_5' && (
                           <td>
                             <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.palavraChave} onChange={e => updateRow(row.alunoId, 'palavraChave', e.target.value)}>
-                              <option value="nao_fez">Não Fez</option>
-                              <option value="metade">Metade</option>
-                              <option value="fez">Fez</option>
+                              {OPCOES_P_CHAVE.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                           </td>
                         )}
                         <td>
                           <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.fixacao} onChange={e => updateRow(row.alunoId, 'fixacao', e.target.value)}>
-                            <option value="nao_fez">Não Fez</option>
-                            <option value="metade">Metade</option>
-                            <option value="fez">Fez</option>
+                            {OPCOES_DESEMPENHO.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         <td>
                           <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.praticar} onChange={e => updateRow(row.alunoId, 'praticar', e.target.value)}>
-                            <option value="nao_fez">Não Fez</option>
-                            <option value="metade">Metade</option>
-                            <option value="fez">Fez</option>
+                            {OPCOES_DESEMPENHO.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         <td>
                           <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 100 }} value={row.atencao} onChange={e => updateRow(row.alunoId, 'atencao', e.target.value)}>
-                            <option value="desinteressado">Desinteressado</option>
-                            <option value="distraido">Distraído</option>
-                            <option value="atento">Atento</option>
+                            {OPCOES_ATENCAO.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         <td>
-                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }} value={row.participacao} onChange={e => updateRow(row.alunoId, 'participacao', Number(e.target.value))}>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }} value={row.participacao} onChange={e => updateRow(row.alunoId, 'participacao', e.target.value)}>
+                            {OPCOES_PARTICIPACAO.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         <td>
-                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }} value={row.comportamento} onChange={e => updateRow(row.alunoId, 'comportamento', Number(e.target.value))}>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 50 }} value={row.comportamento} onChange={e => updateRow(row.alunoId, 'comportamento', e.target.value)}>
+                            {OPCOES_COMPORTAMENTO.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                         <td>
-                          <input className="form-input text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} placeholder="Obs..." value={row.observacao} onChange={e => updateRow(row.alunoId, 'observacao', e.target.value)} />
+                          <input 
+                            className="form-input text-xs py-1 px-1" 
+                            style={{ height: 30, minWidth: 80 }} 
+                            placeholder="Obs..." 
+                            list={`obs-list-${row.alunoId}`}
+                            value={row.observacao} 
+                            onChange={e => updateRow(row.alunoId, 'observacao', e.target.value)} 
+                          />
+                          <datalist id={`obs-list-${row.alunoId}`}>
+                            {FRASES_OBSERVACAO.map((frase, idx) => (
+                              <option key={idx} value={frase} />
+                            ))}
+                          </datalist>
                         </td>
                         <td>
-                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.pontualidade} onChange={e => updateRow(row.alunoId, 'pontualidade', e.target.value)}>
-                            <option value="pontual">Pontual</option>
-                            <option value="atrasado">Atrasado</option>
+                          <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.pontualidadePais} onChange={e => updateRow(row.alunoId, 'pontualidadePais', e.target.value)}>
+                            {OPCOES_PONTUALIDADE_PAIS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
                         </td>
                       </tr>
@@ -630,7 +628,7 @@ export default function LancarRegistroPage() {
                     <th>Atenção</th>
                     <th>Partic.</th>
                     <th>Comport.</th>
-                    <th>Pontualid.</th>
+                    <th>Pont. Pais</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -638,15 +636,15 @@ export default function LancarRegistroPage() {
                     <tr key={row.alunoId}>
                       <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>
                       <td className="font-medium whitespace-nowrap">{row.nome}</td>
-                      <td><span className={`badge ${row.presenca === 'presente' ? 'badge-success' : 'badge-warning'} text-[10px] capitalize`}>{row.presenca}</span></td>
-                      {selectedAcomp === 'pre_cmt_5' && <td className={`font-semibold ${row.video === 'fez' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.video.replace('_', ' ')}</td>}
-                      {selectedAcomp === 'pre_cmt_5' && <td className={`font-semibold ${row.palavraChave === 'fez' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.palavraChave.replace('_', ' ')}</td>}
-                      <td className={`font-semibold ${row.fixacao === 'fez' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.fixacao.replace('_', ' ')}</td>
-                      <td className={`font-semibold ${row.praticar === 'fez' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.praticar.replace('_', ' ')}</td>
+                      <td><span className={`badge ${row.presenca === 'Presente' ? 'badge-success' : 'badge-warning'} text-[10px] capitalize`}>{row.presenca}</span></td>
+                      {selectedAcomp === 'pre_cmt_5' && <td className={`font-semibold ${row.video === 'Sim' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.video}</td>}
+                      {selectedAcomp === 'pre_cmt_5' && <td className={`font-semibold ${row.palavraChave === 'Sim' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.palavraChave}</td>}
+                      <td className={`font-semibold ${row.fixacao === 'Excelente' || row.fixacao === 'Bom' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.fixacao}</td>
+                      <td className={`font-semibold ${row.praticar === 'Excelente' || row.praticar === 'Bom' ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-alerta)]'} capitalize`}>{row.praticar}</td>
                       <td className="font-semibold capitalize text-[var(--color-verde-sucesso)]">{row.atencao}</td>
                       <td className="text-center font-bold">{row.participacao}</td>
                       <td className="text-center font-bold">{row.comportamento}</td>
-                      <td><span className="badge badge-success text-[10px] capitalize">{row.pontualidade}</span></td>
+                      <td><span className="badge badge-success text-[10px] capitalize">{row.pontualidadePais}</span></td>
                     </tr>
                   ))}
                 </tbody>

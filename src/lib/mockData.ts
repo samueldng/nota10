@@ -3,6 +3,8 @@
 // Alimenta todas as telas do protótipo com dados consistentes
 // ═══════════════════════════════════════════════════════
 
+import { z } from 'zod';
+
 // ── Tipos ──
 
 export type Acompanhamento = 'pre_cmt_5' | 'projeto_4' | 'reforco';
@@ -10,8 +12,114 @@ export type PlanoAluno = 'padrao' | 'acompanhamento' | 'elite';
 export type Presenca = 'presente' | 'atrasado' | 'faltou';
 export type TriState = 'nao_fez' | 'metade' | 'fez';
 export type Atencao = 'desinteressado' | 'distraido' | 'atento';
-export type Pontualidade = 'atrasado' | 'pontual';
-export type Comportamento = 'excelente' | 'bom' | 'agitado' | 'desatento';
+export type Pontualidade = 'Pontual' | 'Atraso';
+export type Comportamento = 'Exemplar' | 'Adequado' | 'Instável' | 'Disperso';
+
+// Matrizes de Opções Oficiais (Escalas Pedagógicas)
+export const OPCOES_PRESENCA = ['Presente', 'Faltou', 'Atrasado'] as const;
+export const OPCOES_VIDEOAULA = ['Sim', 'Metade', 'Não'] as const;
+export const OPCOES_P_CHAVE = ['Sim', 'Metade', 'Não'] as const;
+export const OPCOES_DESEMPENHO = ['Excelente', 'Bom', 'Regular', 'Necessita Apoio', 'Crítico'] as const; // Serve para Fixação e Praticar
+export const OPCOES_ATENCAO = ['Atento', 'Distraído', 'Desatento'] as const;
+export const OPCOES_PARTICIPACAO = ['Engajado', 'Colaborativo', 'Passivo', 'Ausente'] as const;
+export const OPCOES_COMPORTAMENTO = ['Exemplar', 'Adequado', 'Instável', 'Disperso'] as const;
+export const OPCOES_PONTUALIDADE_PAIS = ['Pontual', 'Atraso'] as const;
+
+export const FRASES_OBSERVACAO = [
+  'Compreendeu o conteúdo e realizou bem as atividades propostas.',
+  'Apresentou excelente desempenho nas atividades propostas.',
+  'Demonstrou bom domínio do conteúdo trabalhado.',
+  'Compreendeu o conteúdo, mas precisa de pequenos ajustes.',
+  'Compreendeu parte do conteúdo, mas ainda precisa de treino.',
+  'Apresentou dificuldade inicial, mas evoluiu durante a aula.',
+  'Apresentou dificuldade inicial, mas evoluiu após a explicação.',
+  'Demonstrou avanço, mas ainda precisa de mais prática.',
+  'Compreendeu o conteúdo de forma inicial, mas ainda não consolidou.',
+  'Apresentou dificuldade na interpretação das questões.',
+  'Teve dificuldade em compreender o que a questão solicitava.',
+  'Teve dificuldade em identificar as informações importantes da questão.',
+  'Não observou todos os dados apresentados no enunciado.',
+  'Precisou reler com mais atenção antes de responder.',
+  'Após reler ou revisar, conseguiu corrigir parte dos erros.',
+  'Após nova tentativa, conseguiu melhorar o desempenho.',
+  'Após a correção, demonstrou compreender melhor o conteúdo.',
+  'Os erros foram ajustáveis após a explicação.',
+  'Os erros indicam necessidade de revisão do conteúdo.',
+  'Os erros indicam necessidade de treino com questões semelhantes.',
+  'Apresentou dificuldade em aplicar o conteúdo nas questões.',
+  'Compreendeu a explicação, mas teve dificuldade ao resolver sozinho.',
+  'Compreendeu oralmente, mas teve dificuldade ao registrar ou resolver por escrito.',
+  'Demonstrou dificuldade em transformar a explicação em resolução prática.',
+  'Teve dificuldade em escolher o procedimento adequado.',
+  'Confundiu os procedimentos durante a resolução.',
+  'Apresentou dificuldade em escolher e aplicar o procedimento correto.',
+  'Apresentou erro de procedimento durante a resolução.',
+  'Confundiu etapas da resolução.',
+  'Precisa organizar melhor as etapas antes de responder.',
+  'Conseguiu iniciar a resolução, mas não concluiu o raciocínio.',
+  'Teve dificuldade em sustentar o raciocínio até a resposta final.',
+  'Apresentou dificuldade em questões que exigiam mais de uma etapa.',
+  'Teve dificuldade quando a questão exigiu mais interpretação.',
+  'Teve dificuldade quando a questão exigiu comparação entre informações.',
+  'Teve dificuldade em relacionar o conteúdo com a situação apresentada.',
+  'Apresentou dificuldade em transferir o que aprendeu para novas questões.',
+  'Conseguiu resolver as questões mais simples, mas teve dificuldade nas mais complexas.',
+  'Apresentou melhor desempenho nas questões diretas.',
+  'Apresentou dificuldade maior nas questões de aplicação.',
+  'Precisou de orientação para desenvolver parte das questões.',
+  'Conseguiu desenvolver parte das questões com orientação do professor.',
+  'Conseguiu resolver com apoio, mas ainda precisa ganhar segurança.',
+  'Demonstrou dependência de orientação para avançar nas questões.',
+  'Ainda precisa desenvolver mais autonomia na resolução.',
+  'Resolveu as atividades com autonomia.',
+  'Resolveu as atividades com pouca intervenção do professor.',
+  'Apresentou dificuldade em justificar o raciocínio utilizado.',
+  'Não conseguiu explicar o raciocínio utilizado na resposta.',
+  'A resposta estava correta, mas faltou justificar o raciocínio.',
+  'A resolução ficou incompleta.',
+  'Respondeu algumas questões sem apresentar cálculo ou justificativa.',
+  'Marcou respostas sem desenvolver o raciocínio necessário.',
+  'A marcação da resposta não foi acompanhada de desenvolvimento.',
+  'A atividade não permitiu avaliar totalmente o raciocínio do aluno.',
+  'Trouxe a atividade respondida de casa, comprometendo a avaliação em sala.',
+  'Apresentou dificuldade relacionada à base necessária para o conteúdo.',
+  'Precisa retomar pré-requisitos para acompanhar melhor o conteúdo.',
+  'A dificuldade em cálculos básicos interferiu na resolução das questões.',
+  'A dificuldade de leitura interferiu na compreensão das questões.',
+  'Faltou em aula anterior, o que interferiu no acompanhamento do conteúdo.',
+  'Não havia estudado esse conteúdo anteriormente na escola.',
+  'Era o primeiro contato com o conteúdo e ainda está em desenvolvimento.',
+  'Não estava com o material necessário, dificultando a avaliação completa.',
+  'Conseguiu acompanhar mesmo sem estar com todo o material.',
+  'Demonstrou esforço, mesmo apresentando dificuldade.',
+  'Persistiu na atividade, mesmo diante dos erros.',
+  'Precisou de incentivo para continuar tentando.',
+  'Demonstrou insegurança diante das questões mais difíceis.',
+  'Demonstrou ansiedade ou nervosismo durante a atividade.',
+  'Demonstrou dificuldade em lidar com questões mais desafiadoras.',
+  'Ficou frustrado diante das questões mais difíceis, mas tentou continuar.',
+  'Teve rendimento inferior ao padrão apresentado anteriormente.',
+  'Apresentou dificuldade maior neste bloco em comparação aos anteriores.',
+  'Demonstrou evolução em comparação às aulas anteriores.',
+  'Demonstrou mais segurança em comparação às aulas anteriores.'
+] as const;
+
+// Schema Estrito para o "Lançar Registro"
+export const registroAulaSchema = z.object({
+  alunoId: z.string().uuid('ID do aluno inválido.'),
+  presenca: z.enum(OPCOES_PRESENCA),
+  videoAula: z.enum(OPCOES_VIDEOAULA),
+  palavraChave: z.enum(OPCOES_P_CHAVE),
+  fixacao: z.enum(OPCOES_DESEMPENHO),
+  praticar: z.enum(OPCOES_DESEMPENHO),
+  atencao: z.enum(OPCOES_ATENCAO),
+  participacao: z.enum(OPCOES_PARTICIPACAO),
+  comportamento: z.enum(OPCOES_COMPORTAMENTO),
+  observacao: z.string().optional(),
+  pontualidadePais: z.enum(OPCOES_PONTUALIDADE_PAIS)
+});
+
+export type RegistroAulaData = z.infer<typeof registroAulaSchema>;
 export type CompreensaoReforco = 'dominou' | 'revisao_basica' | 'reforco_profundo';
 export type AutonomiaReforco = 'sozinho' | 'ajuda' | 'dependente';
 export type StatusLeitura = 'lendo' | 'concluido' | 'abandonou';
@@ -203,15 +311,15 @@ export const atencaoLabels: Record<Atencao, string> = {
 };
 
 export const pontualidadeLabels: Record<Pontualidade, string> = {
-  atrasado: 'Atrasado',
-  pontual: 'Pontual',
+  Atraso: 'Atraso',
+  Pontual: 'Pontual',
 };
 
 export const comportamentoReforcoLabels: Record<Comportamento, string> = {
-  excelente: 'Excelente',
-  bom: 'Bom',
-  agitado: 'Agitado',
-  desatento: 'Desatento',
+  Exemplar: 'Exemplar',
+  Adequado: 'Adequado',
+  Instável: 'Instável',
+  Disperso: 'Disperso',
 };
 
 // ── Frases Motivacionais ──

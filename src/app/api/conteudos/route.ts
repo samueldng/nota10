@@ -55,6 +55,7 @@ function formatRow(row: any) {
     disciplina: row.disciplina || null,
     dataDisponibilizacao: row.data_disponibilizacao,
     status: row.status,
+    acompanhamento: row.acompanhamento,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
           MIN(c.disciplina) as disciplina,
           MIN(c.data_disponibilizacao) as data_disponibilizacao,
           MIN(c.status::int)::boolean as status,
+          MIN(c.acompanhamento) as acompanhamento,
           MIN(c.created_at) as created_at,
           MIN(c.updated_at) as updated_at
         FROM conteudos_midia c
@@ -175,13 +177,14 @@ export async function POST(request: Request) {
       urlAcesso,
       disciplina,
       dataDisponibilizacao,
+      acompanhamento,
       status: statusValue,
     } = body;
 
-    if (!turmaId || !tipoConteudo || !titulo || !urlAcesso) {
+    if (!turmaId || !tipoConteudo || !titulo || !urlAcesso || !acompanhamento) {
       client.release();
       return NextResponse.json(
-        { error: 'Campos obrigatórios ausentes (turmaId, tipoConteudo, titulo, urlAcesso).' },
+        { error: 'Campos obrigatórios ausentes (turmaId, tipoConteudo, titulo, urlAcesso, acompanhamento).' },
         { status: 400 }
       );
     }
@@ -214,8 +217,8 @@ export async function POST(request: Request) {
 
     const result = await client.query(
       `INSERT INTO conteudos_midia
-        (turma_id, tipo_conteudo, titulo, descricao, url_acesso, disciplina, data_disponibilizacao, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (turma_id, tipo_conteudo, titulo, descricao, url_acesso, disciplina, data_disponibilizacao, status, acompanhamento)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         resolvedTurmaId,
@@ -226,6 +229,7 @@ export async function POST(request: Request) {
         disciplina || null,
         dataDisponibilizacao || null,
         statusValue !== undefined ? statusValue : true,
+        acompanhamento,
       ]
     );
 
@@ -260,6 +264,7 @@ export async function PUT(request: Request) {
       urlAcesso,
       disciplina,
       dataDisponibilizacao,
+      acompanhamento,
       status: statusValue,
     } = body;
 
@@ -312,8 +317,9 @@ export async function PUT(request: Request) {
         disciplina = $6,
         data_disponibilizacao = COALESCE($7::date, data_disponibilizacao),
         status = COALESCE($8, status),
+        acompanhamento = COALESCE($9, acompanhamento),
         updated_at = NOW()
-      WHERE id = $9
+      WHERE id = $10
       RETURNING *`,
       [
         resolvedTurmaId,
@@ -324,6 +330,7 @@ export async function PUT(request: Request) {
         disciplina !== undefined ? (disciplina || null) : null,
         dataDisponibilizacao ?? null,
         statusValue ?? null,
+        acompanhamento ?? null,
         id,
       ]
     );
