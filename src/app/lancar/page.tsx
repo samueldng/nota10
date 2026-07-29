@@ -473,7 +473,12 @@ export default function LancarRegistroPage() {
                   <p className="text-sm text-[var(--color-cinza-texto)] m-0">Preencha os campos conforme a folha física.</p>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto w-full">
+                <datalist id="obs-list">
+                  {FRASES_OBSERVACAO.map((frase, idx) => (
+                    <option key={idx} value={frase} />
+                  ))}
+                </datalist>
                 <table className="data-table text-xs">
                   <thead>
                     <tr>
@@ -492,11 +497,6 @@ export default function LancarRegistroPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <datalist id="obs-list">
-                      {FRASES_OBSERVACAO.map((frase, idx) => (
-                        <option key={idx} value={frase} />
-                      ))}
-                    </datalist>
                     {formRows.map((row, i) => (
                       <tr key={row.alunoId}>
                         <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>

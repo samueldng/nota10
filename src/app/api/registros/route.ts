@@ -124,9 +124,9 @@ export async function POST(request: Request) {
           // Recalcular xp_total e nivel em cache
           await client.query(
             `UPDATE alunos 
-             SET xp_total = COALESCE((SELECT SUM(xp_ganho) FROM aluno_progresso WHERE aluno_id = $1::text), 0),
-                 nivel = 1 + FLOOR(COALESCE((SELECT SUM(xp_ganho) FROM aluno_progresso WHERE aluno_id = $1::text), 0) / 500)
-             WHERE id::text = $1::text`,
+             SET xp_total = COALESCE((SELECT SUM(xp_ganho) FROM aluno_progresso WHERE aluno_id = $1::uuid), 0),
+                 nivel = 1 + FLOOR(COALESCE((SELECT SUM(xp_ganho) FROM aluno_progresso WHERE aluno_id = $1::uuid), 0) / 500)
+             WHERE id = $1::uuid`,
             [row.alunoId]
           );
         }
