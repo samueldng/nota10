@@ -44,8 +44,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Home', href: '/', icon: <Home size={20} />, locked: true },
-  { label: 'Lançar Registro', href: '/lancar', icon: <FileEdit size={20} />, locked: true },
-  { label: 'Folhas de Acompanhamento', href: '/folhas', icon: <FileText size={20} />, locked: true },
+  { label: 'Lançar Registro', href: '/lancar', icon: <FileEdit size={20} />, locked: false },
+  { label: 'Folhas de Acompanhamento', href: '/folhas', icon: <FileText size={20} />, locked: false },
   {
     label: 'Cadastros',
     href: '/cadastros',

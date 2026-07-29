@@ -21,13 +21,20 @@ async function ensureTable() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  
+  await query(`
+    ALTER TABLE questoes ADD COLUMN IF NOT EXISTS acompanhamento VARCHAR(50);
+    ALTER TABLE questoes ADD COLUMN IF NOT EXISTS semana VARCHAR(50);
+  `);
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const acompanhamento = searchParams.get('acompanhamento');
     const disciplina = searchParams.get('disciplina');
     const bloco = searchParams.get('bloco');
+    const semana = searchParams.get('semana');
     const atividadeRef = searchParams.get('atividadeRef');
 
     await ensureTable();
@@ -36,6 +43,10 @@ export async function GET(request: Request) {
     const params: any[] = [];
     let idx = 1;
 
+    if (acompanhamento && acompanhamento !== 'todos') {
+      sql += ` AND acompanhamento = $${idx++}`;
+      params.push(acompanhamento);
+    }
     if (disciplina && disciplina !== 'todas') {
       sql += ` AND disciplina = $${idx++}`;
       params.push(disciplina);
@@ -43,6 +54,10 @@ export async function GET(request: Request) {
     if (bloco && bloco !== 'todos') {
       sql += ` AND bloco = $${idx++}`;
       params.push(bloco);
+    }
+    if (semana && semana !== 'todas') {
+      sql += ` AND semana = $${idx++}`;
+      params.push(semana);
     }
     if (atividadeRef) {
       sql += ` AND atividade_ref = $${idx++}`;
@@ -63,8 +78,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
+      acompanhamento,
       disciplina,
       bloco,
+      semana,
       enunciado,
       tipo = 'multipla_escolha',
       alternativas,
@@ -82,12 +99,14 @@ export async function POST(request: Request) {
     await ensureTable();
 
     const res = await query(
-      `INSERT INTO questoes (disciplina, bloco, enunciado, tipo, alternativas, resposta_correta, explicacao, xp_valor, ordem, atividade_ref)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO questoes (acompanhamento, disciplina, bloco, semana, enunciado, tipo, alternativas, resposta_correta, explicacao, xp_valor, ordem, atividade_ref)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
+        acompanhamento || null,
         disciplina,
         bloco || null,
+        semana || null,
         enunciado,
         tipo,
         typeof alternativas === 'string' ? alternativas : JSON.stringify(alternativas),
@@ -111,8 +130,10 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const {
       id,
+      acompanhamento,
       disciplina,
       bloco,
+      semana,
       enunciado,
       tipo,
       alternativas,
@@ -131,21 +152,25 @@ export async function PUT(request: Request) {
 
     const res = await query(
       `UPDATE questoes SET
-         disciplina = COALESCE($1, disciplina),
-         bloco = COALESCE($2, bloco),
-         enunciado = COALESCE($3, enunciado),
-         tipo = COALESCE($4, tipo),
-         alternativas = COALESCE($5, alternativas),
-         resposta_correta = COALESCE($6, resposta_correta),
-         explicacao = COALESCE($7, explicacao),
-         xp_valor = COALESCE($8, xp_valor),
-         ordem = COALESCE($9, ordem),
-         atividade_ref = COALESCE($10, atividade_ref)
-       WHERE id = $11
+         acompanhamento = COALESCE($1, acompanhamento),
+         disciplina = COALESCE($2, disciplina),
+         bloco = COALESCE($3, bloco),
+         semana = COALESCE($4, semana),
+         enunciado = COALESCE($5, enunciado),
+         tipo = COALESCE($6, tipo),
+         alternativas = COALESCE($7, alternativas),
+         resposta_correta = COALESCE($8, resposta_correta),
+         explicacao = COALESCE($9, explicacao),
+         xp_valor = COALESCE($10, xp_valor),
+         ordem = COALESCE($11, ordem),
+         atividade_ref = COALESCE($12, atividade_ref)
+       WHERE id = $13
        RETURNING *`,
       [
+        acompanhamento,
         disciplina,
         bloco,
+        semana,
         enunciado,
         tipo,
         alternativas ? (typeof alternativas === 'string' ? alternativas : JSON.stringify(alternativas)) : null,

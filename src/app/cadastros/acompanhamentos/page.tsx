@@ -1,16 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, Eye, Edit3, BookOpen, Clock, AlertTriangle } from 'lucide-react';
-import { acompanhamentoLabels, type Acompanhamento } from '@/lib/mockData';
+import { Settings, Eye, Edit3, BookOpen, Clock, AlertTriangle, Lock } from 'lucide-react';
+import {
+  acompanhamentoLabels,
+  type Acompanhamento,
+  OPCOES_PRESENCA,
+  OPCOES_VIDEOAULA,
+  OPCOES_P_CHAVE,
+  OPCOES_DESEMPENHO,
+  OPCOES_ATENCAO,
+  OPCOES_PARTICIPACAO,
+  OPCOES_COMPORTAMENTO,
+  OPCOES_PONTUALIDADE_PAIS,
+} from '@/lib/mockData';
 
 export default function AcompanhamentosPage() {
   const [selectedAcomp, setSelectedAcomp] = useState<Acompanhamento | null>(null);
 
-  const acompanhamentosList: { id: Acompanhamento; nome: string; icon: string; bg: string; color: string; desc: string; freq: string }[] = [
+  const acompanhamentosList: { id: Acompanhamento; nome: string; icon: string; bg: string; color: string; desc: string; freq: string; locked?: boolean }[] = [
     { id: 'pre_cmt_5', nome: 'Pré-CMT 5º Ano', icon: '5º', bg: 'var(--color-azul-lightest)', color: 'var(--color-azul-autoridade)', desc: 'Preparatório para Colégios Militares e Técnicos. Foco em provas de alto nível.', freq: 'Até 3x por semana' },
-    { id: 'projeto_4', nome: 'Projeto 4º Ano', icon: '4º', bg: 'var(--color-amarelo-light)', color: 'var(--color-amarelo-conquista)', desc: 'Fortalecimento da base matemática e linguística visando o preparatório futuro.', freq: 'Até 3x por semana' },
-    { id: 'reforco', nome: 'Reforço', icon: '🔄', bg: 'var(--color-verde-light)', color: 'var(--color-verde-sucesso)', desc: 'Acompanhamento individualizado semanal (seg a qui) para dificuldades específicas.', freq: 'Seg a Qui' },
+    { id: 'projeto_4', nome: 'Projeto 4º Ano', icon: '4º', bg: 'var(--color-amarelo-light)', color: 'var(--color-amarelo-conquista)', desc: 'Fortalecimento da base matemática e linguística visando o preparatório futuro.', freq: 'Até 3x por semana', locked: true },
+    { id: 'reforco', nome: 'Reforço', icon: '🔄', bg: 'var(--color-verde-light)', color: 'var(--color-verde-sucesso)', desc: 'Acompanhamento individualizado semanal (seg a qui) para dificuldades específicas.', freq: 'Seg a Qui', locked: true },
   ];
 
   return (
@@ -27,10 +38,16 @@ export default function AcompanhamentosPage() {
           {acompanhamentosList.map(a => (
             <button
               key={a.id}
-              onClick={() => setSelectedAcomp(a.id)}
-              className={`w-full text-left card transition-all ${selectedAcomp === a.id ? 'border-2' : 'border-2 border-transparent hover:border-[var(--color-cinza-borda)]'}`}
+              onClick={() => !a.locked && setSelectedAcomp(a.id)}
+              disabled={a.locked}
+              className={`w-full text-left card transition-all relative ${a.locked ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''} ${selectedAcomp === a.id ? 'border-2' : 'border-2 border-transparent hover:border-[var(--color-cinza-borda)]'}`}
               style={{ borderColor: selectedAcomp === a.id ? a.color : '' }}
             >
+              {a.locked && (
+                <div className="absolute top-4 right-4">
+                  <Lock size={16} className="text-[var(--color-cinza-texto)]" />
+                </div>
+              )}
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-xl flex-shrink-0" style={{ background: a.bg, color: a.color }}>
                   {a.icon}
@@ -90,41 +107,38 @@ export default function AcompanhamentosPage() {
                         {selectedAcomp !== 'reforco' ? (
                           <>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Presença</td><td className="p-2">Múltipla escolha</td><td className="p-2 text-[var(--color-cinza-texto)]">Faltou, Atrasado, Presente</td>
+                              <td className="p-2 font-medium">Presença</td><td className="p-2">Múltipla escolha</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_PRESENCA.join(', ')}</td>
                             </tr>
                             {selectedAcomp === 'pre_cmt_5' && (
                               <>
                                 <tr className="border-b border-[var(--color-cinza-borda)]">
-                                  <td className="p-2 font-medium">Videoaula</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">Não Fez, Metade, Fez</td>
+                                  <td className="p-2 font-medium">Vídeo Aula</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_VIDEOAULA.join(', ')}</td>
                                 </tr>
                                 <tr className="border-b border-[var(--color-cinza-borda)]">
-                                  <td className="p-2 font-medium">Palavra-chave</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">Não Fez, Metade, Fez</td>
+                                  <td className="p-2 font-medium">P. Chave</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_P_CHAVE.join(', ')}</td>
                                 </tr>
                               </>
                             )}
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Fixação</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">Não Fez, Metade, Fez</td>
+                              <td className="p-2 font-medium">Fixação</td><td className="p-2">Escala Likert</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_DESEMPENHO.join(', ')}</td>
                             </tr>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Praticar</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">Não Fez, Metade, Fez</td>
+                              <td className="p-2 font-medium">Praticar</td><td className="p-2">Escala Likert</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_DESEMPENHO.join(', ')}</td>
                             </tr>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Atenção</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">Desinteressado, Distraído, Atento</td>
+                              <td className="p-2 font-medium">Atenção</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_ATENCAO.join(', ')}</td>
                             </tr>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Participação</td><td className="p-2">Escala 1-3</td><td className="p-2 text-[var(--color-cinza-texto)]">1, 2, 3</td>
+                              <td className="p-2 font-medium">Participação</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_PARTICIPACAO.join(', ')}</td>
                             </tr>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Comportamento</td><td className="p-2">Escala 1-3</td><td className="p-2 text-[var(--color-cinza-texto)]">1, 2, 3</td>
-                            </tr>
-                            <tr className="border-b border-[var(--color-cinza-borda)]">
-                              <td className="p-2 font-medium">Nota</td><td className="p-2">Texto livre</td><td className="p-2 text-[var(--color-cinza-texto)]">Vazio (Preenchimento manual)</td>
+                              <td className="p-2 font-medium">Comportamento</td><td className="p-2">Qualitativo</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_COMPORTAMENTO.join(', ')}</td>
                             </tr>
                             <tr className="border-b border-[var(--color-cinza-borda)]">
                               <td className="p-2 font-medium">Observação</td><td className="p-2">Texto livre</td><td className="p-2 text-[var(--color-cinza-texto)]">Vazio</td>
                             </tr>
                             <tr>
-                              <td className="p-2 font-medium">Pontualidade</td><td className="p-2">Booleano</td><td className="p-2 text-[var(--color-cinza-texto)]">Atrasado, Pontual</td>
+                              <td className="p-2 font-medium">Pontualidade Pais</td><td className="p-2">Múltipla escolha</td><td className="p-2 text-[var(--color-cinza-texto)]">{OPCOES_PONTUALIDADE_PAIS.join(', ')}</td>
                             </tr>
                           </>
                         ) : (

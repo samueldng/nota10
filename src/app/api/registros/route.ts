@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, getClient } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { getClient } = require('@/lib/db');
-  const client = await getClient();
-
+  let client;
   try {
+    client = await getClient();
     const body = await request.json();
     const {
       data,
@@ -191,11 +190,13 @@ export async function POST(request: Request) {
       records: createdRecords
     }, { status: 201 });
   } catch (err: any) {
-    await client.query('ROLLBACK').catch(() => {});
-    client.release();
+    if (client) {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
     console.error('Erro no POST /api/registros:', err);
     return NextResponse.json(
-      { error: err.message || 'Falha ao salvar o registro no banco de dados.' },
+      { error: err?.message || err?.toString() || 'Falha ao salvar o registro no banco de dados.' },
       { status: 500 }
     );
   }

@@ -6,15 +6,19 @@ import { Plus, Trash2, Edit3, Save, X, HelpCircle, CheckCircle, AlertCircle, Boo
 export default function CadastrosQuestoesPage() {
   const [questoes, setQuestoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtroAcompanhamento, setFiltroAcompanhamento] = useState('todos');
   const [filtroDisciplina, setFiltroDisciplina] = useState('todas');
   const [filtroBloco, setFiltroBloco] = useState('todos');
+  const [filtroSemana, setFiltroSemana] = useState('todas');
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
+    acompanhamento: 'pre_cmt_5',
     disciplina: 'Português',
     bloco: 'Bloco 1',
+    semana: 'Semana 1',
     enunciado: '',
     tipo: 'multipla_escolha' as 'multipla_escolha' | 'verdadeiro_falso',
     alternativas: [
@@ -33,8 +37,10 @@ export default function CadastrosQuestoesPage() {
     setLoading(true);
     try {
       let url = '/api/questoes?';
+      if (filtroAcompanhamento !== 'todos') url += `acompanhamento=${encodeURIComponent(filtroAcompanhamento)}&`;
       if (filtroDisciplina !== 'todas') url += `disciplina=${encodeURIComponent(filtroDisciplina)}&`;
       if (filtroBloco !== 'todos') url += `bloco=${encodeURIComponent(filtroBloco)}&`;
+      if (filtroSemana !== 'todas') url += `semana=${encodeURIComponent(filtroSemana)}&`;
 
       const res = await fetch(url);
       if (res.ok) {
@@ -50,7 +56,7 @@ export default function CadastrosQuestoesPage() {
 
   useEffect(() => {
     loadQuestoes();
-  }, [filtroDisciplina, filtroBloco]);
+  }, [filtroAcompanhamento, filtroDisciplina, filtroBloco, filtroSemana]);
 
   const handleTipoChange = (newTipo: 'multipla_escolha' | 'verdadeiro_falso') => {
     if (newTipo === 'verdadeiro_falso') {
@@ -89,8 +95,10 @@ export default function CadastrosQuestoesPage() {
   const openNewModal = () => {
     setEditingId(null);
     setForm({
+      acompanhamento: 'pre_cmt_5',
       disciplina: 'Português',
       bloco: 'Bloco 1',
+      semana: 'Semana 1',
       enunciado: '',
       tipo: 'multipla_escolha',
       alternativas: [
@@ -114,8 +122,10 @@ export default function CadastrosQuestoesPage() {
       try { alts = JSON.parse(alts); } catch (e) { alts = []; }
     }
     setForm({
+      acompanhamento: item.acompanhamento || 'pre_cmt_5',
       disciplina: item.disciplina || 'Português',
       bloco: item.bloco || 'Bloco 1',
+      semana: item.semana || 'Semana 1',
       enunciado: item.enunciado || '',
       tipo: item.tipo || 'multipla_escolha',
       alternativas: Array.isArray(alts) && alts.length > 0 ? alts : [
@@ -203,6 +213,21 @@ export default function CadastrosQuestoesPage() {
       <div className="bg-white p-4 rounded-xl border border-[var(--color-cinza-borda)] flex flex-wrap items-center gap-4 shadow-sm">
         <div className="flex items-center gap-2">
           <BookOpen size={18} className="text-[var(--color-azul-autoridade)]" />
+          <span className="text-sm font-semibold text-[var(--color-cinza-escuro)]">Acompanhamento:</span>
+          <select
+            value={filtroAcompanhamento}
+            onChange={(e) => setFiltroAcompanhamento(e.target.value)}
+            className="border rounded-lg px-3 py-1.5 text-sm bg-gray-50 focus:ring-2 focus:ring-[var(--color-azul-autoridade)]"
+          >
+            <option value="todos">Todos</option>
+            <option value="pre_cmt_5">Pré-CMT 5º Ano</option>
+            <option value="projeto_4">Projeto 4º Ano</option>
+            <option value="reforco">Reforço</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <BookOpen size={18} className="text-[var(--color-azul-autoridade)]" />
           <span className="text-sm font-semibold text-[var(--color-cinza-escuro)]">Disciplina:</span>
           <select
             value={filtroDisciplina}
@@ -230,6 +255,22 @@ export default function CadastrosQuestoesPage() {
             <option value="Bloco 2">Bloco 2</option>
             <option value="Bloco 3">Bloco 3</option>
             <option value="Bloco 4">Bloco 4</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Layers size={18} className="text-[var(--color-azul-autoridade)]" />
+          <span className="text-sm font-semibold text-[var(--color-cinza-escuro)]">Semana:</span>
+          <select
+            value={filtroSemana}
+            onChange={(e) => setFiltroSemana(e.target.value)}
+            className="border rounded-lg px-3 py-1.5 text-sm bg-gray-50 focus:ring-2 focus:ring-[var(--color-azul-autoridade)]"
+          >
+            <option value="todas">Todas as Semanas</option>
+            <option value="Semana 1">Semana 1</option>
+            <option value="Semana 2">Semana 2</option>
+            <option value="Semana 3">Semana 3</option>
+            <option value="Semana 4">Semana 4</option>
           </select>
         </div>
       </div>
@@ -264,12 +305,22 @@ export default function CadastrosQuestoesPage() {
               <div key={item.id} className="bg-white rounded-xl p-5 border border-[var(--color-cinza-borda)] shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                 <div className="space-y-2 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
+                    {item.acompanhamento && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        {item.acompanhamento === 'pre_cmt_5' ? 'Pré-CMT 5º' : item.acompanhamento === 'projeto_4' ? 'Projeto 4º' : 'Reforço'}
+                      </span>
+                    )}
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--color-azul-lightest)] text-[var(--color-azul-autoridade)] border border-blue-200">
                       {item.disciplina}
                     </span>
                     {item.bloco && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                         {item.bloco}
+                      </span>
+                    )}
+                    {item.semana && (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-800">
+                        {item.semana}
                       </span>
                     )}
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -347,7 +398,20 @@ export default function CadastrosQuestoesPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Acompanhamento</label>
+                  <select
+                    value={form.acompanhamento}
+                    onChange={e => setForm(prev => ({ ...prev, acompanhamento: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:ring-2 focus:ring-[var(--color-azul-autoridade)]"
+                  >
+                    <option value="pre_cmt_5">Pré-CMT 5º Ano</option>
+                    <option value="projeto_4">Projeto 4º Ano</option>
+                    <option value="reforco">Reforço</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Disciplina</label>
                   <select
@@ -376,6 +440,22 @@ export default function CadastrosQuestoesPage() {
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Semana</label>
+                  <select
+                    value={form.semana}
+                    onChange={e => setForm(prev => ({ ...prev, semana: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 focus:ring-2 focus:ring-[var(--color-azul-autoridade)]"
+                  >
+                    <option value="Semana 1">Semana 1</option>
+                    <option value="Semana 2">Semana 2</option>
+                    <option value="Semana 3">Semana 3</option>
+                    <option value="Semana 4">Semana 4</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase text-gray-600 mb-1">Tipo de Questão</label>
                   <select

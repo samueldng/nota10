@@ -19,7 +19,8 @@ import {
   Database,
   ArrowRight,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 import {
   blocos,
@@ -59,7 +60,6 @@ export default function LancarRegistroPage() {
   const [selectedAcomp, setSelectedAcomp] = useState<Acompanhamento | null>(null);
   const [selectedModo, setSelectedModo] = useState<ModoLancamento>(null);
   const [selectedTurma, setSelectedTurma] = useState('');
-  const [selectedAluno, setSelectedAluno] = useState('');
   const [selectedDisciplina, setSelectedDisciplina] = useState('');
   const [selectedBloco, setSelectedBloco] = useState('');
   const [selectedData, setSelectedData] = useState(() => new Date().toISOString().split('T')[0]);
@@ -104,21 +104,14 @@ export default function LancarRegistroPage() {
     loadInitialData();
   }, [user]);
 
-  // Carregar alunos quando turma ou reforço for selecionado
   useEffect(() => {
     async function loadAlunos() {
-      if (!selectedTurma && !isReforco) return;
+      if (!selectedTurma) return;
       try {
         const res = await fetch('/api/alunos');
         if (res.ok) {
           const todosAlunos = await res.json();
-          let filtrados = todosAlunos;
-          
-          if (isReforco) {
-            filtrados = todosAlunos.filter((a: any) => a.acompanhamento.includes('reforco'));
-          } else if (selectedTurma) {
-            filtrados = todosAlunos.filter((a: any) => a.turmaId === selectedTurma);
-          }
+          const filtrados = todosAlunos.filter((a: any) => a.turmaId === selectedTurma);
           
           setAlunosDisponiveis(filtrados);
           
@@ -143,7 +136,7 @@ export default function LancarRegistroPage() {
       }
     }
     loadAlunos();
-  }, [selectedTurma, isReforco]);
+  }, [selectedTurma]);
 
   const updateRow = (alunoId: string, field: keyof AlunoFormRow, value: any) => {
     setFormRows(prev => prev.map(row => 
@@ -158,15 +151,15 @@ export default function LancarRegistroPage() {
       const payload = {
         data: selectedData,
         acompanhamento: selectedAcomp,
-        turma: isReforco ? 'Reforço' : (turmasDisponiveis.find(t => t.id === selectedTurma)?.nome || selectedTurma),
-        aluno: isReforco ? (alunosDisponiveis.find(a => a.id === selectedAluno)?.nome || selectedAluno) : 'Turma inteira',
+        turma: turmasDisponiveis.find(t => t.id === selectedTurma)?.nome || selectedTurma,
+        aluno: 'Turma inteira',
         disciplina: selectedDisciplina,
         bloco: selectedBloco || null,
         professor: professores.find(p => p.id === selectedProfessor)?.nome || selectedProfessor,
         origem: 'manual',
         status: 'salvo',
         lancadoPor: user?.name || 'Sistema',
-        alunos: isReforco ? formRows.filter(r => r.alunoId === selectedAluno) : formRows
+        alunos: formRows
       };
 
       const res = await fetch('/api/registros', {
@@ -176,8 +169,14 @@ export default function LancarRegistroPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Erro ao salvar registro');
+        let errorMsg = `Erro no servidor: ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errorMsg = errData.error;
+        } catch (e) {
+          // If response is not JSON, we stick to the generic status error
+        }
+        throw new Error(errorMsg);
       }
 
       setSaved(true);
@@ -190,7 +189,7 @@ export default function LancarRegistroPage() {
     }
   };
 
-  const acompanhamentos: { id: Acompanhamento; label: string; icon: React.ReactNode }[] = [
+  const acompanhamentos: { id: Acompanhamento; label: string; icon: React.ReactNode; locked?: boolean }[] = [
     {
       id: 'pre_cmt_5',
       label: 'Pré-CMT 5º Ano',
@@ -200,11 +199,13 @@ export default function LancarRegistroPage() {
       id: 'projeto_4',
       label: 'Projeto 4º Ano',
       icon: <div className="w-14 h-14 rounded-full bg-[var(--color-amarelo-light)] flex items-center justify-center"><span className="text-xl font-extrabold text-[var(--color-amarelo-conquista)]">4º</span></div>,
+      locked: true,
     },
     {
       id: 'reforco',
       label: 'Reforço',
       icon: <div className="w-14 h-14 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center"><span className="text-2xl">🔄</span></div>,
+      locked: true,
     },
   ];
 
@@ -212,7 +213,7 @@ export default function LancarRegistroPage() {
   const steps = [
     { num: 1, label: 'Acompanhamento' },
     { num: 2, label: 'Modo de lançamento' },
-    { num: 3, label: isReforco ? 'Dados do aluno' : 'Dados da turma' },
+    { num: 3, label: 'Dados da turma' },
     { num: 4, label: 'Conferência' },
     { num: 5, label: 'Salvar' },
   ];
@@ -231,7 +232,7 @@ export default function LancarRegistroPage() {
             O registro foi salvo no Histórico e já alimenta os relatórios e o ranking.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
-            <button onClick={() => { setSaved(false); setStep(1); setSelectedAcomp(null); setSelectedModo(null); setFormRows([]); setSelectedTurma(''); setSelectedAluno(''); }} className="btn btn-primary">
+            <button onClick={() => { setSaved(false); setStep(1); setSelectedAcomp(null); setSelectedModo(null); setFormRows([]); setSelectedTurma(''); }} className="btn btn-primary">
               <FileEdit size={16} /> Novo lançamento
             </button>
             <Link href="/historico" className="btn btn-secondary no-underline">
@@ -290,13 +291,15 @@ export default function LancarRegistroPage() {
             {acompanhamentos.map((a) => (
               <button
                 key={a.id}
-                onClick={() => setSelectedAcomp(a.id)}
-                className={`relative flex flex-col items-center py-6 gap-3 rounded-xl border-2 transition-all ${
+                onClick={() => !a.locked && setSelectedAcomp(a.id)}
+                disabled={a.locked}
+                className={`relative flex flex-col items-center py-6 gap-3 rounded-xl border-2 transition-all ${a.locked ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''} ${
                   selectedAcomp === a.id
                     ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
                     : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
                 }`}
               >
+                {a.locked && <div className="absolute top-3 right-3"><Lock size={16} className="text-[var(--color-cinza-texto)]" /></div>}
                 {selectedAcomp === a.id && (
                   <div className="check-overlay"><CheckCircle2 size={14} /></div>
                 )}
@@ -359,23 +362,15 @@ export default function LancarRegistroPage() {
 
             {/* Selection fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-[var(--color-cinza-borda)]">
-              {!isReforco ? (
-                <div className="form-group">
-                  <label className="form-label">Turma</label>
-                  <select className="form-select" value={selectedTurma} onChange={e => setSelectedTurma(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {turmasDisponiveis.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                  </select>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label className="form-label">Aluno</label>
-                  <select className="form-select" value={selectedAluno} onChange={e => setSelectedAluno(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {alunosDisponiveis.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="form-group">
+                <label className="form-label">Turma</label>
+                <select className="form-select" value={selectedTurma} onChange={e => setSelectedTurma(e.target.value)}>
+                  <option value="">Selecione...</option>
+                  {turmasDisponiveis
+                    .filter(t => t.acompanhamento === selectedAcomp)
+                    .map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                </select>
+              </div>
               <div className="form-group">
                 <label className="form-label">Disciplina</label>
                 <select className="form-select" value={selectedDisciplina} onChange={e => setSelectedDisciplina(e.target.value)}>
@@ -410,7 +405,7 @@ export default function LancarRegistroPage() {
             <button className="btn btn-outline" onClick={() => setStep(1)}><ArrowLeft size={16} /> Voltar</button>
             <button 
               className="btn btn-primary" 
-              disabled={!selectedModo || (!isReforco && !selectedTurma) || (isReforco && !selectedAluno) || !selectedDisciplina || !selectedProfessor} 
+              disabled={!selectedModo || !selectedTurma || !selectedDisciplina || !selectedProfessor} 
               onClick={() => setStep(3)}
             >
               Próximo <ArrowRight size={16} />
@@ -497,7 +492,12 @@ export default function LancarRegistroPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {formRows.filter(r => !isReforco || r.alunoId === selectedAluno).map((row, i) => (
+                    <datalist id="obs-list">
+                      {FRASES_OBSERVACAO.map((frase, idx) => (
+                        <option key={idx} value={frase} />
+                      ))}
+                    </datalist>
+                    {formRows.map((row, i) => (
                       <tr key={row.alunoId}>
                         <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>
                         <td className="font-medium whitespace-nowrap text-sm">{row.nome}</td>
@@ -547,18 +547,14 @@ export default function LancarRegistroPage() {
                         </td>
                         <td>
                           <input 
-                            className="form-input text-xs py-1 px-1" 
-                            style={{ height: 30, minWidth: 80 }} 
-                            placeholder="Obs..." 
-                            list={`obs-list-${row.alunoId}`}
+                            type="text"
+                            list="obs-list"
+                            className="form-input text-xs py-1 px-1 w-full" 
+                            style={{ height: 30, minWidth: 150 }} 
+                            placeholder="Digite ou selecione..."
                             value={row.observacao} 
-                            onChange={e => updateRow(row.alunoId, 'observacao', e.target.value)} 
+                            onChange={e => updateRow(row.alunoId, 'observacao', e.target.value)}
                           />
-                          <datalist id={`obs-list-${row.alunoId}`}>
-                            {FRASES_OBSERVACAO.map((frase, idx) => (
-                              <option key={idx} value={frase} />
-                            ))}
-                          </datalist>
                         </td>
                         <td>
                           <select className="form-select text-xs py-1 px-1" style={{ height: 30, minWidth: 80 }} value={row.pontualidadePais} onChange={e => updateRow(row.alunoId, 'pontualidadePais', e.target.value)}>
@@ -602,7 +598,7 @@ export default function LancarRegistroPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="badge badge-success text-sm">
-                  <CheckCircle2 size={14} /> {isReforco ? 1 : formRows.length} registros
+                  <CheckCircle2 size={14} /> {formRows.length} registros
                 </span>
                 {selectedModo === 'foto' && (
                   <>
@@ -632,7 +628,7 @@ export default function LancarRegistroPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {formRows.filter(r => !isReforco || r.alunoId === selectedAluno).map((row, i) => (
+                  {formRows.map((row, i) => (
                     <tr key={row.alunoId}>
                       <td className="font-bold text-[var(--color-azul-autoridade)]">{i + 1}</td>
                       <td className="font-medium whitespace-nowrap">{row.nome}</td>

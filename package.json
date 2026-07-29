@@ -6,7 +6,9 @@
     "dev": "next dev --port 8081",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -25,6 +27,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cypress": "^15.19.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "puppeteer": "^25.3.0",
