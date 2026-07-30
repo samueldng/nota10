@@ -341,19 +341,19 @@ export default function LancarRegistroPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <button
-                onClick={() => setSelectedModo('foto')}
-                className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
-                  selectedModo === 'foto'
-                    ? 'border-[var(--color-azul-autoridade)] bg-[var(--color-azul-lightest)]'
-                    : 'border-[var(--color-cinza-borda)] bg-white hover:border-[var(--color-azul-light)]'
-                }`}
+              <div
+                className="relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 border-[var(--color-cinza-borda)] bg-[var(--color-cinza-fundo)] opacity-60 cursor-not-allowed select-none transition-all"
+                aria-disabled="true"
               >
-                {selectedModo === 'foto' && <div className="check-overlay"><CheckCircle2 size={14} /></div>}
-                <Camera size={28} className="text-[var(--color-azul-autoridade)]" />
-                <span className="font-bold text-sm text-[var(--color-azul-autoridade)]">Enviar foto da folha</span>
+                {/* Badge "Em breve" com cadeado */}
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-gray-200 text-[var(--color-cinza-texto)] text-[10px] font-semibold rounded-full">
+                  <Lock size={10} />
+                  <span>Em breve</span>
+                </div>
+                <Camera size={28} className="text-[var(--color-cinza-texto)]" />
+                <span className="font-bold text-sm text-[var(--color-cinza-texto)]">Enviar foto da folha</span>
                 <span className="text-xs text-[var(--color-cinza-texto)]">Envie uma foto da folha preenchida</span>
-              </button>
+              </div>
               <button
                 onClick={() => setSelectedModo('formulario')}
                 className={`relative flex flex-col items-center py-8 gap-3 rounded-xl border-2 transition-all ${
