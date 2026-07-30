@@ -78,23 +78,21 @@ export default function LancarRegistroPage() {
 
   const isReforco = selectedAcomp === 'reforco';
 
-  // Carregar turmas, disciplinas e professores no mount
+  // Carregar turmas e professores no mount
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [turmasRes, discRes, profRes] = await Promise.all([
+        const [turmasRes, profRes] = await Promise.all([
           fetch('/api/turmas'),
-          fetch('/api/disciplinas'),
           fetch('/api/professores')
         ]);
         if (turmasRes.ok) setTurmasDisponiveis(await turmasRes.json());
-        if (discRes.ok) setDisciplinas(await discRes.json());
-        if (profRes.ok) setProfessores(await profRes.json());
+        const profsData = profRes.ok ? await profRes.json() : [];
+        setProfessores(profsData);
         
         // Se o professor estiver logado, auto-seleciona
         if (user && user.email) {
-          const profs = await profRes.json().catch(()=>[]);
-          const currentProf = profs.find((p:any) => p.email.toLowerCase() === user.email?.toLowerCase());
+          const currentProf = profsData.find((p:any) => p.email.toLowerCase() === user.email?.toLowerCase());
           if (currentProf) setSelectedProfessor(currentProf.id);
         }
       } catch (err) {
@@ -104,9 +102,20 @@ export default function LancarRegistroPage() {
     loadInitialData();
   }, [user]);
 
+  // Quando a turma muda: carregar disciplinas da turma + alunos
   useEffect(() => {
+    if (!selectedTurma) {
+      setDisciplinas([]);
+      setSelectedDisciplina('');
+      return;
+    }
+
+    // Derivar disciplinas da turma selecionada (dados já carregados)
+    const turma = turmasDisponiveis.find((t: any) => t.id === selectedTurma);
+    setDisciplinas(turma?.disciplinas || []);
+    setSelectedDisciplina('');
+
     async function loadAlunos() {
-      if (!selectedTurma) return;
       try {
         const res = await fetch('/api/alunos');
         if (res.ok) {
@@ -136,7 +145,7 @@ export default function LancarRegistroPage() {
       }
     }
     loadAlunos();
-  }, [selectedTurma]);
+  }, [selectedTurma, turmasDisponiveis]);
 
   const updateRow = (alunoId: string, field: keyof AlunoFormRow, value: any) => {
     setFormRows(prev => prev.map(row => 
