@@ -1,47 +1,343 @@
-import { getKpisGlobais, getMetricasTurma, getDistribuicaoPraticar, getEvolucaoPresencas } from '@/actions/relatorios';
-import RelatorioDashboard from '@/components/RelatorioDashboard';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from 'react';
+import {
+  TrendingUp,
+  Loader2,
+  FileText,
+  Star,
+  AlertTriangle,
+  CheckCircle2,
+  BookOpen,
+  Target,
+  Award,
+  Printer
+} from 'lucide-react';
 
-export default async function RelatoriosPage() {
-  // Paralelismo total na recolha de dados - Não bloqueamos o processo sequencialmente
-  let kpis = { xpSemana: 0, taxaAssiduidade: 0 };
-  let turmaXP: any[] = [];
-  let distribuicao: any[] = [];
-  let presencas: any[] = [];
+type Acompanhamento = 'pre_cmt_5' | 'projeto_4' | 'reforco';
 
-  try {
-    const [kpisRes, turmaRes, distRes, presRes] = await Promise.all([
-      getKpisGlobais(),
-      getMetricasTurma(),
-      getDistribuicaoPraticar(),
-      getEvolucaoPresencas()
-    ]);
+interface TurmaOption {
+  id: string;
+  nome: string;
+  acompanhamento: Acompanhamento;
+}
 
-    kpis = kpisRes;
-    turmaXP = turmaRes;
-    distribuicao = distRes;
-    presencas = presRes;
-  } catch (error) {
-    console.error("Erro fatal ao buscar relatórios:", error);
-  }
+interface AlunoOption {
+  id: string;
+  nome: string;
+  turmaId: string;
+}
+
+interface ParecerIA {
+  pontosFortes: string[];
+  pontosAMelhorar: string[];
+  orientacaoPratica: string;
+  parecerGeral: string;
+}
+
+interface RelatorioResult {
+  aluno: {
+    id: string;
+    nome: string;
+    numero: string;
+    xpTotal: number;
+    nivel: number;
+    frequencia: number;
+  };
+  parecer: ParecerIA;
+}
+
+const acompanhamentoLabels: Record<Acompanhamento, string> = {
+  pre_cmt_5: 'Pré-CMT 5º Ano',
+  projeto_4: 'Projeto 4º Ano',
+  reforco: 'Reforço',
+};
+
+export default function RelatoriosPage() {
+  // ── Filtros ──
+  const [selectedAcomp, setSelectedAcomp] = useState<Acompanhamento | ''>('');
+  const [selectedTurma, setSelectedTurma] = useState('');
+  const [selectedAluno, setSelectedAluno] = useState('');
+  const [selectedPeriodo, setSelectedPeriodo] = useState('');
+
+  // ── Dados ──
+  const [turmas, setTurmas] = useState<TurmaOption[]>([]);
+  const [alunos, setAlunos] = useState<AlunoOption[]>([]);
+
+  // ── Estado ──
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState<RelatorioResult | null>(null);
+
+  // Carregar turmas no mount
+  useEffect(() => {
+    async function loadTurmas() {
+      try {
+        const res = await fetch('/api/turmas');
+        if (res.ok) setTurmas(await res.json());
+      } catch (err) {
+        console.error('Erro ao carregar turmas:', err);
+      }
+    }
+    loadTurmas();
+  }, []);
+
+  // Carregar alunos quando turma muda
+  useEffect(() => {
+    if (!selectedTurma) {
+      setAlunos([]);
+      setSelectedAluno('');
+      return;
+    }
+    async function loadAlunos() {
+      try {
+        const res = await fetch('/api/alunos');
+        if (res.ok) {
+          const todos = await res.json();
+          setAlunos(todos.filter((a: AlunoOption) => a.turmaId === selectedTurma));
+          setSelectedAluno('');
+        }
+      } catch (err) {
+        console.error('Erro ao carregar alunos:', err);
+      }
+    }
+    loadAlunos();
+  }, [selectedTurma]);
+
+  // Reset cascata
+  useEffect(() => {
+    setSelectedTurma('');
+    setSelectedAluno('');
+    setResult(null);
+  }, [selectedAcomp]);
+
+  const turmasFiltradas = turmas.filter(t => t.acompanhamento === selectedAcomp);
+
+  const canGenerate = selectedAcomp && selectedTurma && selectedAluno;
+
+  const handleGerar = async () => {
+    if (!canGenerate) return;
+    setIsLoading(true);
+    setError('');
+    setResult(null);
+
+    try {
+      const res = await fetch('/api/relatorios/gerar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alunoId: selectedAluno,
+          periodo: selectedPeriodo || undefined,
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ${res.status}`);
+      }
+
+      const data = await res.json();
+      setResult(data);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao gerar relatório');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#1E293B]">Relatórios de Desempenho</h1>
-        <p className="text-[#64748B] mt-1 text-sm">
-          Inteligência de dados e evolução pedagógica calculados em tempo real.
+    <div className="max-w-4xl mx-auto space-y-6">
+      
+      {/* Header */}
+      <div className="animate-fade-in-up">
+        <p className="text-sm text-[var(--color-cinza-texto)]">
+          Acompanhe o desempenho e o desenvolvimento do aluno com gráficos por disciplina e parecer pedagógico gerado por IA.
         </p>
       </div>
-      
-      {/* O payload injetado já está 100% calculado e reduzido pelo PostgreSQL */}
-      <RelatorioDashboard 
-        kpis={kpis}
-        turmaXP={turmaXP}
-        distribuicao={distribuicao}
-        presencas={presencas}
-      />
+
+      {/* Formulário de Filtros */}
+      <div className="card animate-fade-in-up">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          
+          {/* Acompanhamento */}
+          <div className="form-group">
+            <label className="form-label font-bold text-xs uppercase tracking-wider">Acompanhamento</label>
+            <select
+              className="form-select"
+              value={selectedAcomp}
+              onChange={e => setSelectedAcomp(e.target.value as Acompanhamento | '')}
+            >
+              <option value="">Selecione...</option>
+              {Object.entries(acompanhamentoLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Turma */}
+          <div className="form-group">
+            <label className="form-label font-bold text-xs uppercase tracking-wider">Turma</label>
+            <select
+              className="form-select"
+              value={selectedTurma}
+              onChange={e => setSelectedTurma(e.target.value)}
+              disabled={!selectedAcomp}
+            >
+              <option value="">Selecione...</option>
+              {turmasFiltradas.map(t => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Aluno */}
+          <div className="form-group">
+            <label className="form-label font-bold text-xs uppercase tracking-wider">Aluno</label>
+            <select
+              className="form-select"
+              value={selectedAluno}
+              onChange={e => setSelectedAluno(e.target.value)}
+              disabled={!selectedTurma}
+            >
+              <option value="">Selecione...</option>
+              {alunos.map(a => (
+                <option key={a.id} value={a.id}>{a.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Período */}
+          <div className="form-group">
+            <label className="form-label font-bold text-xs uppercase tracking-wider">Período</label>
+            <input
+              type="date"
+              className="form-input"
+              value={selectedPeriodo}
+              onChange={e => setSelectedPeriodo(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Botão Gerar */}
+        <div className="mt-6">
+          <button
+            className="btn btn-primary w-full sm:w-auto px-8 py-3 text-sm font-bold flex items-center justify-center gap-2"
+            onClick={handleGerar}
+            disabled={!canGenerate || isLoading}
+          >
+            {isLoading ? (
+              <><Loader2 size={18} className="animate-spin" /> Gerando parecer...</>
+            ) : (
+              <><TrendingUp size={18} /> Gerar relatório</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Erro */}
+      {error && (
+        <div className="card animate-fade-in-up border-l-4 border-[var(--color-vermelho-erro)] bg-red-50">
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={20} className="text-[var(--color-vermelho-erro)] shrink-0" />
+            <p className="text-sm font-medium text-[var(--color-vermelho-erro)]">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado do Relatório */}
+      {result && (
+        <div className="space-y-5 animate-fade-in-up">
+
+          {/* Card do Aluno */}
+          <div className="card border-t-4 border-[var(--color-azul-autoridade)]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-[var(--color-azul-lightest)] flex items-center justify-center">
+                  <FileText size={24} className="text-[var(--color-azul-autoridade)]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--color-azul-autoridade)]">{result.aluno.nome}</h2>
+                  <p className="text-xs text-[var(--color-cinza-texto)]">
+                    Nº {result.aluno.numero} · Nível {result.aluno.nivel || 1} · {result.aluno.xpTotal || 0} XP · Frequência {result.aluno.frequencia}%
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="badge badge-success text-xs">
+                  <CheckCircle2 size={12} /> Parecer gerado
+                </span>
+                <button 
+                  onClick={() => window.print()} 
+                  className="btn btn-outline text-xs py-1.5 px-3"
+                >
+                  <Printer size={14} /> Imprimir
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Pontos Fortes */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center">
+                <Star size={16} className="text-[var(--color-verde-sucesso)]" />
+              </div>
+              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Pontos Fortes</h3>
+            </div>
+            <ul className="space-y-2">
+              {result.parecer.pontosFortes.map((ponto, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-cinza-texto)]">
+                  <CheckCircle2 size={16} className="text-[var(--color-verde-sucesso)] shrink-0 mt-0.5" />
+                  {ponto}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Pontos a Melhorar */}
+          <div className="card">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-amarelo-light)] flex items-center justify-center">
+                <Target size={16} className="text-[var(--color-amarelo-conquista)]" />
+              </div>
+              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Pontos a Melhorar</h3>
+            </div>
+            <ul className="space-y-2">
+              {result.parecer.pontosAMelhorar.map((ponto, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-cinza-texto)]">
+                  <AlertTriangle size={16} className="text-[var(--color-amarelo-alerta)] shrink-0 mt-0.5" />
+                  {ponto}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Orientação Prática */}
+          <div className="card bg-[var(--color-azul-lightest)] border-[var(--color-azul-light)]">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
+                <BookOpen size={16} className="text-[var(--color-azul-autoridade)]" />
+              </div>
+              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Orientação Prática para os Pais</h3>
+            </div>
+            <p className="text-sm text-[var(--color-azul-autoridade)] leading-relaxed">
+              {result.parecer.orientacaoPratica}
+            </p>
+          </div>
+
+          {/* Parecer Geral */}
+          <div className="card border-l-4 border-[var(--color-azul-autoridade)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Award size={18} className="text-[var(--color-azul-autoridade)]" />
+              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Parecer Pedagógico Geral</h3>
+            </div>
+            <p className="text-sm text-[var(--color-cinza-texto)] leading-relaxed italic">
+              "{result.parecer.parecerGeral}"
+            </p>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }
