@@ -385,16 +385,7 @@ export const planoBadgeColors: Record<PlanoAluno, { bg: string; text: string; bo
   elite: { bg: 'linear-gradient(135deg, #fdf5d3, #fef3c7)', text: '#78350F', border: '#D97706' },
 };
 
-export const registrosLancados: RegistroLancado[] = [
-  { id: 1, data: '06/06/2026', acompanhamento: 'pre_cmt_5', turma: '5A Manhã', aluno: 'Turma inteira', disciplina: 'Português', bloco: 'Bloco 3', professor: 'João Silva', origem: 'foto', status: 'salvo', lancadoPor: 'Prof. João' },
-  { id: 2, data: '05/06/2026', acompanhamento: 'pre_cmt_5', turma: '5A Manhã', aluno: 'Turma inteira', disciplina: 'Matemática', bloco: 'Bloco 2', professor: 'João Silva', origem: 'manual', status: 'salvo', lancadoPor: 'Prof. João' },
-  { id: 3, data: '04/06/2026', acompanhamento: 'projeto_4', turma: '4A Manhã', aluno: 'Turma inteira', disciplina: 'Português', bloco: 'Bloco 1', professor: 'Ana Paula', origem: 'foto', status: 'pendente', lancadoPor: 'Prof. Ana' },
-  { id: 4, data: '04/06/2026', acompanhamento: 'projeto_4', turma: '4B Tarde', aluno: 'Turma inteira', disciplina: 'Matemática', bloco: 'Bloco 2', professor: 'Carlos Roberto', origem: 'manual', status: 'salvo', lancadoPor: 'Prof. Carlos' },
-  { id: 5, data: '03/06/2026', acompanhamento: 'reforco', turma: 'Reforço Geral', aluno: 'Gabriela Pereira Santos', disciplina: 'Multidisciplinar', bloco: '—', professor: 'Carlos Roberto', origem: 'manual', status: 'revisado', lancadoPor: 'Prof. Carlos' },
-  { id: 6, data: '02/06/2026', acompanhamento: 'pre_cmt_5', turma: '5B Tarde', aluno: 'Turma inteira', disciplina: 'Português', bloco: 'Bloco 3', professor: 'Maria Lucia', origem: 'foto', status: 'salvo', lancadoPor: 'Prof. Maria' },
-  { id: 7, data: '01/06/2026', acompanhamento: 'reforco', turma: 'Reforço Geral', aluno: 'Larissa Mendes Carvalho', disciplina: 'Multidisciplinar', bloco: '—', professor: 'Carlos Roberto', origem: 'manual', status: 'salvo', lancadoPor: 'Prof. Carlos' },
-  { id: 8, data: '30/05/2026', acompanhamento: 'pre_cmt_5', turma: '5A Manhã', aluno: 'Turma inteira', disciplina: 'Matemática', bloco: 'Bloco 1', professor: 'João Silva', origem: 'foto', status: 'salvo', lancadoPor: 'Prof. João', editadoPor: 'Prof. João', dataEdicao: '31/05/2026' },
-];
+export const registrosLancados: RegistroLancado[] = [];
 
 export const folhasGeradas: FolhaGerada[] = [
   { id: 'F001', acompanhamento: 'pre_cmt_5', turma: '5A Manhã', data: '06/06/2026', disciplina: 'Português', bloco: 'Bloco 3', professor: 'João Silva', geradaPor: 'Prof. João', dataGeracao: '06/06/2026 08:15' },

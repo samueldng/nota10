@@ -99,30 +99,7 @@ export async function GET() {
       }
     }
 
-    // 5. Inserir Registros Lançados
-    console.log('Inserindo registros lançados...');
-    for (const r of registrosLancados) {
-      await query(
-        `INSERT INTO registros_lancados (
-          data, acompanhamento, turma, aluno, disciplina, bloco, professor, origem, status,
-          lancado_por, editado_por, data_edicao
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [
-          r.data,
-          r.acompanhamento,
-          r.turma,
-          r.aluno,
-          r.disciplina,
-          r.bloco,
-          r.professor,
-          r.origem,
-          r.status,
-          r.lancadoPor,
-          r.editadoPor || null,
-          r.dataEdicao || null
-        ]
-      );
-    }
+    // 5. [REMOVIDO] Inserir Registros Lançados (Mock data removido para produção)
 
     // 6. Inserir Folhas Geradas
     console.log('Inserindo folhas...');
