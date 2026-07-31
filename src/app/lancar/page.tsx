@@ -483,7 +483,7 @@ export default function LancarRegistroPage() {
                   <p className="text-sm text-[var(--color-cinza-texto)] m-0">Preencha os campos conforme a folha física.</p>
                 </div>
               </div>
-              <div className="overflow-x-auto w-full">
+              <div className="overflow-x-auto w-full min-h-[350px] pb-48">
                 <table className="data-table text-xs">
                   <thead>
                     <tr>
