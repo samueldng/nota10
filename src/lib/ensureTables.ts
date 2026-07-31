@@ -151,7 +151,7 @@ export async function ensureProgressTables(): Promise<void> {
         ADD COLUMN IF NOT EXISTS participacao INT DEFAULT 0,
         ADD COLUMN IF NOT EXISTS comportamento INT DEFAULT 0,
         ADD COLUMN IF NOT EXISTS busca_responsavel INT DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS observacoes TEXT;
+        ADD COLUMN IF NOT EXISTS observacoes TEXT[];
     `);
 
     // 8. Tabela de vínculo Turma-Professores (N:N)

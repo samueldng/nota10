@@ -22,6 +22,7 @@ import {
   Loader2,
   Lock
 } from 'lucide-react';
+import { MultiSelectObs } from '@/components/MultiSelectObs';
 import {
   blocos,
   acompanhamentoLabels,
@@ -50,7 +51,7 @@ interface AlunoFormRow {
   atencao: typeof OPCOES_ATENCAO[number];
   participacao: typeof OPCOES_PARTICIPACAO[number];
   comportamento: typeof OPCOES_COMPORTAMENTO[number];
-  observacao: string;
+  observacao: string[];
   pontualidadePais: typeof OPCOES_PONTUALIDADE_PAIS[number];
 }
 
@@ -136,7 +137,7 @@ export default function LancarRegistroPage() {
             atencao: 'Atento',
             participacao: 'Engajado',
             comportamento: 'Exemplar',
-            observacao: '',
+            observacao: [],
             pontualidadePais: 'Pontual',
           })));
         }
@@ -483,11 +484,6 @@ export default function LancarRegistroPage() {
                 </div>
               </div>
               <div className="overflow-x-auto w-full">
-                <datalist id="obs-list">
-                  {FRASES_OBSERVACAO.map((frase, idx) => (
-                    <option key={idx} value={frase} />
-                  ))}
-                </datalist>
                 <table className="data-table text-xs">
                   <thead>
                     <tr>
@@ -555,14 +551,10 @@ export default function LancarRegistroPage() {
                           </select>
                         </td>
                         <td>
-                          <input 
-                            type="text"
-                            list="obs-list"
-                            className="form-input text-xs py-1 px-1 w-full" 
-                            style={{ height: 30, minWidth: 150 }} 
-                            placeholder="Digite ou selecione..."
-                            value={row.observacao} 
-                            onChange={e => updateRow(row.alunoId, 'observacao', e.target.value)}
+                          <MultiSelectObs 
+                            options={FRASES_OBSERVACAO}
+                            selectedValues={row.observacao}
+                            onChange={(novosValores) => updateRow(row.alunoId, 'observacao', novosValores)}
                           />
                         </td>
                         <td>
