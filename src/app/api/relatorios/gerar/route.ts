@@ -40,10 +40,10 @@ export async function POST(request: Request) {
     // 3. Coletar dados dos últimos 30 dias com tratamento gracioso caso tabela esteja vazia
     const [registrosRes, quizRes, playerRes] = await Promise.all([
       query(
-        `SELECT presenca, video, palavra_chave, fixacao, atencao, participacao, comportamento, data, disciplina
+        `SELECT presenca, video, palavra_chave, fixacao, atencao, participacao, comportamento, data, disciplina, pontualidade_pais, observacoes
          FROM registros_lancados
          WHERE (aluno_id::text = $1::text OR aluno ILIKE $2)
-         ORDER BY id DESC LIMIT 30`,
+         ORDER BY id ASC LIMIT 50`,
         [alunoId, `%${aluno.nome}%`]
       ).catch(() => ({ rows: [] })),
       query(
@@ -66,8 +66,8 @@ export async function POST(request: Request) {
     const videos = playerRes.rows || [];
 
     // Métricas calculadas
-    const totalPresencas = registros.filter(r => r.presenca === 'presente').length;
-    const totalFaltas = registros.filter(r => r.presenca === 'faltou').length;
+    const totalPresencas = registros.filter(r => r.presenca === 'presente' || r.presenca === 'Presente').length;
+    const totalFaltas = registros.filter(r => r.presenca === 'faltou' || r.presenca === 'Faltou' || r.presenca === 'Falta').length;
     const percentFrequencia = registros.length > 0 
       ? Math.round((totalPresencas / registros.length) * 100) 
       : 95;
@@ -157,7 +157,8 @@ Retorne APENAS um JSON válido com esta estrutura exata sem marcações adiciona
         nivel: aluno.nivel,
         frequencia: percentFrequencia
       },
-      parecer: parecerFinal
+      parecer: parecerFinal,
+      registros: registros
     });
 
   } catch (error: any) {

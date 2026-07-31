@@ -45,6 +45,7 @@ interface RelatorioResult {
     frequencia: number;
   };
   parecer: ParecerIA;
+  registros?: any[];
 }
 
 const acompanhamentoLabels: Record<Acompanhamento, string> = {
@@ -270,7 +271,15 @@ export default function RelatoriosPage() {
             </div>
           </div>
 
-          <RelatorioOficial dadosGerais={result} parecerIA={result.parecer} />
+          <RelatorioOficial 
+            alunoSelecionado={{
+              nome: result.aluno.nome,
+              matricula: result.aluno.numero,
+              turma: turmas.find(t => t.id === selectedTurma)?.nome || selectedTurma,
+              acompanhamento: selectedAcomp ? acompanhamentoLabels[selectedAcomp] : ''
+            }} 
+            registrosLancados={result.registros || []} 
+          />
 
         </div>
       )}
