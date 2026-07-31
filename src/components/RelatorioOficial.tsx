@@ -70,11 +70,15 @@ export function RelatorioOficial({ alunoSelecionado, registrosLancados }: Relato
         style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
       >
         
-        {/* CABEÇALHO */}
-        <div className="flex justify-between items-start mb-6 border-b-2 border-blue-900 pb-4">
-          <div>
-            <div className="text-3xl font-black text-blue-900 tracking-tighter">NOTA <span className="text-yellow-500">10</span></div>
-            <div className="text-xs font-bold tracking-widest text-blue-900">EDUCACIONAL</div>
+        {/* CABEÇALHO COM O LOGO OFICIAL DA PASTA PUBLIC */}
+        <div className="flex justify-between items-center mb-6 border-b-2 border-blue-900 pb-4">
+          <div className="w-48 h-14 relative flex items-center">
+            {/* Substitua '/logo-nota10.png' pelo nome exato do ficheiro que está na sua pasta public */}
+            <img 
+              src="/logo-nota10.png" 
+              alt="Nota 10 Educacional" 
+              className="max-h-12 w-auto object-contain object-left"
+            />
           </div>
           
           <div className="text-right">
