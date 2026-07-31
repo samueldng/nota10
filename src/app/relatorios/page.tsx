@@ -10,9 +10,9 @@ import {
   CheckCircle2,
   BookOpen,
   Target,
-  Award,
-  Printer
+  Award
 } from 'lucide-react';
+import { RelatorioOficial } from '@/components/RelatorioOficial';
 
 type Acompanhamento = 'pre_cmt_5' | 'projeto_4' | 'reforco';
 
@@ -266,75 +266,11 @@ export default function RelatoriosPage() {
                 <span className="badge badge-success text-xs">
                   <CheckCircle2 size={12} /> Parecer gerado
                 </span>
-                <button 
-                  onClick={() => window.print()} 
-                  className="btn btn-outline text-xs py-1.5 px-3"
-                >
-                  <Printer size={14} /> Imprimir
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Pontos Fortes */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-verde-light)] flex items-center justify-center">
-                <Star size={16} className="text-[var(--color-verde-sucesso)]" />
-              </div>
-              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Pontos Fortes</h3>
-            </div>
-            <ul className="space-y-2">
-              {result.parecer.pontosFortes.map((ponto, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-cinza-texto)]">
-                  <CheckCircle2 size={16} className="text-[var(--color-verde-sucesso)] shrink-0 mt-0.5" />
-                  {ponto}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Pontos a Melhorar */}
-          <div className="card">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-amarelo-light)] flex items-center justify-center">
-                <Target size={16} className="text-[var(--color-amarelo-conquista)]" />
-              </div>
-              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Pontos a Melhorar</h3>
-            </div>
-            <ul className="space-y-2">
-              {result.parecer.pontosAMelhorar.map((ponto, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-cinza-texto)]">
-                  <AlertTriangle size={16} className="text-[var(--color-amarelo-alerta)] shrink-0 mt-0.5" />
-                  {ponto}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Orientação Prática */}
-          <div className="card bg-[var(--color-azul-lightest)] border-[var(--color-azul-light)]">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
-                <BookOpen size={16} className="text-[var(--color-azul-autoridade)]" />
-              </div>
-              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Orientação Prática para os Pais</h3>
-            </div>
-            <p className="text-sm text-[var(--color-azul-autoridade)] leading-relaxed">
-              {result.parecer.orientacaoPratica}
-            </p>
-          </div>
-
-          {/* Parecer Geral */}
-          <div className="card border-l-4 border-[var(--color-azul-autoridade)]">
-            <div className="flex items-center gap-2 mb-3">
-              <Award size={18} className="text-[var(--color-azul-autoridade)]" />
-              <h3 className="font-bold text-[var(--color-azul-autoridade)]">Parecer Pedagógico Geral</h3>
-            </div>
-            <p className="text-sm text-[var(--color-cinza-texto)] leading-relaxed italic">
-              "{result.parecer.parecerGeral}"
-            </p>
-          </div>
+          <RelatorioOficial dadosGerais={result} parecerIA={result.parecer} />
 
         </div>
       )}
