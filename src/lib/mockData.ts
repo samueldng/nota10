@@ -444,7 +444,7 @@ export interface TarefaSemana {
   disciplina?: string;
   bloco?: string;
   xp: number;
-  status: 'concluido' | 'em_andamento' | 'pendente';
+  status: 'concluido' | 'em_andamento' | 'pendente' | 'bloqueada';
   subTarefas?: {
     id: string;
     titulo: string;

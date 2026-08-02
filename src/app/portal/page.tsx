@@ -10,10 +10,11 @@ import {
 import type { CronogramaSemana } from '@/lib/mockData';
 import {
   CalendarDays, MapPin, Clock, Zap, Flame, Trophy, Lock,
-  CheckCircle2, Circle, Loader2, BookOpen, Star,
+  CheckCircle2, Circle, Loader2, BookOpen, Star, ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function PortalInicioPage() {
   const { user } = useAuth();
@@ -37,22 +38,12 @@ export default function PortalInicioPage() {
   const [mensagemTrilha, setMensagemTrilha] = useState<string | null>(null);
   const [dataInicioTurma, setDataInicioTurma] = useState<string | null>(null);
 
-  // ── BUGFIX #1: Estado reativo de pendência para bloquear duplos cliques
-  const [pendingSubIds, setPendingSubIds] = useState<Set<string>>(new Set());
-  const pendingSubRef = useRef<Set<string>>(new Set());
-
-  const addPendingSub = (key: string) => {
-    pendingSubRef.current.add(key);
-    setPendingSubIds(new Set(pendingSubRef.current));
-  };
-  const removePendingSub = (key: string) => {
-    pendingSubRef.current.delete(key);
-    setPendingSubIds(new Set(pendingSubRef.current));
-  };
+  // ── Concluídas (from API, read-only) — used for display only
+  const [concluidas, setConcluidas] = useState<string[]>([]);
 
   const loadData = useCallback(async () => {
     console.log('🔄 [Portal] Iniciando busca de dados do portal...', { alunoId, turmaId });
-    let concluidas: string[] = [];
+    let concluidasLoaded: string[] = [];
     
     // 1. Try to load XP from the database first
     try {
@@ -66,7 +57,8 @@ export default function PortalInicioPage() {
           proximo: data.xpProximo || 100,
           progresso: data.progresso || 0,
         });
-        concluidas = data.atividadesConcluidas || [];
+        concluidasLoaded = data.atividadesConcluidas || [];
+        setConcluidas(concluidasLoaded);
         setDbLoaded(true);
       } else {
         console.warn(`[Portal] /api/progresso retornou ${res.status} para alunoId=${alunoId}. Usando valores padrão.`);
@@ -110,9 +102,10 @@ export default function PortalInicioPage() {
           const semanasLiberadas = semanas.filter((s: any) => s.liberada);
           const semanaAtual = semanasLiberadas.length > 0 ? semanasLiberadas[semanasLiberadas.length - 1] : semanas[0];
 
-          // ── "O que fazer esta semana" (Apenas atividades bloqueadas ou em andamento / pendentes) ──
-          const atividadesPendentes = semanaAtual?.atividades?.filter((a: any) => 
-            !concluidas.includes(a.id) && 
+          // ── "O que fazer esta semana" — ALL activities (including completed, for read-only status display)
+          const atividadesSemana = semanaAtual?.atividades || [];
+          const atividadesPendentes = atividadesSemana.filter((a: any) => 
+            !concluidasLoaded.includes(a.id) && 
             a.status !== 'concluida' && 
             (a.status === 'bloqueada' || a.status === 'em_andamento' || a.status === 'disponivel' || a.status === 'pendente')
           ) || [];
@@ -126,7 +119,7 @@ export default function PortalInicioPage() {
             bloco: t.bloco || 'Bloco 1',
             xp: t.xp_total || 15,
             turmaNome: dataTrilha.turmaNome || '',
-            status: 'pendente',
+            status: t.status || 'pendente',
             subTarefas: []
           }));
 
@@ -176,7 +169,7 @@ export default function PortalInicioPage() {
               if (!discMap.has(disc)) discMap.set(disc, { total: 0, completos: 0 });
               const obj = discMap.get(disc)!;
               obj.total += 1;
-              if (concluidas.includes(ativ.id) || ativ.status === 'concluida') {
+              if (concluidasLoaded.includes(ativ.id) || ativ.status === 'concluida') {
                 obj.completos += 1;
               }
             }
@@ -246,112 +239,18 @@ export default function PortalInicioPage() {
     console.log('✅ [Portal] Carregamento finalizado.', { alunoId, turmaId });
   }, [alunoId, turmaId]);
 
-  // ── Helper POST ───────────────────────────────────────────────────────────────
-  const postProgresso = useCallback(async (payload: {
-    atividadeId: string; xpGanho: number; tipoAcao: string;
-  }) => {
-    const res = await fetch('/api/progresso', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alunoId, ...payload }),
-    });
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { const b = await res.json(); msg = b?.error || msg; } catch (_) {}
-      throw new Error(msg);
-    }
-    return res.json();
-  }, [alunoId]);
-
-  // ── Toggle tarefa avulsa (sem subtarefas) ─────────────────────────────────────
-  const handleToggleTarefa = useCallback(
-    async (tarefaId: string, xp: number, tipo: string) => {
-      const key = `tarefa::${tarefaId}`;
-      if (pendingSubRef.current.has(key)) return;
-      const tarefa = (cronograma as any)?.tarefas?.find((t: any) => t.id === tarefaId);
-      if (tarefa?.status === 'concluido') return;
-      addPendingSub(key);
-      setCronograma((prev: any) => {
-        if (!prev) return prev;
-        return { ...prev, tarefas: prev.tarefas.map((t: any) => t.id === tarefaId ? { ...t, status: 'concluido' } : t) };
-      });
-      setXpTotal((prev) => prev + xp);
-      try {
-        const data = await postProgresso({ atividadeId: tarefaId, xpGanho: xp, tipoAcao: tipo || 'atividade' });
-        if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
-        if (typeof data.nivel   === 'number') setNivel(data.nivel);
-        window.dispatchEvent(new Event('nota10_progress_updated'));
-      } catch (_) {
-        setCronograma((prev: any) => {
-          if (!prev) return prev;
-          return { ...prev, tarefas: prev.tarefas.map((t: any) => t.id === tarefaId ? { ...t, status: 'pendente' } : t) };
-        });
-        setXpTotal((prev) => prev - xp);
-      } finally { removePendingSub(key); }
-    },
-    [alunoId, cronograma, postProgresso]
-  );
-
-  // ── Toggle subtarefa — cascata gerida pelo front-end ──────────────────────────
-  const handleToggleSubtarefa = useCallback(
-    async (subtarefaId: string, tarefaId: string, xp: number, tipo: string) => {
-      const key = `${tarefaId}::${subtarefaId}`;
-      if (pendingSubRef.current.has(key)) return;
-      const tarefa = (cronograma as any)?.tarefas?.find((t: any) => t.id === tarefaId);
-      if (tarefa?.subTarefas?.find((s: any) => s.id === subtarefaId)?.status === 'concluido') return;
-      addPendingSub(key);
-
-      const subsDepois = (tarefa?.subTarefas ?? []).map((s: any) =>
-        s.id === subtarefaId ? { ...s, status: 'concluido' } : s
-      );
-      const todasConcluidas = subsDepois.every((s: any) => s.status === 'concluido');
-      const paiJaConcluido  = tarefa?.status === 'concluido';
-      const xpPai           = tarefa?.xp ?? 0;
-
-      setCronograma((prev: any) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          tarefas: prev.tarefas.map((t: any) => {
-            if (t.id !== tarefaId) return t;
-            const updatedSubs = t.subTarefas.map((s: any) =>
-              s.id === subtarefaId ? { ...s, status: 'concluido' } : s
-            );
-            return { ...t, subTarefas: updatedSubs, status: updatedSubs.every((s: any) => s.status === 'concluido') ? 'concluido' : t.status };
-          }),
-        };
-      });
-      setXpTotal((prev) => prev + xp + (todasConcluidas && !paiJaConcluido ? xpPai : 0));
-
-      try {
-        const data = await postProgresso({ atividadeId: subtarefaId, xpGanho: xp >= 0 ? xp : 1, tipoAcao: tipo || 'atividade' });
-        if (typeof data.xpTotal === 'number') setXpTotal(data.xpTotal);
-        if (typeof data.nivel   === 'number') setNivel(data.nivel);
-        // Cascata: POST 2 para o XP da tarefa pai
-        if (todasConcluidas && !paiJaConcluido && xpPai > 0) {
-          try {
-            const paiData = await postProgresso({ atividadeId: tarefaId, xpGanho: xpPai, tipoAcao: 'tarefa_concluida' });
-            if (typeof paiData.xpTotal === 'number') setXpTotal(paiData.xpTotal);
-            if (typeof paiData.nivel   === 'number') setNivel(paiData.nivel);
-          } catch (_) { /* XP do pai falhou — não é crítico */ }
-        }
-        window.dispatchEvent(new Event('nota10_progress_updated'));
-      } catch (_) {
-        setCronograma((prev: any) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            tarefas: prev.tarefas.map((t: any) => {
-              if (t.id !== tarefaId) return t;
-              return { ...t, subTarefas: t.subTarefas.map((s: any) => s.id === subtarefaId ? { ...s, status: 'pendente' } : s) };
-            }),
-          };
-        });
-        setXpTotal((prev) => prev - xp - (todasConcluidas && !paiJaConcluido ? xpPai : 0));
-      } finally { removePendingSub(key); }
-    },
-    [alunoId, cronograma, postProgresso]
-  );
+  // ── Route resolver: maps task type to the appropriate portal page ─────────
+  const getTaskHref = (tarefa: any): string | null => {
+    const tipo = tarefa.tipo;
+    const id = tarefa.id;
+    if (tipo === 'videoaula' || tipo === 'preparacao') return `/portal/videoaulas/${id}`;
+    if (tipo === 'questoes' || tipo === 'simulado') return '/portal/simulados';
+    if (tipo === 'revisao') return '/portal/revisao';
+    if (tipo === 'fixacao') return '/portal/fixacao';
+    if (tipo === 'presencial' || tipo === 'aula_presencial') return null; // No link for in-person
+    // Default: link to trilha
+    return '/portal/trilha';
+  };
 
   useEffect(() => {
     console.log('🚀 [Portal] useEffect disparado — iniciando loadData...');
@@ -593,47 +492,41 @@ export default function PortalInicioPage() {
               <p className="text-xs text-[var(--color-cinza-texto)] mt-1 opacity-70">O cronograma será exibido assim que atividades forem cadastradas para sua turma.</p>
             </div>
           ) : cronograma.tarefas.map((tarefa) => {
-            const hasSubtarefas   = tarefa.subTarefas && tarefa.subTarefas.length > 0;
-            const isDoneMain      = tarefa.status === 'concluido';
-            const isPendingMain   = pendingSubIds.has(`tarefa::${tarefa.id}`);
-            return (
-            <div key={tarefa.id} className={`p-4 rounded-xl border transition-all ${
+            const isDoneMain = tarefa.status === 'concluido' || concluidas.includes(tarefa.id);
+            const isBloqueada = tarefa.status === 'bloqueada';
+            const taskHref = getTaskHref(tarefa);
+
+            const cardClasses = `p-4 rounded-xl border transition-all ${
               isDoneMain
                 ? 'bg-[var(--color-verde-light)] border-[var(--color-verde-sucesso)]/30'
+                : isBloqueada
+                ? 'bg-gray-50 border-[var(--color-cinza-borda)] opacity-60'
                 : tarefa.status === 'em_andamento'
                 ? 'bg-[var(--color-amarelo-alerta-light)] border-[var(--color-amarelo-alerta)]/30'
                 : 'bg-white border-[var(--color-cinza-borda)]'
-            }`}>
+            } ${
+              !isDoneMain && !isBloqueada && taskHref
+                ? 'hover:border-[var(--color-azul-autoridade)]/30 hover:shadow-sm cursor-pointer'
+                : ''
+            }`;
+
+            const cardContent = (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  {/* Ícone / Checkbox da tarefa */}
-                  {!hasSubtarefas ? (
-                    <button
-                      id={`tarefa-${tarefa.id}`}
-                      onClick={() => handleToggleTarefa(tarefa.id, tarefa.xp, tarefa.tipo)}
-                      disabled={isDoneMain || isPendingMain}
-                      aria-label={`${isDoneMain ? 'Concluída' : 'Marcar como concluída'}: ${tarefa.titulo}`}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
-                        isDoneMain
-                          ? 'bg-[var(--color-verde-sucesso)] text-white cursor-default'
-                          : isPendingMain
-                          ? 'bg-[var(--color-cinza-fundo)] text-[var(--color-azul-autoridade)] cursor-wait'
-                          : 'bg-[var(--color-cinza-fundo)] text-[var(--color-cinza-texto)] border border-[var(--color-cinza-borda)] hover:border-[var(--color-azul-autoridade)] hover:text-[var(--color-azul-autoridade)] cursor-pointer active:scale-95'
-                      }`}
-                    >
-                      {isPendingMain ? <Loader2 size={14} className="animate-spin" /> : isDoneMain ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                    </button>
-                  ) : (
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                      isDoneMain ? 'bg-[var(--color-verde-sucesso)] text-white'
-                      : tarefa.status === 'em_andamento' ? 'bg-[var(--color-amarelo-alerta)] text-white'
+                  {/* Read-only status icon — NO click handler */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                    isDoneMain
+                      ? 'bg-[var(--color-verde-sucesso)] text-white'
+                      : isBloqueada
+                      ? 'bg-gray-200 text-gray-400'
+                      : tarefa.status === 'em_andamento'
+                      ? 'bg-[var(--color-amarelo-alerta)] text-white'
                       : 'bg-[var(--color-cinza-fundo)] text-[var(--color-cinza-texto)] border border-[var(--color-cinza-borda)]'
-                    }`}>
-                      {isDoneMain ? <CheckCircle2 size={16} /> : tarefa.status === 'em_andamento' ? <Loader2 size={16} /> : tarefa.ordem}
-                    </div>
-                  )}
+                  }`}>
+                    {isDoneMain ? <CheckCircle2 size={16} /> : isBloqueada ? <Lock size={14} /> : <Circle size={16} />}
+                  </div>
                   <div>
-                    <p className={`text-sm font-bold ${isDoneMain ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-azul-autoridade)]'}`}>
+                    <p className={`text-sm font-bold ${isDoneMain ? 'text-[var(--color-verde-sucesso)] line-through' : isBloqueada ? 'text-gray-400' : 'text-[var(--color-azul-autoridade)]'}`}>
                       {tarefa.titulo}
                     </p>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -648,53 +541,30 @@ export default function PortalInicioPage() {
                     </div>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-[var(--color-amarelo-conquista)] flex items-center gap-0.5 flex-shrink-0">
-                  <Zap size={10} /> +{tarefa.xp} XP
-                </span>
-              </div>
-
-              {/* Sub-tarefas — interativas (só quando existem) */}
-              {hasSubtarefas && (
-                <div className="mt-3 ml-11 space-y-2">
-                  {(tarefa.subTarefas ?? []).map((sub) => {
-                    const isDone    = sub.status === 'concluido';
-                    const isPending = pendingSubIds.has(`${tarefa.id}::${sub.id}`);
-                    return (
-                      <button
-                        key={sub.id}
-                        onClick={() => handleToggleSubtarefa(sub.id, tarefa.id, sub.xp ?? 0, tarefa.tipo)}
-                        disabled={isDone || isPending}
-                        className={`
-                          w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5
-                          transition-all duration-150 group
-                          ${isDone ? 'cursor-default' : 'cursor-pointer hover:bg-[var(--color-azul-lightest)] active:scale-[0.98]'}
-                        `}
-                        aria-label={`${isDone ? 'Concluída' : 'Marcar como concluída'}: ${sub.titulo}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {isPending ? (
-                            <Loader2 size={14} className="text-[var(--color-azul-autoridade)] animate-spin flex-shrink-0" />
-                          ) : isDone ? (
-                            <CheckCircle2 size={14} className="text-[var(--color-verde-sucesso)] flex-shrink-0" />
-                          ) : (
-                            <Circle size={14} className="text-[var(--color-cinza-borda)] group-hover:text-[var(--color-azul-autoridade)] transition-colors flex-shrink-0" />
-                          )}
-                          <span className={`text-xs transition-colors ${
-                            isDone ? 'text-[var(--color-verde-sucesso)] line-through' : 'text-[var(--color-cinza-escuro)] group-hover:text-[var(--color-azul-autoridade)]'
-                          }`}>{sub.titulo}</span>
-                        </div>
-                        <span className={`text-[9px] flex-shrink-0 flex items-center gap-0.5 ${
-                          isDone ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-cinza-texto)] group-hover:text-[var(--color-amarelo-conquista)]'
-                        }`}>
-                          <Zap size={8} className={isDone ? 'text-[var(--color-verde-sucesso)]' : 'text-[var(--color-amarelo-conquista)]'} />
-                          {isDone ? '' : '+'}{sub.xp} XP
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] font-bold text-[var(--color-amarelo-conquista)] flex items-center gap-0.5">
+                    <Zap size={10} /> {isDoneMain ? '' : '+'}{tarefa.xp} XP
+                  </span>
+                  {!isDoneMain && !isBloqueada && taskHref && (
+                    <ExternalLink size={12} className="text-[var(--color-cinza-texto)] opacity-50" />
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            );
+
+            // Linkable items navigate to their dedicated page; blocked/completed items are static
+            if (!isDoneMain && !isBloqueada && taskHref) {
+              return (
+                <Link key={tarefa.id} href={taskHref} className={`${cardClasses} block no-underline`}>
+                  {cardContent}
+                </Link>
+              );
+            }
+
+            return (
+              <div key={tarefa.id} className={cardClasses}>
+                {cardContent}
+              </div>
             );
           })}
         </div>

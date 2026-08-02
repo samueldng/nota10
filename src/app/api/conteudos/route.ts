@@ -72,7 +72,24 @@ export async function GET(request: Request) {
     const tipoConteudo = searchParams.get('tipoConteudo');
 
     if (alunoId && UUID_REGEX.test(alunoId)) {
-      let sql = `
+      // ── DRIP CONTENT GATEKEEPER ──────────────────────────────────────
+      // Two-pass query: released items get full URL, future items get url=null.
+      // This ensures video links NEVER reach the browser before their release date.
+
+      const baseWhere = `
+        c.status = true
+        AND c.turma_id IN (SELECT turma_id FROM matriculas WHERE aluno_id = $1 AND status = 'ativo')
+        AND c.titulo NOT ILIKE '%Bem Vindo ao PRÉ-CMT%'
+        AND c.titulo NOT ILIKE '%REVELADO%Segredo%aprovado%'
+      `;
+
+      const tipoFilter = tipoConteudo ? ` AND c.tipo_conteudo = $2` : '';
+      const params: any[] = [alunoId];
+      if (tipoConteudo) params.push(tipoConteudo);
+
+      // Pass 1: Released content (date is past or NULL) — full data including URL
+      // Use COALESCE to prefer cronograma's data_liberacao if it exists
+      const releasedSql = `
         SELECT 
           MIN(c.id::text)::uuid as id,
           MIN(c.turma_id::text)::uuid as turma_id,
@@ -82,28 +99,61 @@ export async function GET(request: Request) {
           MIN(c.descricao) as descricao,
           c.url_acesso,
           MIN(c.disciplina) as disciplina,
-          MIN(c.data_disponibilizacao) as data_disponibilizacao,
+          MIN(COALESCE(ca.data_liberacao, c.data_disponibilizacao)) as data_disponibilizacao,
           MIN(c.status::int)::boolean as status,
           MIN(c.acompanhamento) as acompanhamento,
           MIN(c.created_at) as created_at,
-          MIN(c.updated_at) as updated_at
+          MIN(c.updated_at) as updated_at,
+          false as bloqueado
         FROM conteudos_midia c
         JOIN turmas t ON c.turma_id = t.id
-        WHERE c.status = true 
-          AND c.turma_id IN (SELECT turma_id FROM matriculas WHERE aluno_id = $1 AND status = 'ativo')
-          AND c.titulo NOT ILIKE '%Bem Vindo ao PRÉ-CMT%'
-          AND c.titulo NOT ILIKE '%REVELADO%Segredo%aprovado%'
+        LEFT JOIN cronograma_atividades ca ON ca.id::text = c.id::text
+        WHERE ${baseWhere}
+          AND COALESCE(ca.data_liberacao, c.data_disponibilizacao) IS NOT NULL
+          AND COALESCE(ca.data_liberacao, c.data_disponibilizacao) <= CURRENT_DATE
+          ${tipoFilter}
+        GROUP BY c.url_acesso, c.tipo_conteudo, c.titulo
+        ORDER BY MIN(ca.semana_numero) ASC NULLS LAST, MIN(ca.ordem) ASC NULLS LAST, MIN(c.titulo) ASC
       `;
-      const params: any[] = [alunoId];
 
-      if (tipoConteudo) {
-        sql += ` AND c.tipo_conteudo = $2`;
-        params.push(tipoConteudo);
-      }
+      // Pass 2: Future content — title/discipline/date ONLY, url_acesso deliberately NULL
+      const futureSql = `
+        SELECT 
+          MIN(c.id::text)::uuid as id,
+          MIN(c.turma_id::text)::uuid as turma_id,
+          string_agg(DISTINCT t.nome, ', ') as turma_nome,
+          c.tipo_conteudo,
+          c.titulo,
+          MIN(c.descricao) as descricao,
+          NULL as url_acesso,
+          MIN(c.disciplina) as disciplina,
+          MIN(COALESCE(ca.data_liberacao, c.data_disponibilizacao)) as data_disponibilizacao,
+          MIN(c.status::int)::boolean as status,
+          MIN(c.acompanhamento) as acompanhamento,
+          MIN(c.created_at) as created_at,
+          MIN(c.updated_at) as updated_at,
+          true as bloqueado
+        FROM conteudos_midia c
+        JOIN turmas t ON c.turma_id = t.id
+        LEFT JOIN cronograma_atividades ca ON ca.id::text = c.id::text
+        WHERE ${baseWhere}
+          AND (COALESCE(ca.data_liberacao, c.data_disponibilizacao) IS NULL OR COALESCE(ca.data_liberacao, c.data_disponibilizacao) > CURRENT_DATE)
+          ${tipoFilter}
+        GROUP BY c.url_acesso, c.tipo_conteudo, c.titulo
+        ORDER BY MIN(COALESCE(ca.data_liberacao, c.data_disponibilizacao)) ASC NULLS LAST, MIN(ca.ordem) ASC NULLS LAST, MIN(c.titulo) ASC
+      `;
 
-      sql += ` GROUP BY c.url_acesso, c.tipo_conteudo, c.titulo ORDER BY MIN(c.data_disponibilizacao) DESC NULLS LAST, MIN(c.created_at) DESC`;
-      const result = await query(sql, params);
-      return NextResponse.json(result.rows.map(formatRow));
+      const [releasedRes, futureRes] = await Promise.all([
+        query(releasedSql, params),
+        query(futureSql, params),
+      ]);
+
+      const allRows = [
+        ...releasedRes.rows.map(formatRow),
+        ...futureRes.rows.map((row: any) => ({ ...formatRow(row), bloqueado: true })),
+      ];
+
+      return NextResponse.json(allRows);
     }
 
     // Admin view: no turmaId filter — return all
